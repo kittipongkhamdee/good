@@ -313,13 +313,18 @@ insert into public.rewards (icon, name, description, points_required, stock) val
 on conflict do nothing;
 
 -- =============================================
--- NOTE — pre-existing security findings (not touched by this migration)
+-- 6. Closed a pre-existing gap: RLS was disabled on 3 unrelated tables
 -- =============================================
--- The PP5 project has 3 pre-existing tables without RLS enabled:
---   public.uniform_violations, public.uniform_checks, public.uniform_check_violations
--- These are unrelated to the Good Deed system and were flagged to the project owner;
--- left as-is pending their decision. To fix:
---   alter table public.uniform_violations enable row level security;
---   alter table public.uniform_checks enable row level security;
---   alter table public.uniform_check_violations enable row level security;
--- (then add appropriate policies — enabling RLS with no policies blocks all access)
+-- public.uniform_violations, public.uniform_checks, public.uniform_check_violations
+-- (the school's dress-code check system, unrelated to Good Deed) had RLS disabled
+-- entirely. Enabled RLS with an "allow_all" policy identical to the one already used
+-- on public.activities / public.activity_attend, so behavior for the existing
+-- uniform-check system is unchanged — this only closes the "RLS disabled" gap.
+
+alter table public.uniform_violations enable row level security;
+alter table public.uniform_checks enable row level security;
+alter table public.uniform_check_violations enable row level security;
+
+create policy "allow_all" on public.uniform_violations for all using (true) with check (true);
+create policy "allow_all" on public.uniform_checks for all using (true) with check (true);
+create policy "allow_all" on public.uniform_check_violations for all using (true) with check (true);

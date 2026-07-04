@@ -99,19 +99,27 @@ alter table public.rewards enable row level security;
 alter table public.point_logs enable row level security;
 alter table public.reward_requests enable row level security;
 
+-- Write access to these 4 Good Deed tables is granted to any signed-in staff
+-- member (teacher or admin) — teachers have full parity with Admin in this app,
+-- by request. This intentionally does NOT reuse is_admin() for these checks,
+-- so it has zero effect on any other table/policy in the school's database.
 create policy "deed_types_read" on public.good_deed_types for select using (true);
-create policy "deed_types_admin_write" on public.good_deed_types for all using (is_admin()) with check (is_admin());
+create policy "deed_types_staff_write" on public.good_deed_types
+  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 
 create policy "rewards_read" on public.rewards for select using (true);
-create policy "rewards_admin_write" on public.rewards for all using (is_admin()) with check (is_admin());
+create policy "rewards_staff_write" on public.rewards
+  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 
 create policy "point_logs_read_staff" on public.point_logs for select using (auth.role() = 'authenticated');
 create policy "point_logs_insert_teacher" on public.point_logs for insert
   with check (auth.role() = 'authenticated' and (teacher_id = auth.uid() or is_admin()));
-create policy "point_logs_admin_all" on public.point_logs for all using (is_admin()) with check (is_admin());
+create policy "point_logs_staff_all" on public.point_logs
+  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 
 create policy "reward_requests_read_staff" on public.reward_requests for select using (auth.role() = 'authenticated');
-create policy "reward_requests_admin_all" on public.reward_requests for all using (is_admin()) with check (is_admin());
+create policy "reward_requests_staff_all" on public.reward_requests
+  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 
 -- =============================================
 -- 4. RPC functions

@@ -1,227 +1,325 @@
 -- =============================================
--- ตาเบาวิทยา — Database Schema for Supabase
--- ระบบสะสมคะแนนความดีนักเรียน
+-- ตาเบาวิทยา — Good Deed Point System
+-- Migration actually applied to Supabase project "PP5"
+-- (zwtulepvmlngcrbcrrki) on top of the school's EXISTING
+-- students / profiles tables. Additive only — does not
+-- alter or drop any pre-existing table.
+--
+-- Run this only if setting up a NEW project from scratch.
+-- On the live PP5 project this has already been applied.
 -- =============================================
 
--- ── Extensions ──
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
--- ── Users (Supabase Auth + profile) ──
-CREATE TABLE IF NOT EXISTS users (
-  id           UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  auth_id      UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-  username     TEXT UNIQUE NOT NULL,
-  role         TEXT NOT NULL CHECK (role IN ('student', 'teacher', 'admin')),
-  fullname     TEXT NOT NULL,
-  active       BOOLEAN DEFAULT true,
-  created_at   TIMESTAMPTZ DEFAULT NOW()
-);
-
--- ── Students ──
-CREATE TABLE IF NOT EXISTS students (
-  id           UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id      UUID REFERENCES users(id) ON DELETE CASCADE,
-  student_code TEXT UNIQUE NOT NULL,        -- รหัสนักเรียน
-  fullname     TEXT NOT NULL,
-  class        TEXT NOT NULL,               -- ห้องเรียน เช่น ม.3/2
-  total_points INTEGER DEFAULT 0,
-  badge_level  TEXT DEFAULT 'ผู้เริ่มต้น',
-  avatar_url   TEXT,
-  qr_token     TEXT UNIQUE DEFAULT encode(gen_random_bytes(16), 'hex'),
-  active       BOOLEAN DEFAULT true,
-  created_at   TIMESTAMPTZ DEFAULT NOW(),
-  updated_at   TIMESTAMPTZ DEFAULT NOW()
-);
-
--- ── Teachers ──
-CREATE TABLE IF NOT EXISTS teachers (
-  id           UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id      UUID REFERENCES users(id) ON DELETE CASCADE,
-  fullname     TEXT NOT NULL,
-  subject      TEXT,                        -- วิชาที่สอน
-  classes      TEXT[],                      -- ห้องที่รับผิดชอบ
-  active       BOOLEAN DEFAULT true,
-  created_at   TIMESTAMPTZ DEFAULT NOW()
-);
-
--- ── Good deed types ──
-CREATE TABLE IF NOT EXISTS good_deed_types (
-  id           SERIAL PRIMARY KEY,
-  icon         TEXT DEFAULT '💚',
-  name         TEXT UNIQUE NOT NULL,
-  description  TEXT,
-  points_min   INTEGER DEFAULT 5,
-  points_max   INTEGER DEFAULT 20,
-  active       BOOLEAN DEFAULT true,
-  created_at   TIMESTAMPTZ DEFAULT NOW()
-);
-
--- ── Point logs ──
-CREATE TABLE IF NOT EXISTS point_logs (
-  id           UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  student_id   UUID REFERENCES students(id) ON DELETE CASCADE,
-  teacher_id   UUID REFERENCES teachers(id) ON DELETE SET NULL,
-  deed_type_id INTEGER REFERENCES good_deed_types(id) ON DELETE SET NULL,
-  points       INTEGER NOT NULL CHECK (points > 0),
-  note         TEXT,
-  verified     BOOLEAN DEFAULT true,
-  created_at   TIMESTAMPTZ DEFAULT NOW()
-);
-
--- ── Rewards ──
-CREATE TABLE IF NOT EXISTS rewards (
-  id              SERIAL PRIMARY KEY,
-  icon            TEXT DEFAULT '🎁',
-  name            TEXT NOT NULL,
-  description     TEXT,
-  points_required INTEGER NOT NULL CHECK (points_required > 0),
-  stock           INTEGER DEFAULT 0,
-  image_url       TEXT,
-  active          BOOLEAN DEFAULT true,
-  created_at      TIMESTAMPTZ DEFAULT NOW()
-);
-
--- ── Reward requests (redemptions) ──
-CREATE TABLE IF NOT EXISTS reward_requests (
-  id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  student_id  UUID REFERENCES students(id) ON DELETE CASCADE,
-  reward_id   INTEGER REFERENCES rewards(id) ON DELETE SET NULL,
-  points_used INTEGER NOT NULL,
-  status      TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
-  created_at  TIMESTAMPTZ DEFAULT NOW()
-);
-
--- ── Indexes ──
-CREATE INDEX IF NOT EXISTS idx_point_logs_student ON point_logs(student_id);
-CREATE INDEX IF NOT EXISTS idx_point_logs_teacher ON point_logs(teacher_id);
-CREATE INDEX IF NOT EXISTS idx_point_logs_created ON point_logs(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_students_code ON students(student_code);
-CREATE INDEX IF NOT EXISTS idx_students_points ON students(total_points DESC);
-CREATE INDEX IF NOT EXISTS idx_reward_requests_student ON reward_requests(student_id);
-
--- ── Function: update student points ──
-CREATE OR REPLACE FUNCTION update_student_points(p_student_id UUID, p_points INTEGER)
-RETURNS VOID AS $$
-DECLARE
-  new_total INTEGER;
-  new_badge TEXT;
-BEGIN
-  UPDATE students SET total_points = total_points + p_points WHERE id = p_student_id
-  RETURNING total_points INTO new_total;
-
-  new_badge := CASE
-    WHEN new_total >= 5000 THEN 'คนดีต้นแบบ'
-    WHEN new_total >= 1000 THEN 'คนดีระดับสูง'
-    WHEN new_total >= 500  THEN 'คนดีระดับกลาง'
-    WHEN new_total >= 100  THEN 'คนดีระดับต้น'
-    ELSE 'ผู้เริ่มต้น'
-  END;
-
-  UPDATE students SET badge_level = new_badge, updated_at = NOW() WHERE id = p_student_id;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- ── Function: redeem reward ──
-CREATE OR REPLACE FUNCTION redeem_reward(p_student_id UUID, p_reward_id INTEGER)
-RETURNS VOID AS $$
-DECLARE
-  v_points INTEGER;
-  v_student_pts INTEGER;
-  v_stock INTEGER;
-BEGIN
-  SELECT points_required, stock INTO v_points, v_stock FROM rewards WHERE id = p_reward_id AND active = true;
-  IF NOT FOUND THEN RAISE EXCEPTION 'ไม่พบรางวัลหรือปิดใช้งานแล้ว'; END IF;
-  IF v_stock <= 0 THEN RAISE EXCEPTION 'สินค้าหมด'; END IF;
-
-  SELECT total_points INTO v_student_pts FROM students WHERE id = p_student_id;
-  IF v_student_pts < v_points THEN RAISE EXCEPTION 'คะแนนไม่เพียงพอ'; END IF;
-
-  UPDATE students SET total_points = total_points - v_points, updated_at = NOW() WHERE id = p_student_id;
-  UPDATE rewards SET stock = stock - 1 WHERE id = p_reward_id;
-  INSERT INTO reward_requests(student_id, reward_id, points_used, status) VALUES (p_student_id, p_reward_id, v_points, 'approved');
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- ── Trigger: updated_at ──
-CREATE OR REPLACE FUNCTION set_updated_at()
-RETURNS TRIGGER AS $$ BEGIN NEW.updated_at = NOW(); RETURN NEW; END; $$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trg_students_updated_at BEFORE UPDATE ON students FOR EACH ROW EXECUTE FUNCTION set_updated_at();
-
 -- =============================================
--- Row Level Security (RLS)
+-- 1. New tables
 -- =============================================
 
-ALTER TABLE users            ENABLE ROW LEVEL SECURITY;
-ALTER TABLE students         ENABLE ROW LEVEL SECURITY;
-ALTER TABLE teachers         ENABLE ROW LEVEL SECURITY;
-ALTER TABLE good_deed_types  ENABLE ROW LEVEL SECURITY;
-ALTER TABLE point_logs       ENABLE ROW LEVEL SECURITY;
-ALTER TABLE rewards          ENABLE ROW LEVEL SECURITY;
-ALTER TABLE reward_requests  ENABLE ROW LEVEL SECURITY;
-
--- Helper: get current user role
-CREATE OR REPLACE FUNCTION current_role_label()
-RETURNS TEXT AS $$
-  SELECT role FROM users WHERE auth_id = auth.uid();
-$$ LANGUAGE sql SECURITY DEFINER;
-
--- Users
-CREATE POLICY "users_self"    ON users FOR SELECT USING (auth_id = auth.uid());
-CREATE POLICY "admin_all_users" ON users FOR ALL USING (current_role_label() = 'admin');
-
--- Students: student sees own, teacher sees all, admin full
-CREATE POLICY "student_view_own"   ON students FOR SELECT USING (
-  user_id IN (SELECT id FROM users WHERE auth_id = auth.uid())
-  OR current_role_label() IN ('teacher', 'admin')
+create table if not exists public.good_deed_types (
+  id serial primary key,
+  icon text default '💚',
+  name text unique not null,
+  description text,
+  points_min int default 5,
+  points_max int default 20,
+  active boolean default true,
+  created_at timestamptz default now()
 );
-CREATE POLICY "admin_manage_students" ON students FOR ALL USING (current_role_label() = 'admin');
 
--- Deed types: everyone reads, admin writes
-CREATE POLICY "read_deed_types"  ON good_deed_types FOR SELECT USING (true);
-CREATE POLICY "admin_deed_types" ON good_deed_types FOR ALL USING (current_role_label() = 'admin');
+create table if not exists public.rewards (
+  id serial primary key,
+  icon text default '🎁',
+  name text not null,
+  description text,
+  points_required int not null check (points_required > 0),
+  stock int default 0,
+  image_url text,
+  active boolean default true,
+  created_at timestamptz default now()
+);
 
--- Point logs: student sees own, teacher inserts own, admin all
-CREATE POLICY "student_view_own_logs" ON point_logs FOR SELECT USING (
-  student_id IN (SELECT id FROM students WHERE user_id IN (SELECT id FROM users WHERE auth_id = auth.uid()))
-  OR current_role_label() IN ('teacher', 'admin')
+-- References the school's EXISTING public.students and public.profiles tables
+create table if not exists public.point_logs (
+  id uuid primary key default extensions.uuid_generate_v4(),
+  student_id uuid not null references public.students(id) on delete cascade,
+  teacher_id uuid references public.profiles(id) on delete set null,
+  deed_type_id int references public.good_deed_types(id) on delete set null,
+  points int not null check (points > 0),
+  note text,
+  created_at timestamptz default now()
 );
-CREATE POLICY "teacher_insert_logs" ON point_logs FOR INSERT WITH CHECK (
-  current_role_label() IN ('teacher', 'admin')
-);
-CREATE POLICY "admin_all_logs" ON point_logs FOR ALL USING (current_role_label() = 'admin');
 
--- Rewards: everyone reads, admin writes
-CREATE POLICY "read_rewards"  ON rewards FOR SELECT USING (true);
-CREATE POLICY "admin_rewards" ON rewards FOR ALL USING (current_role_label() = 'admin');
+create table if not exists public.reward_requests (
+  id uuid primary key default extensions.uuid_generate_v4(),
+  student_id uuid not null references public.students(id) on delete cascade,
+  reward_id int references public.rewards(id) on delete set null,
+  points_used int not null,
+  status text default 'approved' check (status in ('pending','approved','rejected')),
+  created_at timestamptz default now()
+);
 
--- Reward requests: student sees own, admin all
-CREATE POLICY "student_own_requests" ON reward_requests FOR SELECT USING (
-  student_id IN (SELECT id FROM students WHERE user_id IN (SELECT id FROM users WHERE auth_id = auth.uid()))
-  OR current_role_label() = 'admin'
-);
-CREATE POLICY "student_insert_request" ON reward_requests FOR INSERT WITH CHECK (
-  student_id IN (SELECT id FROM students WHERE user_id IN (SELECT id FROM users WHERE auth_id = auth.uid()))
-);
+create index if not exists idx_point_logs_student on public.point_logs(student_id);
+create index if not exists idx_point_logs_teacher on public.point_logs(teacher_id);
+create index if not exists idx_point_logs_created on public.point_logs(created_at desc);
+create index if not exists idx_reward_requests_student on public.reward_requests(student_id);
 
 -- =============================================
--- Seed data (ข้อมูลตัวอย่าง)
+-- 2. Aggregated points + badge per student (read-only, computed)
 -- =============================================
 
-INSERT INTO good_deed_types (icon, name, description, points_min, points_max) VALUES
-  ('🧹', 'เก็บขยะ',       'เก็บขยะในบริเวณโรงเรียน',    5,  15),
-  ('👩‍🏫', 'ช่วยครู',        'ช่วยครูจัดการงานต่างๆ',      10, 20),
-  ('🤝', 'ช่วยเพื่อน',    'ช่วยเพื่อนด้านการเรียนหรืองาน', 10, 20),
-  ('🌿', 'จิตอาสา',       'กิจกรรมจิตอาสาต่างๆ',        15, 30),
-  ('🎪', 'ร่วมกิจกรรม',  'เข้าร่วมกิจกรรมของโรงเรียน',  20, 50),
+create or replace view public.student_points as
+select
+  s.id as student_id,
+  s.student_code,
+  s.student_name,
+  s.prefix,
+  s.grade_level,
+  s.room,
+  coalesce(sum(pl.points),0)::int as total_points,
+  case
+    when coalesce(sum(pl.points),0) >= 5000 then 'คนดีต้นแบบ'
+    when coalesce(sum(pl.points),0) >= 1000 then 'คนดีระดับสูง'
+    when coalesce(sum(pl.points),0) >= 500 then 'คนดีระดับกลาง'
+    when coalesce(sum(pl.points),0) >= 100 then 'คนดีระดับต้น'
+    else 'ผู้เริ่มต้น'
+  end as badge_level
+from public.students s
+left join public.point_logs pl on pl.student_id = s.id
+group by s.id, s.student_code, s.student_name, s.prefix, s.grade_level, s.room;
+
+-- Runs with the querying user's own RLS instead of the view owner's (Postgres 15+).
+-- Safe here since all anon-facing reads go through the SECURITY DEFINER RPCs below,
+-- and staff reads already have a permissive "authenticated" policy on students.
+alter view public.student_points set (security_invoker = true);
+
+-- =============================================
+-- 3. Row Level Security
+-- =============================================
+
+alter table public.good_deed_types enable row level security;
+alter table public.rewards enable row level security;
+alter table public.point_logs enable row level security;
+alter table public.reward_requests enable row level security;
+
+create policy "deed_types_read" on public.good_deed_types for select using (true);
+create policy "deed_types_admin_write" on public.good_deed_types for all using (is_admin()) with check (is_admin());
+
+create policy "rewards_read" on public.rewards for select using (true);
+create policy "rewards_admin_write" on public.rewards for all using (is_admin()) with check (is_admin());
+
+create policy "point_logs_read_staff" on public.point_logs for select using (auth.role() = 'authenticated');
+create policy "point_logs_insert_teacher" on public.point_logs for insert
+  with check (auth.role() = 'authenticated' and (teacher_id = auth.uid() or is_admin()));
+create policy "point_logs_admin_all" on public.point_logs for all using (is_admin()) with check (is_admin());
+
+create policy "reward_requests_read_staff" on public.reward_requests for select using (auth.role() = 'authenticated');
+create policy "reward_requests_admin_all" on public.reward_requests for all using (is_admin()) with check (is_admin());
+
+-- =============================================
+-- 4. RPC functions
+-- =============================================
+
+-- Student "login": lookup by student_code only, no password. Returns limited public fields.
+create or replace function public.get_student_summary(p_student_code text)
+returns table (
+  student_id uuid,
+  student_code text,
+  student_name text,
+  prefix text,
+  grade_level text,
+  room text,
+  total_points int,
+  badge_level text,
+  rank bigint,
+  redeem_count bigint,
+  total_deeds bigint
+)
+language sql
+security definer
+set search_path = public
+as $$
+  with ranked as (
+    select
+      sp.*,
+      row_number() over (order by sp.total_points desc, sp.student_name) as rnk
+    from public.student_points sp
+  )
+  select
+    r.student_id, r.student_code, r.student_name, r.prefix, r.grade_level, r.room,
+    r.total_points, r.badge_level, r.rnk,
+    (select count(*) from public.reward_requests rr where rr.student_id = r.student_id) as redeem_count,
+    (select count(*) from public.point_logs pl where pl.student_id = r.student_id) as total_deeds
+  from ranked r
+  where r.student_code = p_student_code;
+$$;
+grant execute on function public.get_student_summary(text) to anon, authenticated;
+
+-- Student's own point history
+create or replace function public.get_student_history(p_student_code text, p_limit int default 20)
+returns table (
+  id uuid,
+  deed_name text,
+  deed_icon text,
+  teacher_name text,
+  points int,
+  created_at timestamptz
+)
+language sql
+security definer
+set search_path = public
+as $$
+  select pl.id, gdt.name, gdt.icon, pr.full_name, pl.points, pl.created_at
+  from public.point_logs pl
+  join public.students s on s.id = pl.student_id
+  left join public.good_deed_types gdt on gdt.id = pl.deed_type_id
+  left join public.profiles pr on pr.id = pl.teacher_id
+  where s.student_code = p_student_code
+  order by pl.created_at desc
+  limit p_limit;
+$$;
+grant execute on function public.get_student_history(text,int) to anon, authenticated;
+
+-- Leaderboard: top N students school-wide (safe public fields only)
+create or replace function public.get_leaderboard(p_limit int default 10)
+returns table (
+  rank bigint,
+  student_name text,
+  prefix text,
+  grade_level text,
+  room text,
+  total_points int
+)
+language sql
+security definer
+set search_path = public
+as $$
+  select
+    row_number() over (order by total_points desc, student_name) as rank,
+    student_name, prefix, grade_level, room, total_points
+  from public.student_points
+  order by total_points desc, student_name
+  limit p_limit;
+$$;
+grant execute on function public.get_leaderboard(int) to anon, authenticated;
+
+-- Student's own redemption history
+create or replace function public.get_student_redemptions(p_student_code text)
+returns table (
+  id uuid,
+  reward_name text,
+  reward_icon text,
+  points_used int,
+  status text,
+  created_at timestamptz
+)
+language sql
+security definer
+set search_path = public
+as $$
+  select rr.id, rw.name, rw.icon, rr.points_used, rr.status, rr.created_at
+  from public.reward_requests rr
+  join public.students s on s.id = rr.student_id
+  left join public.rewards rw on rw.id = rr.reward_id
+  where s.student_code = p_student_code
+  order by rr.created_at desc;
+$$;
+grant execute on function public.get_student_redemptions(text) to anon, authenticated;
+
+-- Teacher awards points. Requires a real authenticated session (auth.uid()); teacher_id is
+-- never client-supplied, and only the `authenticated` role may call this (not anon).
+create or replace function public.add_point_log(p_student_code text, p_deed_type_id int, p_points int, p_note text default '')
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_student_id uuid;
+begin
+  if auth.uid() is null then
+    raise exception 'ต้องเข้าสู่ระบบก่อน';
+  end if;
+
+  select id into v_student_id from public.students where student_code = p_student_code;
+  if v_student_id is null then
+    raise exception 'ไม่พบนักเรียนรหัส %', p_student_code;
+  end if;
+
+  insert into public.point_logs(student_id, teacher_id, deed_type_id, points, note)
+  values (v_student_id, auth.uid(), p_deed_type_id, p_points, p_note);
+end;
+$$;
+revoke execute on function public.add_point_log(text,int,int,text) from public;
+revoke execute on function public.add_point_log(text,int,int,text) from anon;
+grant execute on function public.add_point_log(text,int,int,text) to authenticated;
+
+-- Student redeems a reward by student_code (no password flow)
+create or replace function public.redeem_reward(p_student_code text, p_reward_id int)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_student_id uuid;
+  v_total_points int;
+  v_reward_points int;
+  v_stock int;
+begin
+  select id into v_student_id from public.students where student_code = p_student_code;
+  if v_student_id is null then
+    raise exception 'ไม่พบนักเรียน';
+  end if;
+
+  select total_points into v_total_points from public.student_points where student_id = v_student_id;
+
+  select points_required, stock into v_reward_points, v_stock
+  from public.rewards where id = p_reward_id and active = true;
+  if v_reward_points is null then
+    raise exception 'ไม่พบรางวัลหรือปิดใช้งานแล้ว';
+  end if;
+  if v_stock <= 0 then
+    raise exception 'สินค้าหมด';
+  end if;
+  if v_total_points < v_reward_points then
+    raise exception 'คะแนนไม่เพียงพอ';
+  end if;
+
+  update public.rewards set stock = stock - 1 where id = p_reward_id;
+  insert into public.reward_requests(student_id, reward_id, points_used, status)
+  values (v_student_id, p_reward_id, v_reward_points, 'approved');
+end;
+$$;
+grant execute on function public.redeem_reward(text,int) to anon, authenticated;
+
+-- =============================================
+-- 5. Seed default deed types + rewards (safe, additive)
+-- =============================================
+
+insert into public.good_deed_types (icon, name, description, points_min, points_max) values
+  ('🧹', 'เก็บขยะ', 'เก็บขยะในบริเวณโรงเรียน', 5, 15),
+  ('👩‍🏫', 'ช่วยครู', 'ช่วยครูจัดการงานต่างๆ', 10, 20),
+  ('🤝', 'ช่วยเพื่อน', 'ช่วยเพื่อนด้านการเรียนหรืองาน', 10, 20),
+  ('🌿', 'จิตอาสา', 'กิจกรรมจิตอาสาต่างๆ', 15, 30),
+  ('🎪', 'ร่วมกิจกรรม', 'เข้าร่วมกิจกรรมของโรงเรียน', 20, 50),
   ('💝', 'บริจาคสิ่งของ', 'บริจาคสิ่งของให้โรงเรียนหรือสังคม', 25, 50)
-ON CONFLICT (name) DO NOTHING;
+on conflict (name) do nothing;
 
-INSERT INTO rewards (icon, name, description, points_required, stock) VALUES
-  ('📚', 'สมุดบันทึก',          'สมุดบันทึกคุณภาพดี',         100, 12),
-  ('🎒', 'กระเป๋านักเรียน',   'กระเป๋านักเรียนโรงเรียน',    500, 3),
-  ('🖊️', 'ชุดเครื่องเขียน',   'ชุดอุปกรณ์เครื่องเขียนครบชุด', 200, 8),
-  ('🏅', 'เหรียญรางวัล',       'เหรียญรางวัลความดี',         300, 5),
-  ('🎫', 'บัตรยกเว้นการบ้าน', 'ยกเว้นการบ้านได้ 1 ครั้ง',  150, 2),
-  ('🍜', 'คูปองอาหาร',         'คูปองอาหารในโรงเรียน',        80, 20)
-ON CONFLICT DO NOTHING;
+insert into public.rewards (icon, name, description, points_required, stock) values
+  ('📚', 'สมุดบันทึก', 'สมุดบันทึกคุณภาพดี', 100, 12),
+  ('🎒', 'กระเป๋านักเรียน', 'กระเป๋านักเรียนโรงเรียน', 500, 3),
+  ('🖊️', 'ชุดเครื่องเขียน', 'ชุดอุปกรณ์เครื่องเขียนครบชุด', 200, 8),
+  ('🏅', 'เหรียญรางวัล', 'เหรียญรางวัลความดี', 300, 5),
+  ('🎫', 'บัตรยกเว้นการบ้าน', 'ยกเว้นการบ้านได้ 1 ครั้ง', 150, 2),
+  ('🍜', 'คูปองอาหาร', 'คูปองอาหารในโรงเรียน', 80, 20)
+on conflict do nothing;
+
+-- =============================================
+-- NOTE — pre-existing security findings (not touched by this migration)
+-- =============================================
+-- The PP5 project has 3 pre-existing tables without RLS enabled:
+--   public.uniform_violations, public.uniform_checks, public.uniform_check_violations
+-- These are unrelated to the Good Deed system and were flagged to the project owner;
+-- left as-is pending their decision. To fix:
+--   alter table public.uniform_violations enable row level security;
+--   alter table public.uniform_checks enable row level security;
+--   alter table public.uniform_check_violations enable row level security;
+-- (then add appropriate policies — enabling RLS with no policies blocks all access)

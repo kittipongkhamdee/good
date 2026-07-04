@@ -77,6 +77,9 @@ const NAV = {
   ],
   admin: [
     { id: 'admin-dashboard',  icon: '📊', label: 'Dashboard' },
+    { id: 'teacher-scan',     icon: '📷', label: 'สแกน QR' },
+    { id: 'teacher-addpoints', icon: '✏️', label: 'เพิ่มคะแนน' },
+    { id: 'teacher-history',  icon: '📋', label: 'ประวัติให้คะแนน' },
     { id: 'admin-students',   icon: '👩‍🎓', label: 'นักเรียน' },
     { id: 'admin-deedtypes',  icon: '💚', label: 'ความดี' },
     { id: 'admin-rewards',    icon: '🎁', label: 'รางวัล' },

@@ -174,6 +174,20 @@ function compressImageFile(file, { maxSize = 480, quality = 0.82 } = {}) {
   });
 }
 
+// ใช้ร่วมกันในฟอร์ม ประเภทความดี/รางวัล/Badge — ช่องไอคอนยังพิมพ์/วาง emoji เองได้ตามปกติ
+// ปุ่มนี้แค่เพิ่มทางเลือกให้กดเลือกจากรายการในแอปได้เลยโดยไม่ต้องออกไปหาที่อื่น
+const EMOJI_CHOICES = ['🌱', '🌿', '💚', '🍀', '🌳', '🌻', '☀️', '🌈', '🧹', '🤝', '🙏', '👏', '💝', '🎁', '📚', '✏️', '🖊️', '📖', '🎨', '🎮', '🧸', '🍭', '🍜', '🍎', '🧃', '🎈', '🎪', '🚸', '🏅', '🎖️', '🏆', '🥇', '👑', '⭐', '🌟', '💎', '🔥', '🚀', '🦁', '🐯'];
+
+function emojiPickerHTML(inputId) {
+  const pickerId = `${inputId}-picker`;
+  return `
+    <button type="button" data-action="toggle-emoji-picker" data-target="${pickerId}"
+      style="margin-top:6px;padding:6px 10px;background:#f3f4f6;border:none;border-radius:8px;font-family:Kanit;font-size:12px;color:#6b7280;cursor:pointer;">😀 เลือกจากรายการ</button>
+    <div id="${pickerId}" style="display:none;flex-wrap:wrap;gap:4px;margin-top:8px;padding:8px;background:#f9fafb;border-radius:8px;max-height:150px;overflow-y:auto;">
+      ${EMOJI_CHOICES.map(e => `<button type="button" data-action="pick-emoji" data-target="${inputId}" style="width:34px;height:34px;font-size:18px;background:#fff;border:1px solid #e5e7eb;border-radius:6px;cursor:pointer;padding:0;">${e}</button>`).join('')}
+    </div>`;
+}
+
 // ── setState + render ──
 function setState(updates) {
   Object.assign(state, updates);
@@ -1613,6 +1627,22 @@ document.addEventListener('click', async (e) => {
       break;
     }
 
+    // ทั้งสองปุ่มนี้แก้ DOM ตรงๆ โดยไม่เรียก setState/render — ฟอร์มที่เปิดอยู่ใน modal
+    // ไม่ได้ผูกกับ state ระหว่างพิมพ์ ถ้า render ใหม่ค่าที่พิมพ์ไปในช่องอื่นจะหาย
+    case 'toggle-emoji-picker': {
+      const el = document.getElementById(btn.dataset.target);
+      if (el) el.style.display = el.style.display === 'none' ? 'flex' : 'none';
+      break;
+    }
+
+    case 'pick-emoji': {
+      const input = document.getElementById(btn.dataset.target);
+      if (input) input.value = btn.textContent.trim();
+      const picker = btn.closest('[id$="-picker"]');
+      if (picker) picker.style.display = 'none';
+      break;
+    }
+
     case 'open-student-photo': {
       const s = state.students.find(x => x.id === btn.dataset.id);
       if (!s) break;
@@ -1663,7 +1693,7 @@ document.addEventListener('click', async (e) => {
     case 'open-add-deed':
       showModal(`
         <div class="modal-title">➕ เพิ่มประเภทความดีใหม่</div>
-        <div class="form-group"><label class="form-label">ไอคอน (Emoji)</label><input class="form-input" id="new-deed-icon" value="🌱"></div>
+        <div class="form-group"><label class="form-label">ไอคอน (Emoji)</label><input class="form-input" id="new-deed-icon" value="🌱">${emojiPickerHTML('new-deed-icon')}</div>
         <div class="form-group"><label class="form-label">ชื่อประเภท *</label><input class="form-input" id="new-deed-name" placeholder="เช่น ช่วยงานโรงเรียน"></div>
         <div class="form-group"><label class="form-label">คะแนนต่ำสุด</label><input class="form-input" type="number" id="new-deed-min" value="5"></div>
         <div class="form-group"><label class="form-label">คะแนนสูงสุด</label><input class="form-input" type="number" id="new-deed-max" value="20"></div>
@@ -1692,7 +1722,7 @@ document.addEventListener('click', async (e) => {
       if (!dt) break;
       showModal(`
         <div class="modal-title">✏️ แก้ไขประเภทความดี</div>
-        <div class="form-group"><label class="form-label">ไอคอน (Emoji)</label><input class="form-input" id="edit-deed-icon" value="${dt.icon}"></div>
+        <div class="form-group"><label class="form-label">ไอคอน (Emoji)</label><input class="form-input" id="edit-deed-icon" value="${dt.icon}">${emojiPickerHTML('edit-deed-icon')}</div>
         <div class="form-group"><label class="form-label">ชื่อประเภท *</label><input class="form-input" id="edit-deed-name" value="${dt.name}"></div>
         <div class="form-group"><label class="form-label">คะแนนต่ำสุด</label><input class="form-input" type="number" id="edit-deed-min" value="${dt.points_min}"></div>
         <div class="form-group"><label class="form-label">คะแนนสูงสุด</label><input class="form-input" type="number" id="edit-deed-max" value="${dt.points_max}"></div>
@@ -1729,7 +1759,7 @@ document.addEventListener('click', async (e) => {
     case 'open-add-reward':
       showModal(`
         <div class="modal-title">➕ เพิ่มรางวัลใหม่</div>
-        <div class="form-group"><label class="form-label">ไอคอน</label><input class="form-input" id="new-rw-icon" value="🎁"></div>
+        <div class="form-group"><label class="form-label">ไอคอน</label><input class="form-input" id="new-rw-icon" value="🎁">${emojiPickerHTML('new-rw-icon')}</div>
         <div class="form-group"><label class="form-label">ชื่อรางวัล *</label><input class="form-input" id="new-rw-name"></div>
         <div class="form-group"><label class="form-label">คะแนนที่ใช้ *</label><input class="form-input" type="number" id="new-rw-pts" placeholder="100"></div>
         <div class="form-group"><label class="form-label">จำนวนคงเหลือ</label><input class="form-input" type="number" id="new-rw-stock" placeholder="10"></div>
@@ -1758,7 +1788,7 @@ document.addEventListener('click', async (e) => {
       if (!r) break;
       showModal(`
         <div class="modal-title">✏️ แก้ไขรางวัล</div>
-        <div class="form-group"><label class="form-label">ไอคอน</label><input class="form-input" id="edit-rw-icon" value="${r.icon}"></div>
+        <div class="form-group"><label class="form-label">ไอคอน</label><input class="form-input" id="edit-rw-icon" value="${r.icon}">${emojiPickerHTML('edit-rw-icon')}</div>
         <div class="form-group"><label class="form-label">ชื่อรางวัล *</label><input class="form-input" id="edit-rw-name" value="${r.name}"></div>
         <div class="form-group"><label class="form-label">คะแนนที่ใช้ *</label><input class="form-input" type="number" id="edit-rw-pts" value="${r.points_required}"></div>
         <div class="form-group"><label class="form-label">จำนวนคงเหลือ</label><input class="form-input" type="number" id="edit-rw-stock" value="${r.stock}"></div>
@@ -1796,7 +1826,7 @@ document.addEventListener('click', async (e) => {
     case 'open-add-badge':
       showModal(`
         <div class="modal-title">➕ เพิ่ม Badge ใหม่</div>
-        <div class="form-group"><label class="form-label">ไอคอน (Emoji)</label><input class="form-input" id="new-badge-icon" value="🏅"></div>
+        <div class="form-group"><label class="form-label">ไอคอน (Emoji)</label><input class="form-input" id="new-badge-icon" value="🏅">${emojiPickerHTML('new-badge-icon')}</div>
         <div class="form-group"><label class="form-label">ชื่อ Badge *</label><input class="form-input" id="new-badge-name" placeholder="เช่น คนดีระดับเทพ"></div>
         <div class="form-group"><label class="form-label">คะแนนขั้นต่ำ *</label><input class="form-input" type="number" id="new-badge-min" placeholder="10000"></div>
         <div class="form-group"><label class="form-label">สี</label><input class="form-input" type="color" id="new-badge-color" value="#22c55e" style="height:44px;padding:4px;"></div>
@@ -1825,7 +1855,7 @@ document.addEventListener('click', async (e) => {
       if (!t) break;
       showModal(`
         <div class="modal-title">✏️ แก้ไข Badge</div>
-        <div class="form-group"><label class="form-label">ไอคอน (Emoji)</label><input class="form-input" id="edit-badge-icon" value="${t.icon}"></div>
+        <div class="form-group"><label class="form-label">ไอคอน (Emoji)</label><input class="form-input" id="edit-badge-icon" value="${t.icon}">${emojiPickerHTML('edit-badge-icon')}</div>
         <div class="form-group"><label class="form-label">ชื่อ Badge *</label><input class="form-input" id="edit-badge-name" value="${t.name}"></div>
         <div class="form-group"><label class="form-label">คะแนนขั้นต่ำ *</label><input class="form-input" type="number" id="edit-badge-min" value="${t.min_points}"></div>
         <div class="form-group"><label class="form-label">สี</label><input class="form-input" type="color" id="edit-badge-color" value="${t.color}" style="height:44px;padding:4px;"></div>

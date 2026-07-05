@@ -135,6 +135,9 @@ function render() {
   document.getElementById('layout-toggle-btn').textContent =
     state.layout === 'A' ? '⇄ Layout B: Sidebar' : '⇄ Layout A: Bottom Nav';
 
+  document.getElementById('mgmt-menu-btn-a').style.display =
+    (state.role === 'teacher' || state.role === 'admin') ? '' : 'none';
+
   renderBottomNav();
   renderSidebar();
 
@@ -234,14 +237,40 @@ function staffLoginFormHTML() {
 }
 
 // ── Bottom nav ──
-function renderBottomNav() {
+// Teacher/Admin have 8 nav destinations total — too many for a mobile bottom bar,
+// so only the 4 most-used stay here; the rest (นักเรียน/ความดี/รางวัล/รายงาน)
+// move into the ☰ management menu opened from the header (see openMgmtMenu()).
+function bottomNavItems() {
   const items = NAV[state.role] || [];
+  return (state.role === 'teacher' || state.role === 'admin') ? items.slice(0, 4) : items;
+}
+function mgmtMenuItems() {
+  const items = NAV[state.role] || [];
+  return items.slice(4);
+}
+
+function renderBottomNav() {
+  const items = bottomNavItems();
   document.getElementById('nav-a').innerHTML = items.map(it => `
     <button class="bnav-btn ${state.screen === it.id ? 'active' : ''}" data-action="nav" data-screen="${it.id}">
       <span class="bnav-icon">${it.icon}</span>
       <span class="bnav-label">${it.label}</span>
     </button>
   `).join('');
+}
+
+function openMgmtMenu() {
+  const items = mgmtMenuItems();
+  showModal(`
+    <div class="modal-title">☰ เมนูจัดการ</div>
+    <div style="background:#fff;border-radius:12px;overflow:hidden;border:1px solid oklch(0.94 0.03 145);">
+      ${items.map(it => `
+        <button class="mgmt-sheet-item" data-action="nav-from-menu" data-screen="${it.id}">
+          <span style="font-size:20px;">${it.icon}</span>${it.label}
+        </button>
+      `).join('')}
+    </div>
+  `);
 }
 
 // ── Sidebar ──
@@ -1135,6 +1164,20 @@ document.addEventListener('click', async (e) => {
       break;
 
     case 'nav': {
+      if (state.screen === 'teacher-scan') stopScan();
+      const screen = btn.dataset.screen;
+      setState({ loading: true });
+      await loadDataForScreen(screen);
+      setState({ loading: false, screen, scanStep: 0, selectedDeedId: null, scanStudent: null });
+      break;
+    }
+
+    case 'open-mgmt-menu':
+      openMgmtMenu();
+      break;
+
+    case 'nav-from-menu': {
+      closeModal();
       if (state.screen === 'teacher-scan') stopScan();
       const screen = btn.dataset.screen;
       setState({ loading: true });

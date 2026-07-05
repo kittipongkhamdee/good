@@ -496,6 +496,104 @@ revoke execute on function public.teacher_screen_enabled(text) from public;
 revoke execute on function public.teacher_screen_enabled(text) from anon;
 grant execute on function public.teacher_screen_enabled(text) to authenticated;
 
+-- =============================================
+-- 12. Student profile pictures — stored in Supabase Storage
+-- (bucket "student-photos", public read, staff-only write). Students log in
+-- by student_code only (no Supabase Auth session), so they can't upload
+-- their own photo — a teacher/admin manages it from "จัดการนักเรียน".
+-- =============================================
+alter table public.students add column if not exists photo_url text;
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('student-photos', 'student-photos', true, 3145728, array['image/jpeg','image/png','image/webp'])
+on conflict (id) do nothing;
+
+create policy "student_photos_read" on storage.objects for select
+  using (bucket_id = 'student-photos');
+
+create policy "student_photos_staff_insert" on storage.objects for insert
+  with check (bucket_id = 'student-photos' and auth.role() = 'authenticated');
+
+create policy "student_photos_staff_update" on storage.objects for update
+  using (bucket_id = 'student-photos' and auth.role() = 'authenticated')
+  with check (bucket_id = 'student-photos' and auth.role() = 'authenticated');
+
+create policy "student_photos_staff_delete" on storage.objects for delete
+  using (bucket_id = 'student-photos' and auth.role() = 'authenticated');
+
+-- student_points view now also exposes photo_url (appended at the end —
+-- Postgres won't let CREATE OR REPLACE VIEW reorder/insert existing columns)
+create or replace view public.student_points as
+with totals as (
+  select
+    s.id as student_id,
+    s.student_code,
+    s.student_name,
+    s.prefix,
+    s.grade_level,
+    s.room,
+    s.photo_url,
+    coalesce(sum(pl.points),0)::int as total_points
+  from public.students s
+  left join public.point_logs pl on pl.student_id = s.id
+  group by s.id, s.student_code, s.student_name, s.prefix, s.grade_level, s.room, s.photo_url
+)
+select
+  t.student_id, t.student_code, t.student_name, t.prefix, t.grade_level, t.room, t.total_points,
+  bt.name as badge_level,
+  bt.icon as badge_icon,
+  bt.color as badge_color,
+  t.photo_url
+from totals t
+left join lateral (
+  select name, icon, color
+  from public.badge_tiers
+  where active = true and min_points <= t.total_points
+  order by min_points desc
+  limit 1
+) bt on true;
+
+alter view public.student_points set (security_invoker = true);
+
+-- get_student_summary now also returns photo_url
+drop function if exists public.get_student_summary(text);
+
+create function public.get_student_summary(p_student_code text)
+returns table (
+  student_id uuid,
+  student_code text,
+  student_name text,
+  prefix text,
+  grade_level text,
+  room text,
+  total_points int,
+  badge_level text,
+  rank bigint,
+  redeem_count bigint,
+  total_deeds bigint,
+  photo_url text
+)
+language sql
+security definer
+set search_path = public
+as $$
+  with ranked as (
+    select
+      sp.*,
+      row_number() over (order by sp.total_points desc, sp.student_name) as rnk
+    from public.student_points sp
+  )
+  select
+    r.student_id, r.student_code, r.student_name, r.prefix, r.grade_level, r.room,
+    r.total_points, r.badge_level, r.rnk,
+    (select count(*) from public.reward_requests rr where rr.student_id = r.student_id) as redeem_count,
+    (select count(*) from public.point_logs pl where pl.student_id = r.student_id) as total_deeds,
+    r.photo_url
+  from ranked r
+  where r.student_code = p_student_code;
+$$;
+grant execute on function public.get_student_summary(text) to anon, authenticated;
+
 -- ความดี / รางวัล: gate write access directly (these tables are Good
 -- Deed-only, no other school system touches them, so safe to restrict).
 drop policy if exists "deed_types_staff_write" on public.good_deed_types;

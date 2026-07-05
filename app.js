@@ -30,6 +30,9 @@ const state = {
   students: [],
   studentsCount: 0,
   studentSearch: '',
+  studentGradeFilter: '',
+  studentRoomFilter: '',
+  studentClasses: [],
   pointLogs: [],
   reportSummary: null,
   reportError: null,
@@ -891,8 +894,25 @@ function renderAdminDashboard() {
 
 function renderAdminStudents() {
   const students = state.students;
+  const grades = [...new Set(state.studentClasses.map(c => c.grade_level))].sort((a, b) => a.localeCompare(b, 'th', { numeric: true }));
+  const rooms = [...new Set(
+    state.studentClasses
+      .filter(c => !state.studentGradeFilter || c.grade_level === state.studentGradeFilter)
+      .map(c => c.room)
+  )].sort((a, b) => a.localeCompare(b, 'th', { numeric: true }));
+
   return `
   <div class="screen-wrap anim-slideup">
+    <div style="display:flex;gap:10px;">
+      <select class="form-input" id="student-grade-filter" style="flex:1;">
+        <option value="">ทุกชั้น</option>
+        ${grades.map(g => `<option value="${g}" ${state.studentGradeFilter === g ? 'selected' : ''}>ชั้น ${g}</option>`).join('')}
+      </select>
+      <select class="form-input" id="student-room-filter" style="flex:1;">
+        <option value="">ทุกห้อง</option>
+        ${rooms.map(r => `<option value="${r}" ${state.studentRoomFilter === r ? 'selected' : ''}>ห้อง ${r}</option>`).join('')}
+      </select>
+    </div>
     <div style="display:flex;gap:10px;">
       <input class="form-input" placeholder="🔍 ค้นหานักเรียน..." id="student-search" value="${state.studentSearch}" style="flex:1;">
       <button data-action="search-students-submit"
@@ -1341,7 +1361,7 @@ async function doLogout() {
   Object.assign(state, {
     screen: 'login', authView: null, role: null, previewAsTeacher: false, authError: '', drawerOpen: false,
     student: null, studentHistory: [], studentRedemptions: [], leaderboard: null, leaderboardScope: 'school',
-    staffUser: null, deedTypes: [], rewards: [], students: [], pointLogs: [], badgeTiers: [],
+    staffUser: null, deedTypes: [], rewards: [], students: [], studentGradeFilter: '', studentRoomFilter: '', studentClasses: [], pointLogs: [], badgeTiers: [],
     reportSummary: null, reportError: null, reportLeaderboard: null, scanStep: 0, scanStudent: null, selectedDeedId: null, points: 10,
     settings: { leaderboardEnabled: true, leaderboardTopN: 10 },
     rolePermissions: { 'admin-deedtypes': true, 'admin-rewards': true, 'admin-reports': true },
@@ -1373,9 +1393,15 @@ async function loadDataForScreen(screen) {
     if (leaderboardResult) state.reportLeaderboard = leaderboardResult.data || [];
   }
   if (screen === 'admin-students') {
-    const { data, count } = await getStudents({ search: state.studentSearch, limit: 20 });
+    const tasks = [getStudents({
+      search: state.studentSearch, limit: 20,
+      gradeLevel: state.studentGradeFilter, room: state.studentRoomFilter,
+    })];
+    if (!state.studentClasses.length) tasks.push(getStudentClasses());
+    const [{ data, count }, classesResult] = await Promise.all(tasks);
     state.students = data || [];
     state.studentsCount = count || 0;
+    if (classesResult) state.studentClasses = classesResult.data || [];
   }
   if (screen === 'admin-deedtypes') {
     const { data } = await getDeedTypes();
@@ -1549,7 +1575,12 @@ document.addEventListener('click', async (e) => {
 
     case 'search-students-submit': {
       state.studentSearch = document.getElementById('student-search')?.value.trim() || '';
-      const { data, count } = await getStudents({ search: state.studentSearch, limit: 20 });
+      state.studentGradeFilter = document.getElementById('student-grade-filter')?.value || '';
+      state.studentRoomFilter = document.getElementById('student-room-filter')?.value || '';
+      const { data, count } = await getStudents({
+        search: state.studentSearch, limit: 20,
+        gradeLevel: state.studentGradeFilter, room: state.studentRoomFilter,
+      });
       setState({ students: data || [], studentsCount: count || 0 });
       break;
     }

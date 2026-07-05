@@ -82,12 +82,14 @@ async function getStudentRedemptions(studentCode) {
 // Students (staff-facing: search/list uses real students table, requires staff session)
 // ──────────────────────────────────────────────
 
-async function getStudents({ search = '', limit = 20, offset = 0 } = {}) {
+async function getStudents({ search = '', limit = 20, offset = 0, gradeLevel = '', room = '' } = {}) {
   let q = _sb.from('students')
     .select('id, student_code, student_name, prefix, grade_level, room, photo_url', { count: 'exact' })
     .order('grade_level').order('room').order('student_name')
     .range(offset, offset + limit - 1);
   if (search) q = q.or(`student_name.ilike.%${search}%,student_code.ilike.%${search}%`);
+  if (gradeLevel) q = q.eq('grade_level', gradeLevel);
+  if (room) q = q.eq('room', room);
   const { data, count, error } = await q;
   if (error) return { data: [], count: 0, error: error.message };
 
@@ -108,6 +110,19 @@ async function getStudents({ search = '', limit = 20, offset = 0 } = {}) {
 
 async function getStudentByCode(code) {
   return getStudentSummary(code);
+}
+
+// รายชื่อชั้น/ห้องที่มีอยู่จริง — ใช้ populate dropdown กรองในหน้าจัดการนักเรียน
+async function getStudentClasses() {
+  const { data, error } = await _sb.from('students').select('grade_level, room').order('grade_level').order('room');
+  if (error) return { data: [], error: error.message };
+  const seen = new Set();
+  const classes = [];
+  for (const s of data) {
+    const key = `${s.grade_level}/${s.room}`;
+    if (!seen.has(key)) { seen.add(key); classes.push({ grade_level: s.grade_level, room: s.room }); }
+  }
+  return { data: classes, error: null };
 }
 
 // ──────────────────────────────────────────────

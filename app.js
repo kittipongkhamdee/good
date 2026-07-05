@@ -287,8 +287,24 @@ async function drawShareCard(canvas, student, badge) {
   ctx.fillStyle = '#fff';
   ctx.fillText(badge.icon, haloCx, haloCy + haloR * 0.35);
 
+  // student name — the headline of the card, right below the badge
+  const name = fullName(student);
+  const nameMaxWidth = W - pad * 2 - 40;
+  let nameSize = 62;
+  ctx.font = `700 ${nameSize}px Kanit`;
+  while (ctx.measureText(name).width > nameMaxWidth && nameSize > 34) {
+    nameSize -= 2;
+    ctx.font = `700 ${nameSize}px Kanit`;
+  }
+  const nameY = haloCy + haloR + 90;
+  ctx.fillStyle = '#fff';
+  ctx.fillText(name, W / 2, nameY);
+  ctx.font = '400 26px Kanit';
+  ctx.fillStyle = 'rgba(255,255,255,0.82)';
+  ctx.fillText(`${classOf(student)} · โรงเรียนตาเบาวิทยา`, W / 2, nameY + 42);
+
   // big point total
-  const pointsY = haloCy + haloR + 130;
+  const pointsY = nameY + 150;
   ctx.font = '700 118px Kanit';
   ctx.fillStyle = '#fff';
   ctx.fillText(student.total_points.toLocaleString(), W / 2, pointsY);
@@ -320,25 +336,18 @@ async function drawShareCard(canvas, student, badge) {
     ctx.fillText(c.lbl, x + chipW / 2, chipY + 88);
   });
 
-  // bottom name bar
-  const barY = H - pad - 120, barH = 120;
+  // bottom footer — slim, no name repeated here since it's already the headline above
+  const barY = H - pad - 90, barH = 90;
   ctx.fillStyle = 'rgba(255,255,255,0.12)';
-  roundedRectPath(ctx, pad, barY, W - pad * 2, barH, 26);
+  roundedRectPath(ctx, pad, barY, W - pad * 2, barH, 24);
   ctx.fill();
   ctx.strokeStyle = 'rgba(255,255,255,0.2)';
-  roundedRectPath(ctx, pad, barY, W - pad * 2, barH, 26);
+  roundedRectPath(ctx, pad, barY, W - pad * 2, barH, 24);
   ctx.stroke();
-  ctx.textAlign = 'left';
-  ctx.font = '700 34px Kanit';
+  ctx.textAlign = 'center';
+  ctx.font = '600 28px Kanit';
   ctx.fillStyle = '#fff';
-  ctx.fillText(fullName(student), pad + 28, barY + 52);
-  ctx.font = '400 24px Kanit';
-  ctx.fillStyle = 'rgba(255,255,255,0.8)';
-  ctx.fillText(`${classOf(student)} · สุรินทร์`, pad + 28, barY + 86);
-  ctx.textAlign = 'right';
-  ctx.font = '40px Kanit';
-  ctx.fillStyle = '#fff';
-  ctx.fillText('🌿', W - pad - 28, barY + 76);
+  ctx.fillText('🌿 โรงเรียนตาเบาวิทยา · จ.สุรินทร์', W / 2, barY + barH / 2 + 10);
 }
 
 function openShareCardModal() {
@@ -614,16 +623,16 @@ function renderStudentDashboard() {
       ${statBox('🎁', String(s.redeem_count), 'แลกรางวัล', '#ef4444')}
     </div>
 
-    <button data-action="open-share-card"
-      style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:15px;background:linear-gradient(135deg,#0F6B45,#35C98A);color:#fff;border:none;border-radius:14px;font-family:Kanit;font-weight:700;font-size:15px;cursor:pointer;box-shadow:0 4px 20px oklch(0.52 0.17 145 / 0.35);">
-      <span style="font-size:20px;">📤</span> แชร์การ์ดผลงาน
-    </button>
-
     <div class="card">
       <div style="font-size:14px;font-weight:700;color:var(--gd);margin-bottom:12px;text-align:center;">📲 QR Code ประจำตัวนักเรียน</div>
       <div class="qr-display"><div class="qr-frame"><canvas id="student-qr" width="220" height="220"></canvas></div></div>
       <div style="text-align:center;margin-top:10px;font-size:12px;color:#9ca3af;">รหัส ${s.student_code} · ${classOf(s)} · ตาเบาวิทยา</div>
     </div>
+
+    <button data-action="open-share-card"
+      style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:15px;background:linear-gradient(135deg,#0F6B45,#35C98A);color:#fff;border:none;border-radius:14px;font-family:Kanit;font-weight:700;font-size:15px;cursor:pointer;box-shadow:0 4px 20px oklch(0.52 0.17 145 / 0.35);">
+      <span style="font-size:20px;">📤</span> แชร์การ์ดผลงาน
+    </button>
 
     <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.055);">
       <div style="padding:14px 16px 10px;font-weight:700;font-size:15px;color:var(--gd);">📋 กิจกรรมล่าสุด</div>

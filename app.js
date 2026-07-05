@@ -27,6 +27,7 @@ const state = {
 
   deedTypes: [],
   rewards: [],
+  rewardRequests: [],
   students: [],
   studentsCount: 0,
   studentSearch: '',
@@ -39,7 +40,7 @@ const state = {
   reportLeaderboard: null,
   badgeTiers: [],
   settings: { leaderboardEnabled: true, leaderboardTopN: 10 },
-  rolePermissions: { 'admin-deedtypes': true, 'admin-rewards': true, 'admin-reports': true },
+  rolePermissions: { 'admin-deedtypes': true, 'admin-rewards': true, 'admin-reward-pickup': true, 'admin-reports': true },
 
   scanStep: 0,
   scanStudentCode: '',
@@ -64,6 +65,7 @@ const TITLES = {
   'admin-students':    'จัดการนักเรียน',
   'admin-deedtypes':   'ประเภทความดี',
   'admin-rewards':     'จัดการรางวัล',
+  'admin-reward-pickup': 'รับของรางวัล',
   'admin-reports':     'รายงาน',
   'admin-badges':      'จัดการ Badge',
   'admin-settings':    'ตั้งค่าระบบ',
@@ -85,6 +87,7 @@ const NAV = {
     { id: 'admin-students',    icon: '👩‍🎓', label: 'นักเรียน' },
     { id: 'admin-deedtypes',   icon: '💚', label: 'ความดี' },
     { id: 'admin-rewards',     icon: '🎁', label: 'รางวัล' },
+    { id: 'admin-reward-pickup', icon: '📦', label: 'รับของรางวัล' },
     { id: 'admin-reports',     icon: '📈', label: 'รายงาน' },
     // Badge/ตั้งค่า are Admin-only — never shown to teachers, permission or not.
   ],
@@ -96,6 +99,7 @@ const NAV = {
     { id: 'admin-students',   icon: '👩‍🎓', label: 'นักเรียน' },
     { id: 'admin-deedtypes',  icon: '💚', label: 'ความดี' },
     { id: 'admin-rewards',    icon: '🎁', label: 'รางวัล' },
+    { id: 'admin-reward-pickup', icon: '📦', label: 'รับของรางวัล' },
     { id: 'admin-reports',    icon: '📈', label: 'รายงาน' },
     { id: 'admin-badges',     icon: '🏅', label: 'Badge' },
     { id: 'admin-settings',   icon: '⚙️', label: 'ตั้งค่า' },
@@ -104,7 +108,7 @@ const NAV = {
 
 // Screens an Admin can individually enable/disable for teachers (state.rolePermissions).
 // Anything not listed here is always visible to teachers (or Admin-only, like Badge/ตั้งค่า).
-const TEACHER_CONFIGURABLE_SCREENS = ['admin-deedtypes', 'admin-rewards', 'admin-reports'];
+const TEACHER_CONFIGURABLE_SCREENS = ['admin-deedtypes', 'admin-rewards', 'admin-reward-pickup', 'admin-reports'];
 
 // Admin's real session/permissions never change during preview — this only
 // swaps which nav items and screen labels get shown.
@@ -392,6 +396,7 @@ function renderScreen(screen) {
     'admin-students':      renderAdminStudents,
     'admin-deedtypes':     renderAdminDeedTypes,
     'admin-rewards':       renderAdminRewards,
+    'admin-reward-pickup': renderAdminRewardPickup,
     'admin-reports':       renderAdminReports,
     'admin-badges':        renderAdminBadges,
     'admin-settings':      renderAdminSettings,
@@ -1028,6 +1033,41 @@ function renderAdminRewards() {
   </div>`;
 }
 
+function rewardPickupRowHTML(r, isPending) {
+  return `
+    <div class="list-item">
+      <span style="font-size:24px;">${r.rewards?.icon || '🎁'}</span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:600;font-size:14px;">${r.rewards?.name || 'รางวัล'}</div>
+        <div style="font-size:12px;color:#9ca3af;margin-top:1px;">${fullName(r.students)} · ${classOf(r.students)} · ${r.points_used} คะแนน</div>
+        <div style="font-size:11px;color:#9ca3af;margin-top:2px;">
+          แลกเมื่อ ${formatDate(r.created_at)}${!isPending ? ` · รับของแล้ว ${formatDate(r.collected_at)}${r.profiles?.full_name ? ` โดย ${r.profiles.full_name}` : ''}` : ''}
+        </div>
+      </div>
+      ${isPending
+        ? `<button data-action="mark-reward-collected" data-id="${r.id}" style="flex-shrink:0;padding:8px 12px;background:var(--g);color:#fff;border:none;border-radius:10px;font-family:Kanit;font-weight:700;cursor:pointer;font-size:12px;white-space:nowrap;">✅ มอบของแล้ว</button>`
+        : `<button data-action="unmark-reward-collected" data-id="${r.id}" style="flex-shrink:0;padding:8px 12px;background:transparent;border:1px solid #e5e7eb;border-radius:10px;color:#9ca3af;font-family:Kanit;cursor:pointer;font-size:12px;white-space:nowrap;">↩️ ยกเลิก</button>`}
+    </div>`;
+}
+
+function renderAdminRewardPickup() {
+  const requests = state.rewardRequests;
+  const pending = requests.filter(r => !r.collected_at);
+  const collected = requests.filter(r => r.collected_at);
+
+  return `
+  <div class="screen-wrap anim-slideup">
+    <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.055);">
+      <div style="padding:12px 16px;font-weight:700;color:var(--gd);font-size:13px;">🕗 รอรับของ (${pending.length})</div>
+      ${pending.length ? pending.map(r => rewardPickupRowHTML(r, true)).join('') : `<div style="padding:20px;text-align:center;color:#9ca3af;font-size:13px;">ไม่มีรายการรอรับของ</div>`}
+    </div>
+    <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.055);">
+      <div style="padding:12px 16px;font-weight:700;color:var(--g);font-size:13px;">✅ รับของแล้ว (${collected.length})</div>
+      ${collected.length ? collected.map(r => rewardPickupRowHTML(r, false)).join('') : `<div style="padding:20px;text-align:center;color:#9ca3af;font-size:13px;">ยังไม่มีประวัติ</div>`}
+    </div>
+  </div>`;
+}
+
 function renderAdminReports() {
   if (state.reportError) {
     return `
@@ -1116,6 +1156,7 @@ function renderAdminSettings() {
   const permRows = [
     { key: 'admin-deedtypes', label: 'ความดี', desc: 'เพิ่ม/แก้ไข/ลบ ประเภทความดี' },
     { key: 'admin-rewards',   label: 'รางวัล', desc: 'เพิ่ม/แก้ไข/เปิด-ปิด รางวัล' },
+    { key: 'admin-reward-pickup', label: 'รับของรางวัล', desc: 'ดู/ยืนยันการรับของรางวัลของนักเรียน' },
     { key: 'admin-reports',   label: 'รายงาน', desc: 'ดูรายงานสรุปคะแนนความดี' },
   ];
 
@@ -1424,10 +1465,10 @@ async function doLogout() {
   Object.assign(state, {
     screen: 'login', authView: null, role: null, previewAsTeacher: false, authError: '', drawerOpen: false,
     student: null, studentHistory: [], studentRedemptions: [], leaderboard: null, leaderboardScope: 'school',
-    staffUser: null, deedTypes: [], rewards: [], students: [], studentGradeFilter: '', studentRoomFilter: '', studentClasses: [], pointLogs: [], badgeTiers: [],
+    staffUser: null, deedTypes: [], rewards: [], rewardRequests: [], students: [], studentGradeFilter: '', studentRoomFilter: '', studentClasses: [], pointLogs: [], badgeTiers: [],
     reportSummary: null, reportError: null, reportLeaderboard: null, scanStep: 0, scanStudent: null, selectedDeedId: null, points: 10,
     settings: { leaderboardEnabled: true, leaderboardTopN: 10 },
-    rolePermissions: { 'admin-deedtypes': true, 'admin-rewards': true, 'admin-reports': true },
+    rolePermissions: { 'admin-deedtypes': true, 'admin-rewards': true, 'admin-reward-pickup': true, 'admin-reports': true },
   });
   render();
   showToast('ออกจากระบบแล้ว');
@@ -1473,6 +1514,10 @@ async function loadDataForScreen(screen) {
   if (screen === 'admin-rewards') {
     const { data } = await getRewards();
     state.rewards = data || [];
+  }
+  if (screen === 'admin-reward-pickup') {
+    const { data } = await getRewardRequests();
+    state.rewardRequests = data || [];
   }
   if (screen === 'admin-badges') {
     const { data } = await getBadgeTiers();
@@ -1854,6 +1899,24 @@ document.addEventListener('click', async (e) => {
       break;
     }
 
+    case 'mark-reward-collected': {
+      const { error } = await markRewardCollected(btn.dataset.id);
+      if (error) { showToast(`เกิดข้อผิดพลาด: ${error}`); break; }
+      showToast('บันทึกว่ามอบของแล้ว ✅');
+      await loadDataForScreen('admin-reward-pickup');
+      render();
+      break;
+    }
+
+    case 'unmark-reward-collected': {
+      const { error } = await unmarkRewardCollected(btn.dataset.id);
+      if (error) { showToast(`เกิดข้อผิดพลาด: ${error}`); break; }
+      showToast('ยกเลิกสถานะรับของแล้ว');
+      await loadDataForScreen('admin-reward-pickup');
+      render();
+      break;
+    }
+
     case 'open-add-badge':
       showModal(`
         <div class="modal-title">➕ เพิ่ม Badge ใหม่</div>
@@ -1947,7 +2010,7 @@ document.addEventListener('click', async (e) => {
     case 'save-all-settings': {
       const topN = parseInt(document.getElementById('top-n-input')?.value) || 10;
       setState({ loading: true });
-      const permKeys = ['admin-deedtypes', 'admin-rewards', 'admin-reports'];
+      const permKeys = ['admin-deedtypes', 'admin-rewards', 'admin-reward-pickup', 'admin-reports'];
       const results = await Promise.all([
         updateAppSetting('leaderboard_enabled', state.settings.leaderboardEnabled ? 'true' : 'false'),
         updateAppSetting('leaderboard_top_n', topN),

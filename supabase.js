@@ -249,6 +249,35 @@ async function redeemReward(studentCode, rewardId) {
 }
 
 // ──────────────────────────────────────────────
+// Reward pickup — staff-facing log of every redemption + whether the
+// physical item has actually been handed over yet (separate from the
+// instant auto-approval that happens when a student redeems in-app)
+// ──────────────────────────────────────────────
+
+async function getRewardRequests() {
+  const { data, error } = await _sb
+    .from('reward_requests')
+    .select('id, points_used, status, created_at, collected_at, students(student_name, prefix, grade_level, room, student_code), rewards(name, icon), profiles(full_name)')
+    .order('created_at', { ascending: false });
+  return { data, error: error?.message || null };
+}
+
+async function markRewardCollected(requestId) {
+  const session = await getCurrentSession();
+  const { error } = await _sb.from('reward_requests')
+    .update({ collected_at: new Date().toISOString(), collected_by: session?.user?.id || null })
+    .eq('id', requestId);
+  return { error: error?.message || null };
+}
+
+async function unmarkRewardCollected(requestId) {
+  const { error } = await _sb.from('reward_requests')
+    .update({ collected_at: null, collected_by: null })
+    .eq('id', requestId);
+  return { error: error?.message || null };
+}
+
+// ──────────────────────────────────────────────
 // Reports (staff-only, aggregated from real tables)
 // ──────────────────────────────────────────────
 

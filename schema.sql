@@ -789,3 +789,19 @@ select cron.schedule(
   '10 1 * * 1',
   $$select public.award_weekly_deed_bonuses();$$
 );
+
+-- =============================================
+-- 15. Reward pickup/collection tracking — separates "redeemed in the app"
+-- from "physically handed the item over", so a teacher can verify at the
+-- counter whether a student already collected a given redemption before
+-- (redeem_reward already auto-approves instantly; this adds a second,
+-- staff-only confirmation step for the physical handover).
+-- reward_requests already has a blanket "any authenticated staff" policy,
+-- so no new RLS policy is needed for these columns.
+-- =============================================
+alter table public.reward_requests
+  add column if not exists collected_at timestamptz,
+  add column if not exists collected_by uuid references public.profiles(id) on delete set null;
+
+insert into public.role_permissions (screen_key, teacher_enabled) values ('admin-reward-pickup', true)
+on conflict (screen_key) do nothing;

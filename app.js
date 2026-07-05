@@ -949,7 +949,7 @@ function showToast(msg) {
 function showModal(html) {
   document.getElementById('modal-container').innerHTML = `
     <div class="modal-overlay" data-action="close-modal">
-      <div class="modal-sheet" onclick="event.stopPropagation()">
+      <div class="modal-sheet">
         <div class="modal-handle"></div>
         ${html}
       </div>
@@ -1146,7 +1146,9 @@ document.addEventListener('click', async (e) => {
       break;
 
     case 'close-drawer':
-      closeDrawer();
+      // Only close on a direct click on the backdrop itself — not on clicks that
+      // bubbled up from inside the drawer panel (nav buttons, blank padding, etc.)
+      if (btn === e.target) closeDrawer();
       break;
 
     case 'drawer-nav': {
@@ -1306,7 +1308,8 @@ document.addEventListener('click', async (e) => {
     }
 
     case 'close-modal':
-      closeModal();
+      // Same guard as close-drawer: only the backdrop itself closes the modal.
+      if (btn === e.target) closeModal();
       break;
   }
 });

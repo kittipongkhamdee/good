@@ -129,7 +129,9 @@ function getBadge(pts) {
   };
 }
 
-function fullName(s) { return `${s.prefix || ''}${s.student_name || ''}`; }
+// student_name already includes the prefix (เด็กชาย/เด็กหญิง/นาย/...) baked in
+// from the source data — don't prepend s.prefix again or it doubles up.
+function fullName(s) { return (s.student_name || '').replace(/\s+/g, ' ').trim(); }
 function classOf(s)   { return `${s.grade_level || ''}/${s.room || ''}`; }
 
 // ── setState + render ──

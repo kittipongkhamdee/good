@@ -336,3 +336,122 @@ alter table public.uniform_check_violations enable row level security;
 create policy "allow_all" on public.uniform_violations for all using (true) with check (true);
 create policy "allow_all" on public.uniform_checks for all using (true) with check (true);
 create policy "allow_all" on public.uniform_check_violations for all using (true) with check (true);
+
+-- =============================================
+-- 7. Badge tiers — Admin-manageable (replaces the earlier hardcoded 5-tier system)
+-- =============================================
+create table if not exists public.badge_tiers (
+  id serial primary key,
+  icon text default '🌿',
+  name text not null,
+  min_points int not null default 0 check (min_points >= 0),
+  color text default '#6b7280',
+  active boolean default true,
+  created_at timestamptz default now()
+);
+
+alter table public.badge_tiers enable row level security;
+create policy "badge_tiers_read" on public.badge_tiers for select using (true);
+create policy "badge_tiers_staff_write" on public.badge_tiers
+  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+
+insert into public.badge_tiers (icon, name, min_points, color) values
+  ('🌿', 'ผู้เริ่มต้น',    0,    '#6b7280'),
+  ('🌱', 'คนดีระดับต้น',   100,  'oklch(0.52 0.17 145)'),
+  ('🌟', 'คนดีระดับกลาง', 500,  '#3b82f6'),
+  ('⭐', 'คนดีระดับสูง',  1000, '#8b5cf6'),
+  ('👑', 'คนดีต้นแบบ',    5000, '#f59e0b')
+on conflict do nothing;
+
+-- =============================================
+-- 8. App settings — key/value config (Leaderboard visibility, Top N)
+-- =============================================
+create table if not exists public.app_settings (
+  key text primary key,
+  value text,
+  updated_at timestamptz default now()
+);
+
+alter table public.app_settings enable row level security;
+create policy "app_settings_read" on public.app_settings for select using (true);
+create policy "app_settings_staff_write" on public.app_settings
+  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+
+insert into public.app_settings (key, value) values
+  ('leaderboard_enabled', 'true'),
+  ('leaderboard_top_n', '10')
+on conflict (key) do nothing;
+
+-- =============================================
+-- 9. student_points.badge_level now computed dynamically from badge_tiers
+-- (was a hardcoded CASE WHEN — see git history for the previous version)
+-- =============================================
+create or replace view public.student_points as
+with totals as (
+  select
+    s.id as student_id,
+    s.student_code,
+    s.student_name,
+    s.prefix,
+    s.grade_level,
+    s.room,
+    coalesce(sum(pl.points),0)::int as total_points
+  from public.students s
+  left join public.point_logs pl on pl.student_id = s.id
+  group by s.id, s.student_code, s.student_name, s.prefix, s.grade_level, s.room
+)
+select
+  t.*,
+  bt.name as badge_level,
+  bt.icon as badge_icon,
+  bt.color as badge_color
+from totals t
+left join lateral (
+  select name, icon, color
+  from public.badge_tiers
+  where active = true and min_points <= t.total_points
+  order by min_points desc
+  limit 1
+) bt on true;
+
+alter view public.student_points set (security_invoker = true);
+
+-- =============================================
+-- 10. Leaderboard: ห้อง/ชั้น scope filters + Top N pulled from app_settings
+-- =============================================
+drop function if exists public.get_leaderboard(int);
+
+create function public.get_leaderboard(p_limit int default null, p_grade_level text default null, p_room text default null)
+returns table (
+  rank bigint,
+  student_name text,
+  prefix text,
+  grade_level text,
+  room text,
+  total_points int
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_limit int;
+begin
+  if p_limit is not null then
+    v_limit := p_limit;
+  else
+    select coalesce((select value::int from public.app_settings where key = 'leaderboard_top_n'), 10) into v_limit;
+  end if;
+
+  return query
+    select
+      row_number() over (order by sp.total_points desc, sp.student_name) as rank,
+      sp.student_name, sp.prefix, sp.grade_level, sp.room, sp.total_points
+    from public.student_points sp
+    where (p_grade_level is null or sp.grade_level = p_grade_level)
+      and (p_room is null or sp.room = p_room)
+    order by sp.total_points desc, sp.student_name
+    limit v_limit;
+end;
+$$;
+grant execute on function public.get_leaderboard(int,text,text) to anon, authenticated;

@@ -66,8 +66,10 @@ async function getStudentHistory(studentCode, limit = 20) {
   return { data, error: error?.message || null };
 }
 
-async function getLeaderboard(limit = 10) {
-  const { data, error } = await _sb.rpc('get_leaderboard', { p_limit: limit });
+async function getLeaderboard({ limit = null, gradeLevel = null, room = null } = {}) {
+  const { data, error } = await _sb.rpc('get_leaderboard', {
+    p_limit: limit, p_grade_level: gradeLevel, p_room: room,
+  });
   return { data, error: error?.message || null };
 }
 
@@ -203,4 +205,51 @@ async function getReportSummary() {
     },
     error: null,
   };
+}
+
+// ──────────────────────────────────────────────
+// Badge tiers (public read; any signed-in staff can manage — Admin parity)
+// ──────────────────────────────────────────────
+
+async function getBadgeTiers() {
+  const { data, error } = await _sb.from('badge_tiers').select('*').order('min_points');
+  return { data, error: error?.message || null };
+}
+
+async function addBadgeTier({ icon, name, min_points, color }) {
+  const { error } = await _sb.from('badge_tiers').insert({ icon, name, min_points, color });
+  return { error: error?.message || null };
+}
+
+async function updateBadgeTier(id, updates) {
+  const { error } = await _sb.from('badge_tiers').update(updates).eq('id', id);
+  return { error: error?.message || null };
+}
+
+async function deleteBadgeTier(id) {
+  const { error } = await _sb.from('badge_tiers').delete().eq('id', id);
+  return { error: error?.message || null };
+}
+
+// ──────────────────────────────────────────────
+// App settings (public read; any signed-in staff can manage)
+// ──────────────────────────────────────────────
+
+async function getAppSettings() {
+  const { data, error } = await _sb.from('app_settings').select('*');
+  if (error) return { data: null, error: error.message };
+  const settings = {};
+  for (const row of data) settings[row.key] = row.value;
+  return {
+    data: {
+      leaderboardEnabled: settings.leaderboard_enabled !== 'false',
+      leaderboardTopN: parseInt(settings.leaderboard_top_n) || 10,
+    },
+    error: null,
+  };
+}
+
+async function updateAppSetting(key, value) {
+  const { error } = await _sb.from('app_settings').update({ value: String(value) }).eq('key', key);
+  return { error: error?.message || null };
 }

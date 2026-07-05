@@ -19,7 +19,8 @@ const state = {
   student: null,          // { student_id, student_code, student_name, prefix, grade_level, room, total_points, badge_level, rank, redeem_count, total_deeds }
   studentHistory: [],
   studentRedemptions: [],
-  leaderboard: [],
+  leaderboard: null,
+  leaderboardScope: 'school', // 'school' | 'grade' | 'room'
 
   staffUser: null,        // { id, full_name, role, is_admin }
 
@@ -30,6 +31,8 @@ const state = {
   studentSearch: '',
   pointLogs: [],
   reportSummary: null,
+  badgeTiers: [],
+  settings: { leaderboardEnabled: true, leaderboardTopN: 10 },
 
   scanStep: 0,
   scanStudentCode: '',
@@ -55,6 +58,8 @@ const TITLES = {
   'admin-deedtypes':   'ประเภทความดี',
   'admin-rewards':     'จัดการรางวัล',
   'admin-reports':     'รายงาน',
+  'admin-badges':      'จัดการ Badge',
+  'admin-settings':    'ตั้งค่าระบบ',
 };
 
 const NAV = {
@@ -74,6 +79,8 @@ const NAV = {
     { id: 'admin-deedtypes',   icon: '💚', label: 'ความดี' },
     { id: 'admin-rewards',     icon: '🎁', label: 'รางวัล' },
     { id: 'admin-reports',     icon: '📈', label: 'รายงาน' },
+    { id: 'admin-badges',      icon: '🏅', label: 'Badge' },
+    { id: 'admin-settings',    icon: '⚙️', label: 'ตั้งค่า' },
   ],
   admin: [
     { id: 'admin-dashboard',  icon: '📊', label: 'Dashboard' },
@@ -84,16 +91,28 @@ const NAV = {
     { id: 'admin-deedtypes',  icon: '💚', label: 'ความดี' },
     { id: 'admin-rewards',    icon: '🎁', label: 'รางวัล' },
     { id: 'admin-reports',    icon: '📈', label: 'รายงาน' },
+    { id: 'admin-badges',     icon: '🏅', label: 'Badge' },
+    { id: 'admin-settings',   icon: '⚙️', label: 'ตั้งค่า' },
   ],
 };
 
-// ── Badge tiers (must match SQL thresholds in student_points view) ──
+// ── Badge tiers — Admin-configurable, fetched from public.badge_tiers ──
+// Falls back to a single default tier if not loaded yet (e.g. before first fetch).
 function getBadge(pts) {
-  if (pts >= 5000) return { label: 'คนดีต้นแบบ',    color: '#f59e0b', icon: '👑', nextLabel: null,           nextPts: null };
-  if (pts >= 1000) return { label: 'คนดีระดับสูง',  color: '#8b5cf6', icon: '⭐', nextLabel: 'คนดีต้นแบบ',   nextPts: 5000 };
-  if (pts >= 500)  return { label: 'คนดีระดับกลาง', color: '#3b82f6', icon: '🌟', nextLabel: 'คนดีระดับสูง', nextPts: 1000 };
-  if (pts >= 100)  return { label: 'คนดีระดับต้น',  color: 'var(--g)', icon: '🌱', nextLabel: 'คนดีระดับกลาง', nextPts: 500 };
-  return             { label: 'ผู้เริ่มต้น',         color: '#6b7280', icon: '🌿', nextLabel: 'คนดีระดับต้น', nextPts: 100 };
+  const tiers = (state.badgeTiers && state.badgeTiers.length)
+    ? [...state.badgeTiers].sort((a, b) => a.min_points - b.min_points)
+    : [{ icon: '🌿', name: 'ผู้เริ่มต้น', min_points: 0, color: '#6b7280' }];
+
+  let current = tiers[0];
+  let next = null;
+  for (const tier of tiers) {
+    if (tier.min_points <= pts) current = tier;
+    else { next = tier; break; }
+  }
+  return {
+    label: current.name, color: current.color, icon: current.icon, minPts: current.min_points,
+    nextLabel: next ? next.name : null, nextPts: next ? next.min_points : null,
+  };
 }
 
 function fullName(s) { return `${s.prefix || ''}${s.student_name || ''}`; }
@@ -223,7 +242,10 @@ function staffLoginFormHTML() {
 // so only the 4 most-used stay here; the full list (including นักเรียน/ความดี/
 // รางวัล/รายงาน) is always reachable from the ☰ drawer (see openDrawer()).
 function bottomNavItems() {
-  const items = NAV[state.role] || [];
+  let items = NAV[state.role] || [];
+  if (state.role === 'student' && !state.settings.leaderboardEnabled) {
+    items = items.filter(it => it.id !== 'student-leaderboard');
+  }
   return (state.role === 'teacher' || state.role === 'admin') ? items.slice(0, 4) : items;
 }
 
@@ -285,6 +307,8 @@ function renderScreen(screen) {
     'admin-deedtypes':     renderAdminDeedTypes,
     'admin-rewards':       renderAdminRewards,
     'admin-reports':       renderAdminReports,
+    'admin-badges':        renderAdminBadges,
+    'admin-settings':      renderAdminSettings,
   };
   return (S[screen] || (() => '<div style="text-align:center;padding:40px;color:#9ca3af;">🚧 หน้านี้กำลังพัฒนา...</div>'))();
 }
@@ -384,14 +408,8 @@ function renderStudentBadges() {
   const s = state.student;
   const pts = s.total_points;
   const badge = getBadge(pts);
-  const allBadges = [
-    { icon: '🌿', label: 'ผู้เริ่มต้น',    range: '0 – 99 คะแนน',        min: 0,    color: '#6b7280' },
-    { icon: '🌱', label: 'คนดีระดับต้น',   range: '100 – 499 คะแนน',    min: 100,  color: 'var(--g)' },
-    { icon: '🌟', label: 'คนดีระดับกลาง', range: '500 – 999 คะแนน',    min: 500,  color: '#3b82f6' },
-    { icon: '⭐', label: 'คนดีระดับสูง',  range: '1,000 – 4,999 คะแนน',min: 1000, color: '#8b5cf6' },
-    { icon: '👑', label: 'คนดีต้นแบบ',    range: '5,000+ คะแนน',        min: 5000, color: '#f59e0b' },
-  ];
-  const progressPct = badge.nextPts ? Math.round(((pts - prevTier(pts)) / (badge.nextPts - prevTier(pts))) * 100) : 100;
+  const tiers = [...state.badgeTiers].sort((a, b) => a.min_points - b.min_points);
+  const progressPct = badge.nextPts ? Math.round(((pts - badge.minPts) / (badge.nextPts - badge.minPts)) * 100) : 100;
 
   return `
   <div class="screen-wrap anim-slideup">
@@ -404,20 +422,22 @@ function renderStudentBadges() {
           <div class="progress-fill" style="width:${progressPct}%;"></div>
         </div>
         <div style="display:flex;justify-content:space-between;font-size:11px;opacity:0.7;margin-top:4px;">
-          <span>${prevTier(pts)}</span>
+          <span>${badge.minPts}</span>
           <span>${badge.nextLabel ? `อีก ${badge.nextPts - pts} → ${badge.nextLabel}` : 'ระดับสูงสุดแล้ว'}</span>
           <span>${badge.nextPts || ''}</span>
         </div>
       </div>
     </div>
     <div class="badge-grid">
-      ${allBadges.map(b => {
-        const unlocked = pts >= b.min;
+      ${tiers.map((b, i) => {
+        const unlocked = pts >= b.min_points;
+        const next = tiers[i + 1];
+        const range = next ? `${b.min_points.toLocaleString()} – ${(next.min_points - 1).toLocaleString()} คะแนน` : `${b.min_points.toLocaleString()}+ คะแนน`;
         return `
         <div class="badge-card ${unlocked ? 'unlocked' : ''}" style="${unlocked ? `border-color:${b.color}30;box-shadow:0 2px 12px ${b.color}28;` : 'opacity:0.55;'}">
           <div class="badge-card-icon" style="${unlocked ? '' : 'filter:grayscale(1);'}">${b.icon}</div>
-          <div class="badge-card-name" style="color:${unlocked ? b.color : '#9ca3af'};">${b.label}</div>
-          <div class="badge-card-range">${b.range}</div>
+          <div class="badge-card-name" style="color:${unlocked ? b.color : '#9ca3af'};">${b.name}</div>
+          <div class="badge-card-range">${range}</div>
           <div class="badge-status ${unlocked ? 'unlocked' : ''}" style="${unlocked ? `background:${b.color}18;color:${b.color};` : ''}">
             ${unlocked ? '✓ ปลดล็อคแล้ว' : '🔒 ล็อคอยู่'}
           </div>
@@ -427,24 +447,54 @@ function renderStudentBadges() {
   </div>`;
 }
 
-function prevTier(pts) {
-  if (pts >= 5000) return 5000;
-  if (pts >= 1000) return 1000;
-  if (pts >= 500) return 500;
-  if (pts >= 100) return 100;
-  return 0;
-}
-
 function renderStudentLeaderboard() {
+  if (!state.settings.leaderboardEnabled) {
+    return `
+    <div class="screen-wrap anim-slideup">
+      <div class="card" style="text-align:center;padding:40px 20px;color:#9ca3af;">
+        <div style="font-size:40px;margin-bottom:10px;">🔒</div>
+        <div style="font-size:14px;">ผู้ดูแลระบบปิดการแสดงผลอันดับชั่วคราว</div>
+      </div>
+    </div>`;
+  }
+
   const top = state.leaderboard;
-  if (!top.length) return loadingBlock();
+  if (top === null) return loadingBlock();
+
+  const scopeTabs = [
+    { id: 'school', label: 'ทั้งโรงเรียน' },
+    { id: 'grade',  label: 'ชั้นเดียวกัน' },
+    { id: 'room',   label: 'ห้องเดียวกัน' },
+  ];
+  const scopeTabsHTML = `
+    <div style="display:flex;gap:8px;">
+      ${scopeTabs.map(t => `
+        <button data-action="set-leaderboard-scope" data-scope="${t.id}"
+          style="flex:1;padding:9px 6px;border-radius:10px;border:none;cursor:pointer;font-family:Kanit;font-size:12px;font-weight:${state.leaderboardScope === t.id ? 700 : 400};background:${state.leaderboardScope === t.id ? 'var(--g)' : '#fff'};color:${state.leaderboardScope === t.id ? '#fff' : '#6b7280'};box-shadow:0 1px 4px rgba(0,0,0,0.06);">
+          ${t.label}
+        </button>
+      `).join('')}
+    </div>`;
+
+  if (!top.length) {
+    return `
+    <div class="screen-wrap anim-slideup">
+      <div class="hero-banner">
+        <div style="text-align:center;">
+          <div style="font-size:22px;font-weight:700;">🏆 อันดับนักเรียนดีเด่น</div>
+          <div style="font-size:13px;opacity:0.8;margin-top:4px;">เรียงตามคะแนนสะสม</div>
+        </div>
+      </div>
+      ${scopeTabsHTML}
+      <div class="card" style="text-align:center;padding:30px;color:#9ca3af;font-size:13px;">ยังไม่มีข้อมูลในขอบเขตนี้</div>
+    </div>`;
+  }
 
   const podium = top.length >= 3 ? [top[1], top[0], top[2]] : top;
   const heights = [130, 155, 110];
   const colors  = ['#C0C0C0', '#FFD700', '#CD7F32'];
   const textClr = ['#fff', '#78350f', '#fff'];
   const rest = top.slice(3);
-  const myCode = state.student?.student_code;
 
   return `
   <div class="screen-wrap anim-slideup">
@@ -454,6 +504,8 @@ function renderStudentLeaderboard() {
         <div style="font-size:13px;opacity:0.8;margin-top:4px;">เรียงตามคะแนนสะสม</div>
       </div>
     </div>
+
+    ${scopeTabsHTML}
 
     ${top.length >= 3 ? `
     <div class="podium">
@@ -860,6 +912,56 @@ function renderAdminReports() {
   </div>`;
 }
 
+function renderAdminBadges() {
+  const tiers = [...state.badgeTiers].sort((a, b) => a.min_points - b.min_points);
+  return `
+  <div class="screen-wrap anim-slideup">
+    <button class="btn-green" data-action="open-add-badge" style="padding:14px;">+ เพิ่ม Badge ใหม่</button>
+    <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.055);">
+      ${tiers.map(t => `
+        <div class="list-item">
+          <span style="font-size:24px;">${t.icon}</span>
+          <div style="flex:1;">
+            <div style="font-weight:600;font-size:14px;color:${t.color};">${t.name}</div>
+            <div style="font-size:12px;color:#9ca3af;margin-top:1px;">ตั้งแต่ ${t.min_points.toLocaleString()} คะแนนขึ้นไป</div>
+          </div>
+          <div class="action-btns">
+            <button class="btn-del" data-action="del-badge" data-id="${t.id}" data-name="${t.name}">🗑️</button>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  </div>`;
+}
+
+function renderAdminSettings() {
+  const s = state.settings;
+  return `
+  <div class="screen-wrap anim-slideup">
+    <div class="card">
+      <div style="font-size:15px;font-weight:700;color:var(--gd);margin-bottom:20px;">⚙️ ตั้งค่าอันดับนักเรียน (Leaderboard)</div>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid oklch(0.96 0.02 145);margin-bottom:16px;">
+        <div>
+          <div style="font-weight:600;font-size:14px;color:#1f2937;">แสดงอันดับให้นักเรียนเห็น</div>
+          <div style="font-size:12px;color:#9ca3af;margin-top:2px;">ปิดเพื่อซ่อนหน้าอันดับจากเมนูนักเรียนทั้งหมด</div>
+        </div>
+        <button data-action="toggle-leaderboard-enabled" data-enabled="${s.leaderboardEnabled}"
+          style="width:48px;height:28px;border-radius:20px;border:none;cursor:pointer;position:relative;background:${s.leaderboardEnabled ? 'var(--g)' : '#e5e7eb'};flex-shrink:0;">
+          <span style="position:absolute;top:3px;left:${s.leaderboardEnabled ? '23px' : '3px'};width:22px;height:22px;border-radius:50%;background:#fff;transition:left 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.3);"></span>
+        </button>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">จำนวนอันดับที่แสดง (Top N)</label>
+        <input class="form-input" type="number" min="3" max="100" id="top-n-input" value="${s.leaderboardTopN}">
+      </div>
+
+      <button class="btn-green" data-action="save-leaderboard-settings" style="padding:14px;">✅ บันทึกการตั้งค่า</button>
+    </div>
+  </div>`;
+}
+
 // ══════════════════════════════════════════════
 // Helpers
 // ══════════════════════════════════════════════
@@ -1026,15 +1128,18 @@ async function submitStudentLogin() {
   const { student, error } = await studentLogin(code);
   if (error || !student) { setState({ loading: false, authError: error || 'ไม่พบรหัสนักเรียนนี้' }); return; }
 
-  const [{ data: history }, { data: leaderboard }, { data: rewards }] = await Promise.all([
+  const [{ data: history }, { data: leaderboard }, { data: rewards }, { data: badgeTiers }, { data: settings }] = await Promise.all([
     getStudentHistory(code, 30),
-    getLeaderboard(10),
+    getLeaderboard({ limit: 10 }),
     getRewards(),
+    getBadgeTiers(),
+    getAppSettings(),
   ]);
 
   setState({
     loading: false, role: 'student', screen: 'student-dashboard',
     student, studentHistory: history || [], leaderboard: leaderboard || [], rewards: rewards || [],
+    badgeTiers: badgeTiers || [], settings: settings || state.settings, leaderboardScope: 'school',
   });
   showToast(`ยินดีต้อนรับ ${fullName(student)}! 🌿`);
 }
@@ -1051,7 +1156,8 @@ async function submitStaffLogin() {
   const role = isAdmin ? 'admin' : 'teacher';
   const screen = isAdmin ? 'admin-dashboard' : 'teacher-dashboard';
 
-  setState({ loading: false, role, screen, staffUser: profile });
+  const { data: badgeTiers } = await getBadgeTiers();
+  setState({ loading: false, role, screen, staffUser: profile, badgeTiers: badgeTiers || [] });
   await loadDataForScreen(screen);
   showToast(`ยินดีต้อนรับ ${profile.full_name}! 🌿`);
 }
@@ -1061,9 +1167,10 @@ async function doLogout() {
   if (state.role === 'teacher' || state.role === 'admin') await staffLogout();
   Object.assign(state, {
     screen: 'login', authView: null, role: null, authError: '', drawerOpen: false,
-    student: null, studentHistory: [], studentRedemptions: [], leaderboard: [],
-    staffUser: null, deedTypes: [], rewards: [], students: [], pointLogs: [],
+    student: null, studentHistory: [], studentRedemptions: [], leaderboard: null, leaderboardScope: 'school',
+    staffUser: null, deedTypes: [], rewards: [], students: [], pointLogs: [], badgeTiers: [],
     reportSummary: null, scanStep: 0, scanStudent: null, selectedDeedId: null, points: 10,
+    settings: { leaderboardEnabled: true, leaderboardTopN: 10 },
   });
   render();
   showToast('ออกจากระบบแล้ว');
@@ -1099,6 +1206,14 @@ async function loadDataForScreen(screen) {
   if (screen === 'admin-rewards') {
     const { data } = await getRewards();
     state.rewards = data || [];
+  }
+  if (screen === 'admin-badges') {
+    const { data } = await getBadgeTiers();
+    state.badgeTiers = data || [];
+  }
+  if (screen === 'admin-settings') {
+    const { data } = await getAppSettings();
+    state.settings = data || state.settings;
   }
 }
 
@@ -1227,6 +1342,18 @@ document.addEventListener('click', async (e) => {
       break;
     }
 
+    case 'set-leaderboard-scope': {
+      const scope = btn.dataset.scope;
+      setState({ leaderboardScope: scope, leaderboard: null });
+      const s = state.student;
+      const filter = scope === 'grade' ? { gradeLevel: s.grade_level }
+                   : scope === 'room' ? { gradeLevel: s.grade_level, room: s.room }
+                   : {};
+      const { data } = await getLeaderboard({ limit: 10, ...filter });
+      setState({ leaderboard: data || [] });
+      break;
+    }
+
     case 'search-students-submit': {
       state.studentSearch = document.getElementById('student-search')?.value.trim() || '';
       const { data, count } = await getStudents({ search: state.studentSearch, limit: 20 });
@@ -1304,6 +1431,61 @@ document.addEventListener('click', async (e) => {
       showToast(`${!active ? 'เปิด' : 'ปิด'}ใช้งาน: ${btn.dataset.name}`);
       await loadDataForScreen('admin-rewards');
       render();
+      break;
+    }
+
+    case 'open-add-badge':
+      showModal(`
+        <div class="modal-title">➕ เพิ่ม Badge ใหม่</div>
+        <div class="form-group"><label class="form-label">ไอคอน (Emoji)</label><input class="form-input" id="new-badge-icon" value="🏅"></div>
+        <div class="form-group"><label class="form-label">ชื่อ Badge *</label><input class="form-input" id="new-badge-name" placeholder="เช่น คนดีระดับเทพ"></div>
+        <div class="form-group"><label class="form-label">คะแนนขั้นต่ำ *</label><input class="form-input" type="number" id="new-badge-min" placeholder="10000"></div>
+        <div class="form-group"><label class="form-label">สี</label><input class="form-input" type="color" id="new-badge-color" value="#22c55e" style="height:44px;padding:4px;"></div>
+        <button class="btn-green" data-action="save-badge" style="padding:13px;margin-top:4px;">✅ บันทึก</button>
+        <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:Kanit;color:#9ca3af;cursor:pointer;">ยกเลิก</button>
+      `);
+      break;
+
+    case 'save-badge': {
+      const icon = document.getElementById('new-badge-icon')?.value.trim() || '🏅';
+      const name = document.getElementById('new-badge-name')?.value.trim();
+      const min_points = parseInt(document.getElementById('new-badge-min')?.value);
+      const color = document.getElementById('new-badge-color')?.value || '#22c55e';
+      if (!name || isNaN(min_points)) { showToast('กรุณากรอกข้อมูลให้ครบ'); return; }
+      const { error } = await addBadgeTier({ icon, name, min_points, color });
+      closeModal();
+      if (error) { showToast(`เกิดข้อผิดพลาด: ${error}`); break; }
+      showToast(`เพิ่ม Badge "${name}" สำเร็จ! ✅`);
+      await loadDataForScreen('admin-badges');
+      render();
+      break;
+    }
+
+    case 'del-badge': {
+      const { error } = await deleteBadgeTier(btn.dataset.id);
+      if (error) { showToast(`เกิดข้อผิดพลาด: ${error}`); break; }
+      showToast(`ลบ Badge "${btn.dataset.name}" แล้ว`);
+      await loadDataForScreen('admin-badges');
+      render();
+      break;
+    }
+
+    case 'toggle-leaderboard-enabled': {
+      const enabled = btn.dataset.enabled === 'true';
+      setState({ settings: { ...state.settings, leaderboardEnabled: !enabled } });
+      break;
+    }
+
+    case 'save-leaderboard-settings': {
+      const topN = parseInt(document.getElementById('top-n-input')?.value) || 10;
+      setState({ loading: true });
+      const [{ error: e1 }, { error: e2 }] = await Promise.all([
+        updateAppSetting('leaderboard_enabled', state.settings.leaderboardEnabled ? 'true' : 'false'),
+        updateAppSetting('leaderboard_top_n', topN),
+      ]);
+      setState({ loading: false, settings: { ...state.settings, leaderboardTopN: topN } });
+      if (e1 || e2) { showToast(`เกิดข้อผิดพลาด: ${e1 || e2}`); break; }
+      showToast('บันทึกการตั้งค่าสำเร็จ! ✅');
       break;
     }
 

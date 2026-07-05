@@ -31,8 +31,10 @@ const state = {
   studentSearch: '',
   pointLogs: [],
   reportSummary: null,
+  reportError: null,
   badgeTiers: [],
   settings: { leaderboardEnabled: true, leaderboardTopN: 10 },
+  rolePermissions: { 'admin-deedtypes': true, 'admin-rewards': true, 'admin-reports': true },
 
   scanStep: 0,
   scanStudentCode: '',
@@ -79,8 +81,7 @@ const NAV = {
     { id: 'admin-deedtypes',   icon: '💚', label: 'ความดี' },
     { id: 'admin-rewards',     icon: '🎁', label: 'รางวัล' },
     { id: 'admin-reports',     icon: '📈', label: 'รายงาน' },
-    { id: 'admin-badges',      icon: '🏅', label: 'Badge' },
-    { id: 'admin-settings',    icon: '⚙️', label: 'ตั้งค่า' },
+    // Badge/ตั้งค่า are Admin-only — never shown to teachers, permission or not.
   ],
   admin: [
     { id: 'admin-dashboard',  icon: '📊', label: 'Dashboard' },
@@ -95,6 +96,19 @@ const NAV = {
     { id: 'admin-settings',   icon: '⚙️', label: 'ตั้งค่า' },
   ],
 };
+
+// Screens an Admin can individually enable/disable for teachers (state.rolePermissions).
+// Anything not listed here is always visible to teachers (or Admin-only, like Badge/ตั้งค่า).
+const TEACHER_CONFIGURABLE_SCREENS = ['admin-deedtypes', 'admin-rewards', 'admin-reports'];
+
+function navItemsForRole(role) {
+  const items = NAV[role] || [];
+  if (role !== 'teacher') return items;
+  return items.filter(it => {
+    if (!TEACHER_CONFIGURABLE_SCREENS.includes(it.id)) return true;
+    return state.rolePermissions[it.id] !== false;
+  });
+}
 
 // ── Badge tiers — Admin-configurable, fetched from public.badge_tiers ──
 // Falls back to a single default tier if not loaded yet (e.g. before first fetch).
@@ -241,11 +255,16 @@ function staffLoginFormHTML() {
 // Teacher/Admin have 8 nav destinations total — too many for a mobile bottom bar,
 // so only the 4 most-used stay here; the full list (including นักเรียน/ความดี/
 // รางวัล/รายงาน) is always reachable from the ☰ drawer (see openDrawer()).
-function bottomNavItems() {
-  let items = NAV[state.role] || [];
-  if (state.role === 'student' && !state.settings.leaderboardEnabled) {
+function visibleNavItems(role) {
+  let items = navItemsForRole(role);
+  if (role === 'student' && !state.settings.leaderboardEnabled) {
     items = items.filter(it => it.id !== 'student-leaderboard');
   }
+  return items;
+}
+
+function bottomNavItems() {
+  const items = visibleNavItems(state.role);
   return (state.role === 'teacher' || state.role === 'admin') ? items.slice(0, 4) : items;
 }
 
@@ -261,7 +280,7 @@ function renderBottomNav() {
 
 // ── Drawer (full nav, slides in from the left) ──
 function renderDrawer() {
-  const items = NAV[state.role] || [];
+  const items = visibleNavItems(state.role);
   const nav = items.map(it => `
     <button class="snav-btn ${state.screen === it.id ? 'active' : ''}" data-action="drawer-nav" data-screen="${it.id}">
       <span class="snav-icon">${it.icon}</span>${it.label}
@@ -893,6 +912,15 @@ function renderAdminRewards() {
 }
 
 function renderAdminReports() {
+  if (state.reportError) {
+    return `
+    <div class="screen-wrap anim-slideup">
+      <div class="card" style="text-align:center;padding:40px 20px;color:#9ca3af;">
+        <div style="font-size:40px;margin-bottom:10px;">🔒</div>
+        <div style="font-size:14px;">ไม่มีสิทธิ์เข้าถึงรายงาน — กรุณาติดต่อผู้ดูแลระบบ</div>
+      </div>
+    </div>`;
+  }
   const r = state.reportSummary;
   if (!r) return loadingBlock();
   return `
@@ -934,8 +962,23 @@ function renderAdminBadges() {
   </div>`;
 }
 
+function toggleSwitchHTML(action, key, enabled) {
+  return `
+    <button data-action="${action}" data-key="${key}" data-enabled="${enabled}"
+      style="width:48px;height:28px;border-radius:20px;border:none;cursor:pointer;position:relative;background:${enabled ? 'var(--g)' : '#e5e7eb'};flex-shrink:0;">
+      <span style="position:absolute;top:3px;left:${enabled ? '23px' : '3px'};width:22px;height:22px;border-radius:50%;background:#fff;transition:left 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.3);"></span>
+    </button>`;
+}
+
 function renderAdminSettings() {
   const s = state.settings;
+  const perms = state.rolePermissions;
+  const permRows = [
+    { key: 'admin-deedtypes', label: 'ความดี', desc: 'เพิ่ม/แก้ไข/ลบ ประเภทความดี' },
+    { key: 'admin-rewards',   label: 'รางวัล', desc: 'เพิ่ม/แก้ไข/เปิด-ปิด รางวัล' },
+    { key: 'admin-reports',   label: 'รายงาน', desc: 'ดูรายงานสรุปคะแนนความดี' },
+  ];
+
   return `
   <div class="screen-wrap anim-slideup">
     <div class="card">
@@ -946,19 +989,31 @@ function renderAdminSettings() {
           <div style="font-weight:600;font-size:14px;color:#1f2937;">แสดงอันดับให้นักเรียนเห็น</div>
           <div style="font-size:12px;color:#9ca3af;margin-top:2px;">ปิดเพื่อซ่อนหน้าอันดับจากเมนูนักเรียนทั้งหมด</div>
         </div>
-        <button data-action="toggle-leaderboard-enabled" data-enabled="${s.leaderboardEnabled}"
-          style="width:48px;height:28px;border-radius:20px;border:none;cursor:pointer;position:relative;background:${s.leaderboardEnabled ? 'var(--g)' : '#e5e7eb'};flex-shrink:0;">
-          <span style="position:absolute;top:3px;left:${s.leaderboardEnabled ? '23px' : '3px'};width:22px;height:22px;border-radius:50%;background:#fff;transition:left 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.3);"></span>
-        </button>
+        ${toggleSwitchHTML('toggle-leaderboard-enabled', '', s.leaderboardEnabled)}
       </div>
 
       <div class="form-group">
         <label class="form-label">จำนวนอันดับที่แสดง (Top N)</label>
         <input class="form-input" type="number" min="3" max="100" id="top-n-input" value="${s.leaderboardTopN}">
       </div>
-
-      <button class="btn-green" data-action="save-leaderboard-settings" style="padding:14px;">✅ บันทึกการตั้งค่า</button>
     </div>
+
+    <div class="card">
+      <div style="font-size:15px;font-weight:700;color:var(--gd);margin-bottom:6px;">👨‍🏫 สิทธิ์การเข้าถึงของครู</div>
+      <div style="font-size:12px;color:#9ca3af;margin-bottom:16px;">กำหนดว่าครูทุกคนเห็น/จัดการเมนูใดได้บ้าง (บังคับจริงที่ฐานข้อมูล)</div>
+
+      ${permRows.map((r, i) => `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;${i < permRows.length - 1 ? 'border-bottom:1px solid oklch(0.96 0.02 145);' : ''}">
+          <div>
+            <div style="font-weight:600;font-size:14px;color:#1f2937;">${r.label}</div>
+            <div style="font-size:12px;color:#9ca3af;margin-top:2px;">${r.desc}</div>
+          </div>
+          ${toggleSwitchHTML('toggle-role-permission', r.key, perms[r.key] !== false)}
+        </div>
+      `).join('')}
+    </div>
+
+    <button class="btn-green" data-action="save-all-settings" style="padding:14px;">✅ บันทึกการตั้งค่าทั้งหมด</button>
   </div>`;
 }
 
@@ -1156,8 +1211,11 @@ async function submitStaffLogin() {
   const role = isAdmin ? 'admin' : 'teacher';
   const screen = isAdmin ? 'admin-dashboard' : 'teacher-dashboard';
 
-  const { data: badgeTiers } = await getBadgeTiers();
-  setState({ loading: false, role, screen, staffUser: profile, badgeTiers: badgeTiers || [] });
+  const [{ data: badgeTiers }, { data: rolePermissions }] = await Promise.all([getBadgeTiers(), getRolePermissions()]);
+  setState({
+    loading: false, role, screen, staffUser: profile,
+    badgeTiers: badgeTiers || [], rolePermissions: rolePermissions || state.rolePermissions,
+  });
   await loadDataForScreen(screen);
   showToast(`ยินดีต้อนรับ ${profile.full_name}! 🌿`);
 }
@@ -1169,8 +1227,9 @@ async function doLogout() {
     screen: 'login', authView: null, role: null, authError: '', drawerOpen: false,
     student: null, studentHistory: [], studentRedemptions: [], leaderboard: null, leaderboardScope: 'school',
     staffUser: null, deedTypes: [], rewards: [], students: [], pointLogs: [], badgeTiers: [],
-    reportSummary: null, scanStep: 0, scanStudent: null, selectedDeedId: null, points: 10,
+    reportSummary: null, reportError: null, scanStep: 0, scanStudent: null, selectedDeedId: null, points: 10,
     settings: { leaderboardEnabled: true, leaderboardTopN: 10 },
+    rolePermissions: { 'admin-deedtypes': true, 'admin-rewards': true, 'admin-reports': true },
   });
   render();
   showToast('ออกจากระบบแล้ว');
@@ -1190,8 +1249,9 @@ async function loadDataForScreen(screen) {
     state.deedTypes = data || [];
   }
   if (screen === 'admin-dashboard' || screen === 'admin-reports') {
-    const [{ data: summary }, { data: logs }] = await Promise.all([getReportSummary(), getPointLogs({ limit: 6 })]);
+    const [{ data: summary, error: reportError }, { data: logs }] = await Promise.all([getReportSummary(), getPointLogs({ limit: 6 })]);
     state.reportSummary = summary;
+    state.reportError = reportError || null;
     state.pointLogs = logs || [];
   }
   if (screen === 'admin-students') {
@@ -1212,8 +1272,9 @@ async function loadDataForScreen(screen) {
     state.badgeTiers = data || [];
   }
   if (screen === 'admin-settings') {
-    const { data } = await getAppSettings();
-    state.settings = data || state.settings;
+    const [{ data: settings }, { data: rolePermissions }] = await Promise.all([getAppSettings(), getRolePermissions()]);
+    state.settings = settings || state.settings;
+    state.rolePermissions = rolePermissions || state.rolePermissions;
   }
 }
 
@@ -1476,15 +1537,25 @@ document.addEventListener('click', async (e) => {
       break;
     }
 
-    case 'save-leaderboard-settings': {
+    case 'toggle-role-permission': {
+      const enabled = btn.dataset.enabled === 'true';
+      const key = btn.dataset.key;
+      setState({ rolePermissions: { ...state.rolePermissions, [key]: !enabled } });
+      break;
+    }
+
+    case 'save-all-settings': {
       const topN = parseInt(document.getElementById('top-n-input')?.value) || 10;
       setState({ loading: true });
-      const [{ error: e1 }, { error: e2 }] = await Promise.all([
+      const permKeys = ['admin-deedtypes', 'admin-rewards', 'admin-reports'];
+      const results = await Promise.all([
         updateAppSetting('leaderboard_enabled', state.settings.leaderboardEnabled ? 'true' : 'false'),
         updateAppSetting('leaderboard_top_n', topN),
+        ...permKeys.map(k => updateRolePermission(k, state.rolePermissions[k] !== false)),
       ]);
+      const firstError = results.map(r => r.error).find(Boolean);
       setState({ loading: false, settings: { ...state.settings, leaderboardTopN: topN } });
-      if (e1 || e2) { showToast(`เกิดข้อผิดพลาด: ${e1 || e2}`); break; }
+      if (firstError) { showToast(`เกิดข้อผิดพลาด: ${firstError}`); break; }
       showToast('บันทึกการตั้งค่าสำเร็จ! ✅');
       break;
     }

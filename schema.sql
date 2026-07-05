@@ -455,3 +455,90 @@ begin
 end;
 $$;
 grant execute on function public.get_leaderboard(int,text,text) to anon, authenticated;
+
+-- =============================================
+-- 11. Teacher menu permissions — Admin controls which of the 3 management
+-- screens (ความดี/รางวัล/รายงาน) teachers can see/manage. Blanket setting,
+-- applies to all teachers. Admin-only write — teachers must NOT be able to
+-- self-grant these (unlike other Good Deed tables where any staff can write).
+-- "นักเรียน" is deliberately NOT configurable here: its underlying read
+-- access comes from the school's shared students-table policy, used by
+-- other systems (grades, attendance, uniform checks) — restricting it would
+-- risk breaking those, so it stays always-on for every teacher.
+-- =============================================
+create table if not exists public.role_permissions (
+  screen_key text primary key,
+  teacher_enabled boolean not null default true,
+  updated_at timestamptz default now()
+);
+
+alter table public.role_permissions enable row level security;
+create policy "role_permissions_read" on public.role_permissions for select using (true);
+create policy "role_permissions_admin_write" on public.role_permissions
+  for all using (is_admin()) with check (is_admin());
+
+insert into public.role_permissions (screen_key, teacher_enabled) values
+  ('admin-deedtypes', true),
+  ('admin-rewards', true),
+  ('admin-reports', true)
+on conflict (screen_key) do nothing;
+
+create or replace function public.teacher_screen_enabled(p_key text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce((select teacher_enabled from public.role_permissions where screen_key = p_key), true);
+$$;
+revoke execute on function public.teacher_screen_enabled(text) from public;
+revoke execute on function public.teacher_screen_enabled(text) from anon;
+grant execute on function public.teacher_screen_enabled(text) to authenticated;
+
+-- ความดี / รางวัล: gate write access directly (these tables are Good
+-- Deed-only, no other school system touches them, so safe to restrict).
+drop policy if exists "deed_types_staff_write" on public.good_deed_types;
+create policy "deed_types_staff_write" on public.good_deed_types
+  for all using (is_admin() or (auth.role() = 'authenticated' and public.teacher_screen_enabled('admin-deedtypes')))
+  with check (is_admin() or (auth.role() = 'authenticated' and public.teacher_screen_enabled('admin-deedtypes')));
+
+drop policy if exists "rewards_staff_write" on public.rewards;
+create policy "rewards_staff_write" on public.rewards
+  for all using (is_admin() or (auth.role() = 'authenticated' and public.teacher_screen_enabled('admin-rewards')))
+  with check (is_admin() or (auth.role() = 'authenticated' and public.teacher_screen_enabled('admin-rewards')));
+
+-- รายงาน: point_logs' SELECT policy is shared with the teacher's own
+-- always-on "ประวัติ" screen, so it can't be gated directly without breaking
+-- that. Instead, reports get a dedicated SECURITY DEFINER RPC that checks
+-- the permission itself before returning any aggregate data.
+create or replace function public.get_report_summary()
+returns table (
+  student_count bigint,
+  teacher_count bigint,
+  total_points bigint,
+  log_count bigint
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'ต้องเข้าสู่ระบบก่อน';
+  end if;
+  if not (is_admin() or public.teacher_screen_enabled('admin-reports')) then
+    raise exception 'ไม่มีสิทธิ์เข้าถึงรายงาน';
+  end if;
+
+  return query
+    select
+      (select count(*) from public.students) as student_count,
+      (select count(*) from public.profiles) as teacher_count,
+      (select coalesce(sum(points),0) from public.point_logs) as total_points,
+      (select count(*) from public.point_logs) as log_count;
+end;
+$$;
+revoke execute on function public.get_report_summary() from public;
+revoke execute on function public.get_report_summary() from anon;
+grant execute on function public.get_report_summary() to authenticated;

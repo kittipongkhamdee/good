@@ -188,23 +188,36 @@ async function redeemReward(studentCode, rewardId) {
 // ──────────────────────────────────────────────
 
 async function getReportSummary() {
-  const [{ count: studentCount }, { count: logCount }, pointsAgg] = await Promise.all([
-    _sb.from('students').select('*', { count: 'exact', head: true }),
-    _sb.from('point_logs').select('*', { count: 'exact', head: true }),
-    _sb.from('point_logs').select('points'),
-  ]);
-  const totalPoints = (pointsAgg.data || []).reduce((sum, r) => sum + r.points, 0);
-  const { count: staffCount } = await _sb.from('profiles').select('*', { count: 'exact', head: true });
-
+  // Permission-checked server-side (see get_report_summary RPC) — a teacher
+  // without the "รายงาน" permission gets a clean error instead of data.
+  const { data, error } = await _sb.rpc('get_report_summary').single();
+  if (error) return { data: null, error: error.message };
   return {
     data: {
-      studentCount: studentCount || 0,
-      teacherCount: staffCount || 0,
-      totalPoints,
-      logCount: logCount || 0,
+      studentCount: data.student_count || 0,
+      teacherCount: data.teacher_count || 0,
+      totalPoints: data.total_points || 0,
+      logCount: data.log_count || 0,
     },
     error: null,
   };
+}
+
+// ──────────────────────────────────────────────
+// Role permissions (which management screens teachers can access — Admin-only write)
+// ──────────────────────────────────────────────
+
+async function getRolePermissions() {
+  const { data, error } = await _sb.from('role_permissions').select('*');
+  if (error) return { data: null, error: error.message };
+  const perms = {};
+  for (const row of data) perms[row.screen_key] = row.teacher_enabled;
+  return { data: perms, error: null };
+}
+
+async function updateRolePermission(screenKey, enabled) {
+  const { error } = await _sb.from('role_permissions').update({ teacher_enabled: enabled }).eq('screen_key', screenKey);
+  return { error: error?.message || null };
 }
 
 // ──────────────────────────────────────────────

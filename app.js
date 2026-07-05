@@ -497,7 +497,9 @@ function renderStudentLeaderboard() {
       `).join('')}
     </div>`;
 
-  if (!top.length) {
+  const noPointsYet = top.every(s => s.total_points === 0);
+
+  if (!top.length || noPointsYet) {
     return `
     <div class="screen-wrap anim-slideup">
       <div class="hero-banner">
@@ -507,7 +509,11 @@ function renderStudentLeaderboard() {
         </div>
       </div>
       ${scopeTabsHTML}
-      <div class="card" style="text-align:center;padding:30px;color:#9ca3af;font-size:13px;">ยังไม่มีข้อมูลในขอบเขตนี้</div>
+      <div class="card" style="text-align:center;padding:40px 20px;color:#9ca3af;">
+        <div style="font-size:40px;margin-bottom:10px;">🏁</div>
+        <div style="font-size:14px;">${!top.length ? 'ยังไม่มีข้อมูลในขอบเขตนี้' : 'ยังไม่มีข้อมูลคะแนน'}</div>
+        ${noPointsYet ? '<div style="font-size:12px;color:#c1c9d2;margin-top:6px;">เมื่อเริ่มมีการให้คะแนนความดี อันดับจะแสดงที่นี่</div>' : ''}
+      </div>
     </div>`;
   }
 

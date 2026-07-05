@@ -1055,12 +1055,29 @@ function formatDate(iso) {
   return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' });
 }
 
+// เมื่อโหลด library สร้าง QR Code ไม่สำเร็จ (เช่น เครือข่ายบล็อก CDN)
+// แสดงรหัสนักเรียนตัวใหญ่แทน เพื่อให้ครูยังคีย์รหัสด้วยมือได้
+function showQrFallback(canvas, studentCode) {
+  const frame = canvas.closest('.qr-frame');
+  if (!frame) return;
+  frame.innerHTML = `
+    <div style="width:110px;height:110px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:8px;">
+      <div style="font-size:22px;">⚠️</div>
+      <div style="font-size:11px;color:#9ca3af;margin-top:4px;">โหลด QR ไม่สำเร็จ</div>
+      <div style="font-size:16px;font-weight:700;color:var(--gd);margin-top:4px;">${studentCode}</div>
+    </div>`;
+}
+
 function afterRender() {
   const qrCanvas = document.getElementById('student-qr');
-  if (qrCanvas && typeof QRCode !== 'undefined' && state.student) {
-    QRCode.toCanvas(qrCanvas, JSON.stringify({ student_code: state.student.student_code }), {
-      width: 110, color: { dark: '#1a4d1a', light: '#ffffff' },
-    });
+  if (qrCanvas && state.student) {
+    if (typeof QRCode !== 'undefined') {
+      QRCode.toCanvas(qrCanvas, JSON.stringify({ student_code: state.student.student_code }), {
+        width: 110, color: { dark: '#1a4d1a', light: '#ffffff' },
+      }, (err) => { if (err) showQrFallback(qrCanvas, state.student.student_code); });
+    } else {
+      showQrFallback(qrCanvas, state.student.student_code);
+    }
   }
 
   const rangeInput = document.getElementById('pts-range');
@@ -1127,6 +1144,10 @@ function closeModal() { document.getElementById('modal-container').innerHTML = '
 // ══════════════════════════════════════════════
 
 async function startScan() {
+  if (typeof jsQR === 'undefined') {
+    showToast('โหลดตัวสแกน QR ไม่สำเร็จ กรุณาลองรีเฟรชหน้าใหม่ 🔄');
+    return;
+  }
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
     state._videoStream = stream;

@@ -32,6 +32,7 @@ const state = {
   pointLogs: [],
   reportSummary: null,
   reportError: null,
+  reportLeaderboard: null,
   badgeTiers: [],
   settings: { leaderboardEnabled: true, leaderboardTopN: 10 },
   rolePermissions: { 'admin-deedtypes': true, 'admin-rewards': true, 'admin-reports': true },
@@ -945,7 +946,29 @@ function renderAdminReports() {
       ${statBox('📋', r.logCount.toLocaleString(), 'รายการความดี', '#8b5cf6')}
       ${statBox('👨‍🏫', r.teacherCount.toLocaleString(), 'ครู/เจ้าหน้าที่', '#f59e0b')}
     </div>
+
+    <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.055);">
+      <div style="padding:14px 16px 10px;font-weight:700;color:var(--gd);">🏆 อันดับนักเรียน (คะแนนสะสม)</div>
+      ${renderReportLeaderboardRows()}
+    </div>
   </div>`;
+}
+
+function renderReportLeaderboardRows() {
+  const list = state.reportLeaderboard;
+  if (list === null) return `<div style="padding:20px;text-align:center;color:#9ca3af;font-size:13px;">กำลังโหลด...</div>`;
+  if (!list.length || list.every(s => s.total_points === 0)) {
+    return `<div style="padding:20px;text-align:center;color:#9ca3af;font-size:13px;">ยังไม่มีข้อมูลคะแนน</div>`;
+  }
+  return list.map(s => `
+    <div class="list-item">
+      <div style="width:28px;height:28px;border-radius:50%;background:#e5e7eb;color:#6b7280;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;">${s.rank}</div>
+      <div style="flex:1;">
+        <div style="font-weight:600;font-size:14px;color:#1f2937;">${fullName(s)}</div>
+        <div style="font-size:12px;color:#9ca3af;margin-top:1px;">${classOf(s)}</div>
+      </div>
+      <div style="font-weight:700;color:var(--g);">${s.total_points.toLocaleString()}</div>
+    </div>`).join('');
 }
 
 function renderAdminBadges() {
@@ -1259,7 +1282,7 @@ async function doLogout() {
     screen: 'login', authView: null, role: null, authError: '', drawerOpen: false,
     student: null, studentHistory: [], studentRedemptions: [], leaderboard: null, leaderboardScope: 'school',
     staffUser: null, deedTypes: [], rewards: [], students: [], pointLogs: [], badgeTiers: [],
-    reportSummary: null, reportError: null, scanStep: 0, scanStudent: null, selectedDeedId: null, points: 10,
+    reportSummary: null, reportError: null, reportLeaderboard: null, scanStep: 0, scanStudent: null, selectedDeedId: null, points: 10,
     settings: { leaderboardEnabled: true, leaderboardTopN: 10 },
     rolePermissions: { 'admin-deedtypes': true, 'admin-rewards': true, 'admin-reports': true },
   });
@@ -1281,10 +1304,13 @@ async function loadDataForScreen(screen) {
     state.deedTypes = data || [];
   }
   if (screen === 'admin-dashboard' || screen === 'admin-reports') {
-    const [{ data: summary, error: reportError }, { data: logs }] = await Promise.all([getReportSummary(), getPointLogs({ limit: 6 })]);
+    const tasks = [getReportSummary(), getPointLogs({ limit: 6 })];
+    if (screen === 'admin-reports') tasks.push(getLeaderboard({ limit: 100 }));
+    const [{ data: summary, error: reportError }, { data: logs }, leaderboardResult] = await Promise.all(tasks);
     state.reportSummary = summary;
     state.reportError = reportError || null;
     state.pointLogs = logs || [];
+    if (leaderboardResult) state.reportLeaderboard = leaderboardResult.data || [];
   }
   if (screen === 'admin-students') {
     const { data, count } = await getStudents({ search: state.studentSearch, limit: 20 });

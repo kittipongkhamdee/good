@@ -10,6 +10,7 @@ const state = {
   screen: 'login',
   authView: null,     // null | 'student' | 'staff'
   role: null,         // 'student' | 'teacher' | 'admin'
+  previewAsTeacher: false, // Admin-only: preview the teacher nav/screens without a separate login
   drawerOpen: false,
   toast: null,
   _toastTimer: null,
@@ -102,6 +103,12 @@ const NAV = {
 // Anything not listed here is always visible to teachers (or Admin-only, like Badge/ตั้งค่า).
 const TEACHER_CONFIGURABLE_SCREENS = ['admin-deedtypes', 'admin-rewards', 'admin-reports'];
 
+// Admin's real session/permissions never change during preview — this only
+// swaps which nav items and screen labels get shown.
+function effectiveRole() {
+  return (state.role === 'admin' && state.previewAsTeacher) ? 'teacher' : state.role;
+}
+
 function navItemsForRole(role) {
   const items = NAV[role] || [];
   if (role !== 'teacher') return items;
@@ -155,11 +162,20 @@ function render() {
   }
 
   const title = TITLES[state.screen] || state.screen;
-  const roleLabel = { student: 'นักเรียน', teacher: 'ครู', admin: 'Admin' }[state.role];
-  const avatar = { student: '👧', teacher: '👨‍🏫', admin: '🛡️' }[state.role];
+  const dRole = effectiveRole();
+  const roleLabel = { student: 'นักเรียน', teacher: state.previewAsTeacher ? 'ครู (พรีวิว) ✕' : 'ครู', admin: 'Admin' }[dRole];
+  const avatar = { student: '👧', teacher: '👨‍🏫', admin: '🛡️' }[dRole];
 
   document.getElementById('title-a').textContent = title;
-  document.getElementById('badge-a').textContent = roleLabel;
+  const badgeEl = document.getElementById('badge-a');
+  badgeEl.textContent = roleLabel;
+  if (state.previewAsTeacher) {
+    badgeEl.setAttribute('data-action', 'toggle-teacher-preview');
+    badgeEl.style.cursor = 'pointer';
+  } else {
+    badgeEl.removeAttribute('data-action');
+    badgeEl.style.cursor = '';
+  }
   document.getElementById('avatar-a').textContent = avatar;
 
   renderBottomNav();
@@ -267,8 +283,9 @@ function visibleNavItems(role) {
 }
 
 function bottomNavItems() {
-  const items = visibleNavItems(state.role);
-  return (state.role === 'teacher' || state.role === 'admin') ? items.slice(0, 4) : items;
+  const role = effectiveRole();
+  const items = visibleNavItems(role);
+  return (role === 'teacher' || role === 'admin') ? items.slice(0, 4) : items;
 }
 
 function renderBottomNav() {
@@ -283,7 +300,7 @@ function renderBottomNav() {
 
 // ── Drawer (full nav, slides in from the left) ──
 function renderDrawer() {
-  const items = visibleNavItems(state.role);
+  const items = visibleNavItems(effectiveRole());
   const nav = items.map(it => `
     <button class="snav-btn ${state.screen === it.id ? 'active' : ''}" data-action="drawer-nav" data-screen="${it.id}">
       <span class="snav-icon">${it.icon}</span>${it.label}
@@ -297,6 +314,7 @@ function renderDrawer() {
     </div>
     <nav class="sidebar-nav">${nav}</nav>
     <div class="sidebar-footer">
+      ${state.previewAsTeacher ? `<button class="sidebar-logout" data-action="toggle-teacher-preview" style="background:#eff6ff;color:#3b82f6;">✕ ออกจากพรีวิวครู</button>` : ''}
       <button class="sidebar-logout" data-action="logout">🚪 ออกจากระบบ</button>
     </div>
   `;
@@ -1048,6 +1066,12 @@ function renderAdminSettings() {
     </div>
 
     <button class="btn-green" data-action="save-all-settings" style="padding:14px;">✅ บันทึกการตั้งค่าทั้งหมด</button>
+
+    <div class="card">
+      <div style="font-size:15px;font-weight:700;color:var(--gd);margin-bottom:6px;">👀 พรีวิวมุมมองครู</div>
+      <div style="font-size:12px;color:#9ca3af;margin-bottom:14px;">ดูหน้าจอในมุมมองที่ครูเห็นจริง (ตามสิทธิ์ที่ตั้งไว้ด้านบน) โดยไม่ต้องออกจากระบบ Admin</div>
+      <button class="btn-green" data-action="toggle-teacher-preview" style="padding:13px;background:#3b82f6;">🧑‍🏫 ดูมุมมองครู</button>
+    </div>
   </div>`;
 }
 
@@ -1282,7 +1306,7 @@ async function doLogout() {
   stopScan();
   if (state.role === 'teacher' || state.role === 'admin') await staffLogout();
   Object.assign(state, {
-    screen: 'login', authView: null, role: null, authError: '', drawerOpen: false,
+    screen: 'login', authView: null, role: null, previewAsTeacher: false, authError: '', drawerOpen: false,
     student: null, studentHistory: [], studentRedemptions: [], leaderboard: null, leaderboardScope: 'school',
     staffUser: null, deedTypes: [], rewards: [], students: [], pointLogs: [], badgeTiers: [],
     reportSummary: null, reportError: null, reportLeaderboard: null, scanStep: 0, scanStudent: null, selectedDeedId: null, points: 10,
@@ -1692,6 +1716,17 @@ document.addEventListener('click', async (e) => {
       const enabled = btn.dataset.enabled === 'true';
       const key = btn.dataset.key;
       setState({ rolePermissions: { ...state.rolePermissions, [key]: !enabled } });
+      break;
+    }
+
+    case 'toggle-teacher-preview': {
+      closeDrawer();
+      const entering = !state.previewAsTeacher;
+      const screen = entering ? 'teacher-dashboard' : 'admin-dashboard';
+      setState({ loading: true });
+      await loadDataForScreen(screen);
+      setState({ loading: false, previewAsTeacher: entering, screen, scanStep: 0, selectedDeedId: null, scanStudent: null });
+      showToast(entering ? 'กำลังดูมุมมองครู 🧑‍🏫' : 'กลับสู่มุมมอง Admin');
       break;
     }
 

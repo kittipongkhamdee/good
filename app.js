@@ -192,6 +192,175 @@ function emojiPickerHTML(inputId) {
     </div>`;
 }
 
+// ══════════════════════════════════════════════
+// Share card — "การ์ดโซเชียล": renders the student's own stats onto a canvas
+// entirely client-side (no server round-trip, no public profile link) so it
+// can be saved or shared as a plain image. Colors intentionally fixed to the
+// school's own green brand regardless of badge tier, for a consistent look.
+// ══════════════════════════════════════════════
+
+function roundedRectPath(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, r);
+}
+
+function dotPatternFill(ctx, w, h) {
+  const tile = document.createElement('canvas');
+  const size = 28;
+  tile.width = size; tile.height = size;
+  const tctx = tile.getContext('2d');
+  tctx.fillStyle = 'rgba(255,255,255,0.28)';
+  tctx.beginPath();
+  tctx.arc(size / 2, size / 2, 2.2, 0, Math.PI * 2);
+  tctx.fill();
+  const pattern = ctx.createPattern(tile, 'repeat');
+  ctx.fillStyle = pattern;
+  ctx.fillRect(0, 0, w, h);
+}
+
+async function drawShareCard(canvas, student, badge) {
+  const W = 1080, H = 1920;
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+
+  try { await document.fonts.load('700 100px Kanit'); await document.fonts.load('600 100px Kanit'); } catch {}
+
+  // background: brand green diagonal gradient + soft highlight glow + grain
+  const bg = ctx.createLinearGradient(0, 0, W * 0.55, H);
+  bg.addColorStop(0, '#0B3B2A');
+  bg.addColorStop(0.46, '#0F6B45');
+  bg.addColorStop(0.78, '#17A06B');
+  bg.addColorStop(1, '#35C98A');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  const glow = ctx.createRadialGradient(W * 0.15, -H * 0.05, 0, W * 0.15, -H * 0.05, W * 1.1);
+  glow.addColorStop(0, 'rgba(76,224,138,0.33)');
+  glow.addColorStop(0.6, 'rgba(76,224,138,0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, W, H);
+
+  dotPatternFill(ctx, W, H);
+
+  const pad = W * 0.073;
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = 'rgba(255,255,255,0.9)';
+
+  // top row: brand + tier tag
+  ctx.font = '600 32px Kanit';
+  ctx.textAlign = 'left';
+  ctx.fillText('🌿 ตาเบาวิทยา', pad, pad + 30);
+
+  const tierLabel = `${badge.icon} ${student.badge_level}`;
+  ctx.font = '700 28px Kanit';
+  const tierW = ctx.measureText(tierLabel).width;
+  const tierPadX = 26, tierH = 52;
+  const tierX = W - pad - tierW - tierPadX * 2;
+  const tierY = pad - 8;
+  ctx.fillStyle = 'rgba(255,255,255,0.16)';
+  roundedRectPath(ctx, tierX, tierY, tierW + tierPadX * 2, tierH, tierH / 2);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+  ctx.lineWidth = 1.5;
+  roundedRectPath(ctx, tierX, tierY, tierW + tierPadX * 2, tierH, tierH / 2);
+  ctx.stroke();
+  ctx.fillStyle = '#F4FBF3';
+  ctx.fillText(tierLabel, tierX + tierPadX, tierY + tierH / 2 + 10);
+
+  // halo + badge icon
+  const haloCx = W / 2, haloCy = H * 0.35, haloR = W * 0.18;
+  const halo = ctx.createRadialGradient(haloCx, haloCy, 0, haloCx, haloCy, haloR);
+  halo.addColorStop(0, 'rgba(255,255,255,0.22)');
+  halo.addColorStop(0.6, 'rgba(255,255,255,0.05)');
+  halo.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = halo;
+  ctx.beginPath();
+  ctx.arc(haloCx, haloCy, haloR, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.arc(haloCx, haloCy, haloR, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.font = `${Math.round(haloR * 1.05)}px Kanit`;
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#fff';
+  ctx.fillText(badge.icon, haloCx, haloCy + haloR * 0.35);
+
+  // big point total
+  const pointsY = haloCy + haloR + 130;
+  ctx.font = '700 118px Kanit';
+  ctx.fillStyle = '#fff';
+  ctx.fillText(student.total_points.toLocaleString(), W / 2, pointsY);
+  ctx.font = '400 30px Kanit';
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ctx.fillText('คะแนนความดีสะสม', W / 2, pointsY + 46);
+
+  // stat chips row
+  const chipY = pointsY + 100, chipH = 118, chipGap = 22, chipW = (W - pad * 2 - chipGap) / 2;
+  const chips = [
+    { val: `#${student.rank}`, lbl: 'อันดับโรงเรียน' },
+    { val: `${student.total_deeds}`, lbl: 'ครั้งที่ทำความดี' },
+  ];
+  chips.forEach((c, i) => {
+    const x = pad + i * (chipW + chipGap);
+    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    roundedRectPath(ctx, x, chipY, chipW, chipH, 22);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+    ctx.lineWidth = 1.5;
+    roundedRectPath(ctx, x, chipY, chipW, chipH, 22);
+    ctx.stroke();
+    ctx.textAlign = 'center';
+    ctx.font = '700 40px Kanit';
+    ctx.fillStyle = '#fff';
+    ctx.fillText(c.val, x + chipW / 2, chipY + 54);
+    ctx.font = '400 22px Kanit';
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.fillText(c.lbl, x + chipW / 2, chipY + 88);
+  });
+
+  // bottom name bar
+  const barY = H - pad - 120, barH = 120;
+  ctx.fillStyle = 'rgba(255,255,255,0.12)';
+  roundedRectPath(ctx, pad, barY, W - pad * 2, barH, 26);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+  roundedRectPath(ctx, pad, barY, W - pad * 2, barH, 26);
+  ctx.stroke();
+  ctx.textAlign = 'left';
+  ctx.font = '700 34px Kanit';
+  ctx.fillStyle = '#fff';
+  ctx.fillText(fullName(student), pad + 28, barY + 52);
+  ctx.font = '400 24px Kanit';
+  ctx.fillStyle = 'rgba(255,255,255,0.8)';
+  ctx.fillText(`${classOf(student)} · สุรินทร์`, pad + 28, barY + 86);
+  ctx.textAlign = 'right';
+  ctx.font = '40px Kanit';
+  ctx.fillStyle = '#fff';
+  ctx.fillText('🌿', W - pad - 28, barY + 76);
+}
+
+function openShareCardModal() {
+  const s = state.student;
+  const badge = getBadge(s.total_points);
+  showModal(`
+    <div class="modal-title">📤 แชร์การ์ดผลงาน</div>
+    <div style="text-align:center;">
+      <canvas id="share-card-canvas" style="width:100%;max-width:270px;border-radius:16px;box-shadow:0 8px 24px rgba(0,0,0,0.15);"></canvas>
+    </div>
+    <button class="btn-green" data-action="download-share-card" style="padding:13px;margin-top:16px;">💾 บันทึกรูปภาพ</button>
+    <button data-action="share-share-card" style="width:100%;padding:12px;margin-top:8px;background:var(--gl);color:var(--g);border:none;border-radius:12px;font-family:Kanit;font-weight:700;cursor:pointer;">📤 แชร์ไปยังแอปอื่น</button>
+    <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:Kanit;color:#9ca3af;cursor:pointer;">ปิด</button>
+  `);
+  const canvas = document.getElementById('share-card-canvas');
+  if (canvas) drawShareCard(canvas, s, badge);
+}
+
+function shareCardFileName(student) {
+  return `การ์ดผลงาน-${student.student_code}.png`;
+}
+
 // ── setState + render ──
 function setState(updates) {
   Object.assign(state, updates);
@@ -444,6 +613,11 @@ function renderStudentDashboard() {
       ${statBox('🎖️', String(unlockedBadgeCount(s.total_points)), 'Badge', '#8b5cf6')}
       ${statBox('🎁', String(s.redeem_count), 'แลกรางวัล', '#ef4444')}
     </div>
+
+    <button data-action="open-share-card"
+      style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:15px;background:linear-gradient(135deg,#0F6B45,#35C98A);color:#fff;border:none;border-radius:14px;font-family:Kanit;font-weight:700;font-size:15px;cursor:pointer;box-shadow:0 4px 20px oklch(0.52 0.17 145 / 0.35);">
+      <span style="font-size:20px;">📤</span> แชร์การ์ดผลงาน
+    </button>
 
     <div class="card">
       <div style="font-size:14px;font-weight:700;color:var(--gd);margin-bottom:12px;text-align:center;">📲 QR Code ประจำตัวนักเรียน</div>
@@ -1666,6 +1840,49 @@ document.addEventListener('click', async (e) => {
       ]);
       setState({ loading: false, student, rewards: rewards || [] });
       showToast(`แลก "${name}" สำเร็จ! 🎉`);
+      break;
+    }
+
+    case 'open-share-card':
+      openShareCardModal();
+      break;
+
+    case 'download-share-card': {
+      const canvas = document.getElementById('share-card-canvas');
+      if (!canvas) break;
+      canvas.toBlob(blob => {
+        if (!blob) { showToast('สร้างรูปไม่สำเร็จ'); return; }
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = shareCardFileName(state.student);
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast('บันทึกรูปแล้ว ✅');
+      }, 'image/png');
+      break;
+    }
+
+    case 'share-share-card': {
+      const canvas = document.getElementById('share-card-canvas');
+      if (!canvas) break;
+      canvas.toBlob(async blob => {
+        if (!blob) { showToast('สร้างรูปไม่สำเร็จ'); return; }
+        const file = new File([blob], shareCardFileName(state.student), { type: 'image/png' });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          try {
+            await navigator.share({ files: [file], title: 'การ์ดผลงานความดี' });
+          } catch {}
+        } else {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = shareCardFileName(state.student);
+          a.click();
+          URL.revokeObjectURL(url);
+          showToast('เบราว์เซอร์นี้แชร์ตรงไม่ได้ บันทึกรูปให้แทน 💾');
+        }
+      }, 'image/png');
       break;
     }
 

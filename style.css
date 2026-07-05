@@ -36,19 +36,6 @@ input[type=range] { -webkit-appearance: none; appearance: none; height: 6px; bor
 input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: var(--g); cursor: pointer; }
 select { appearance: none; -webkit-appearance: none; }
 
-/* ── Layout strip ── */
-#layout-strip {
-  position: fixed; top: 0; left: 0; right: 0; z-index: 999;
-  background: var(--gd); display: flex; align-items: center;
-  justify-content: space-between; padding: 0 16px; height: 40px;
-}
-.strip-label { color: rgba(255,255,255,0.7); font-size: 12px; }
-#layout-toggle-btn {
-  background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3);
-  border-radius: 20px; color: #fff; font-family: Kanit; font-size: 11px;
-  padding: 4px 12px; cursor: pointer; font-weight: 600;
-}
-#layout-toggle-btn:hover { background: rgba(255,255,255,0.25); }
 
 /* ── Login ── */
 #login-view {
@@ -87,19 +74,19 @@ select { appearance: none; -webkit-appearance: none; }
 .role-card-admin:hover { color: var(--gd); }
 .login-note { text-align: center; font-size: 12px; color: oklch(0.7 0.04 145); margin-top: 24px; }
 
-/* ── App Layout A: Bottom Nav ── */
+/* ── App shell: header + bottom nav ── */
 #app-a { display: none; max-width: 480px; margin: 0 auto; min-height: 100vh; position: relative; background: var(--bg); }
 #header-a {
-  position: fixed; top: 40px; left: 50%; transform: translateX(-50%);
+  position: fixed; top: 0; left: 50%; transform: translateX(-50%);
   max-width: 480px; width: 100%; background: #fff;
   border-bottom: 1px solid var(--border); z-index: 90;
   display: flex; align-items: center; padding: 0 16px; height: 56px;
   box-shadow: 0 1px 8px rgba(0,0,0,0.06);
 }
-.header-logo { width: 36px; height: 36px; background: var(--gl); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 16px; margin-right: 10px; flex-shrink: 0; }
+.header-logo { width: 36px; height: 36px; background: var(--gl); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 16px; margin: 0 10px; flex-shrink: 0; }
 .header-title { font-size: 16px; font-weight: 700; color: var(--text); flex: 1; }
 .header-right { display: flex; align-items: center; gap: 8px; }
-.content-a { padding: 116px 16px 80px; }
+.content-a { padding: 76px 16px 80px; }
 
 /* ── Bottom nav ── */
 .bottom-nav {
@@ -118,29 +105,35 @@ select { appearance: none; -webkit-appearance: none; }
 .bnav-label { font-size: 10px; color: #9ca3af; font-family: Kanit; }
 .bnav-btn.active .bnav-label { color: var(--g); font-weight: 700; }
 
-/* ── App Layout B: Sidebar ── */
-#app-b { display: none; min-height: 100vh; padding-top: 40px; }
-#app-b > * { min-height: calc(100vh - 40px); }
-#app-b { display: none; flex-direction: row; }
+/* ── Drawer (full menu, slides in from the left over the app) ── */
+.drawer-overlay {
+  position: fixed; inset: 0; z-index: 950; background: rgba(0,0,0,0.45);
+  display: flex; animation: fadeIn 0.2s ease;
+}
+.drawer-panel {
+  width: 240px; height: 100%; box-shadow: 4px 0 24px rgba(0,0,0,0.25);
+  animation: drawerIn 0.25s ease;
+}
+@keyframes drawerIn { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+
 .sidebar {
-  width: 210px; flex-shrink: 0;
   background: linear-gradient(180deg, var(--gd), oklch(0.28 0.13 145));
   display: flex; flex-direction: column;
 }
 .sidebar-brand { padding: 20px 18px 18px; border-bottom: 1px solid rgba(255,255,255,0.1); }
 .sidebar-brand-name { font-size: 18px; font-weight: 700; color: #fff; }
 .sidebar-brand-sub  { font-size: 11px; color: rgba(255,255,255,0.55); margin-top: 3px; }
-.sidebar-nav { padding: 12px 0; flex: 1; }
+.sidebar-nav { padding: 12px 0; flex: 1; overflow-y: auto; }
 .snav-btn {
-  display: flex; align-items: center; gap: 10px; padding: 10px 18px;
+  display: flex; align-items: center; gap: 10px; padding: 12px 18px;
   width: 100%; border: none; background: transparent; cursor: pointer;
-  color: rgba(255,255,255,0.65); font-family: Kanit; font-size: 13px;
+  color: rgba(255,255,255,0.65); font-family: Kanit; font-size: 14px;
   text-align: left; border-left: 3px solid transparent; transition: all 0.15s;
 }
 .snav-btn:hover, .snav-btn.active {
   background: rgba(255,255,255,0.14); color: #fff; border-left-color: #fff; font-weight: 700;
 }
-.snav-icon { font-size: 17px; }
+.snav-icon { font-size: 18px; }
 .sidebar-footer { padding: 16px; border-top: 1px solid rgba(255,255,255,0.08); }
 .sidebar-logout {
   width: 100%; padding: 8px 12px; background: rgba(255,255,255,0.08);
@@ -148,24 +141,11 @@ select { appearance: none; -webkit-appearance: none; }
   color: rgba(255,255,255,0.7); font-family: Kanit; cursor: pointer; font-size: 12px;
 }
 .sidebar-logout:hover { background: rgba(255,255,255,0.15); }
-.sidebar-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.sidebar-topbar {
-  background: #fff; border-bottom: 1px solid var(--border); padding: 0 24px;
-  height: 56px; display: flex; align-items: center; justify-content: space-between;
-  position: sticky; top: 40px; z-index: 80; box-shadow: 0 1px 4px rgba(0,0,0,0.04);
-}
-.sidebar-title { font-size: 18px; font-weight: 700; color: var(--text); }
-.sidebar-user { display: flex; align-items: center; gap: 12px; }
-.sidebar-role-name { font-size: 13px; color: var(--text-soft); }
-.content-b { padding: 24px; flex: 1; overflow-y: auto; max-width: 720px; }
 
 /* ── Shared UI components ── */
 .role-badge { background: var(--gl); border-radius: 20px; padding: 4px 10px; font-size: 11px; font-weight: 600; color: var(--gd); }
 .mgmt-menu-btn { width: 32px; height: 32px; border: none; background: var(--gl); border-radius: 10px; color: var(--gd); font-size: 15px; cursor: pointer; flex-shrink: 0; }
 .mgmt-menu-btn:hover { background: oklch(0.9 0.06 145); }
-.mgmt-sheet-item { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border: none; background: #fff; width: 100%; text-align: left; cursor: pointer; border-bottom: 1px solid oklch(0.96 0.02 145); font-family: Kanit; font-size: 15px; color: #1f2937; }
-.mgmt-sheet-item:hover { background: var(--gl); }
-.mgmt-sheet-item:last-child { border-bottom: none; }
 .avatar { width: 32px; height: 32px; background: linear-gradient(135deg, var(--g), var(--gd)); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; cursor: pointer; flex-shrink: 0; }
 
 /* Screen content wrapper */

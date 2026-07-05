@@ -10,7 +10,7 @@ const state = {
   screen: 'login',
   authView: null,     // null | 'student' | 'staff'
   role: null,         // 'student' | 'teacher' | 'admin'
-  layout: 'A',
+  drawerOpen: false,
   toast: null,
   _toastTimer: null,
   loading: false,
@@ -110,10 +110,10 @@ function render() {
   const loggedIn = !!state.role;
 
   document.getElementById('login-view').style.display = loggedIn ? 'none' : '';
-  document.getElementById('app-a').style.display      = (loggedIn && state.layout === 'A') ? 'block' : 'none';
-  document.getElementById('app-b').style.display      = (loggedIn && state.layout === 'B') ? 'flex' : 'none';
+  document.getElementById('app-a').style.display = loggedIn ? 'block' : 'none';
 
   if (!loggedIn) {
+    document.getElementById('drawer-overlay').style.display = 'none';
     renderLogin();
     return;
   }
@@ -121,34 +121,16 @@ function render() {
   const title = TITLES[state.screen] || state.screen;
   const roleLabel = { student: 'นักเรียน', teacher: 'ครู', admin: 'Admin' }[state.role];
   const avatar = { student: '👧', teacher: '👨‍🏫', admin: '🛡️' }[state.role];
-  const displayName = state.role === 'student' ? fullName(state.student) : (state.staffUser?.full_name || '');
 
   document.getElementById('title-a').textContent = title;
   document.getElementById('badge-a').textContent = roleLabel;
   document.getElementById('avatar-a').textContent = avatar;
 
-  document.getElementById('title-b').textContent = title;
-  document.getElementById('badge-b').textContent = roleLabel;
-  document.getElementById('avatar-b').textContent = avatar;
-  document.getElementById('role-name-b').textContent = displayName;
-
-  document.getElementById('layout-toggle-btn').textContent =
-    state.layout === 'A' ? '⇄ Layout B: Sidebar' : '⇄ Layout A: Bottom Nav';
-
-  document.getElementById('mgmt-menu-btn-a').style.display =
-    (state.role === 'teacher' || state.role === 'admin') ? '' : 'none';
-
   renderBottomNav();
-  renderSidebar();
+  if (state.drawerOpen) renderDrawer();
+  document.getElementById('drawer-overlay').style.display = state.drawerOpen ? 'flex' : 'none';
 
-  const html = renderScreen(state.screen);
-  if (state.layout === 'A') {
-    document.getElementById('content-a').innerHTML = html;
-    document.getElementById('content-b').innerHTML = '';
-  } else {
-    document.getElementById('content-a').innerHTML = '';
-    document.getElementById('content-b').innerHTML = html;
-  }
+  document.getElementById('content-a').innerHTML = renderScreen(state.screen);
 
   afterRender();
 }
@@ -238,15 +220,11 @@ function staffLoginFormHTML() {
 
 // ── Bottom nav ──
 // Teacher/Admin have 8 nav destinations total — too many for a mobile bottom bar,
-// so only the 4 most-used stay here; the rest (นักเรียน/ความดี/รางวัล/รายงาน)
-// move into the ☰ management menu opened from the header (see openMgmtMenu()).
+// so only the 4 most-used stay here; the full list (including นักเรียน/ความดี/
+// รางวัล/รายงาน) is always reachable from the ☰ drawer (see openDrawer()).
 function bottomNavItems() {
   const items = NAV[state.role] || [];
   return (state.role === 'teacher' || state.role === 'admin') ? items.slice(0, 4) : items;
-}
-function mgmtMenuItems() {
-  const items = NAV[state.role] || [];
-  return items.slice(4);
 }
 
 function renderBottomNav() {
@@ -259,30 +237,16 @@ function renderBottomNav() {
   `).join('');
 }
 
-function openMgmtMenu() {
-  const items = mgmtMenuItems();
-  showModal(`
-    <div class="modal-title">☰ เมนูจัดการ</div>
-    <div style="background:#fff;border-radius:12px;overflow:hidden;border:1px solid oklch(0.94 0.03 145);">
-      ${items.map(it => `
-        <button class="mgmt-sheet-item" data-action="nav-from-menu" data-screen="${it.id}">
-          <span style="font-size:20px;">${it.icon}</span>${it.label}
-        </button>
-      `).join('')}
-    </div>
-  `);
-}
-
-// ── Sidebar ──
-function renderSidebar() {
+// ── Drawer (full nav, slides in from the left) ──
+function renderDrawer() {
   const items = NAV[state.role] || [];
   const nav = items.map(it => `
-    <button class="snav-btn ${state.screen === it.id ? 'active' : ''}" data-action="nav" data-screen="${it.id}">
+    <button class="snav-btn ${state.screen === it.id ? 'active' : ''}" data-action="drawer-nav" data-screen="${it.id}">
       <span class="snav-icon">${it.icon}</span>${it.label}
     </button>
   `).join('');
 
-  document.getElementById('sidebar-b').innerHTML = `
+  document.getElementById('drawer-panel').innerHTML = `
     <div class="sidebar-brand">
       <div class="sidebar-brand-name">🌿 ตาเบาวิทยา</div>
       <div class="sidebar-brand-sub">ระบบคะแนนความดี</div>
@@ -292,6 +256,15 @@ function renderSidebar() {
       <button class="sidebar-logout" data-action="logout">🚪 ออกจากระบบ</button>
     </div>
   `;
+}
+
+function openDrawer() {
+  state.drawerOpen = true;
+  render();
+}
+function closeDrawer() {
+  state.drawerOpen = false;
+  render();
 }
 
 // ── Screen router ──
@@ -1087,7 +1060,7 @@ async function doLogout() {
   stopScan();
   if (state.role === 'teacher' || state.role === 'admin') await staffLogout();
   Object.assign(state, {
-    screen: 'login', authView: null, role: null, authError: '',
+    screen: 'login', authView: null, role: null, authError: '', drawerOpen: false,
     student: null, studentHistory: [], studentRedemptions: [], leaderboard: [],
     staffUser: null, deedTypes: [], rewards: [], students: [], pointLogs: [],
     reportSummary: null, scanStep: 0, scanStudent: null, selectedDeedId: null, points: 10,
@@ -1139,10 +1112,6 @@ document.addEventListener('click', async (e) => {
   const { action } = btn.dataset;
 
   switch (action) {
-    case 'toggle-layout':
-      setState({ layout: state.layout === 'A' ? 'B' : 'A' });
-      break;
-
     case 'show-auth':
       setState({ authView: btn.dataset.view, authError: '' });
       break;
@@ -1172,12 +1141,16 @@ document.addEventListener('click', async (e) => {
       break;
     }
 
-    case 'open-mgmt-menu':
-      openMgmtMenu();
+    case 'open-drawer':
+      openDrawer();
       break;
 
-    case 'nav-from-menu': {
-      closeModal();
+    case 'close-drawer':
+      closeDrawer();
+      break;
+
+    case 'drawer-nav': {
+      closeDrawer();
       if (state.screen === 'teacher-scan') stopScan();
       const screen = btn.dataset.screen;
       setState({ loading: true });

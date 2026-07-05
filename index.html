@@ -11,12 +11,6 @@
 </head>
 <body>
 
-<!-- แถบด้านบน: สลับเลย์เอาต์ -->
-<div id="layout-strip">
-  <span class="strip-label">🌿 ตาเบาวิทยา — ระบบสะสมคะแนนความดี</span>
-  <button id="layout-toggle-btn" data-action="toggle-layout">⇄ Layout B: Sidebar</button>
-</div>
-
 <!-- หน้า Login -->
 <div id="login-view">
   <div class="login-box anim-fadein">
@@ -47,13 +41,13 @@
   </div>
 </div>
 
-<!-- แอป Layout A: Bottom Nav -->
+<!-- แอป (Layout เดียว: Bottom Nav + Drawer) -->
 <div id="app-a">
   <div id="header-a">
+    <button id="drawer-btn-a" class="mgmt-menu-btn" data-action="open-drawer">☰</button>
     <div class="header-logo">🌿</div>
     <span id="title-a" class="header-title"></span>
     <div class="header-right">
-      <button id="mgmt-menu-btn-a" class="mgmt-menu-btn" data-action="open-mgmt-menu" style="display:none;">☰</button>
       <div id="badge-a" class="role-badge"></div>
       <div id="avatar-a" class="avatar" data-action="go-profile"></div>
     </div>
@@ -62,20 +56,9 @@
   <nav id="nav-a" class="bottom-nav"></nav>
 </div>
 
-<!-- แอป Layout B: Sidebar -->
-<div id="app-b">
-  <aside id="sidebar-b" class="sidebar"></aside>
-  <div class="sidebar-main">
-    <div class="sidebar-topbar">
-      <span id="title-b" class="sidebar-title"></span>
-      <div class="sidebar-user">
-        <div id="role-name-b" class="sidebar-role-name"></div>
-        <div id="badge-b" class="role-badge"></div>
-        <div id="avatar-b" class="avatar"></div>
-      </div>
-    </div>
-    <div id="content-b" class="content-b"></div>
-  </div>
+<!-- Drawer (เมนูแบบ sidebar เลื่อนเข้าจากซ้าย) -->
+<div id="drawer-overlay" class="drawer-overlay" data-action="close-drawer" style="display:none;">
+  <aside id="drawer-panel" class="sidebar drawer-panel" onclick="event.stopPropagation()"></aside>
 </div>
 
 <!-- Toast notification -->

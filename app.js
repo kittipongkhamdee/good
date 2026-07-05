@@ -952,7 +952,7 @@ function renderAdminStudents() {
           </div>
           <div style="flex:1;min-width:0;">
             <div style="font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${fullName(s)}</div>
-            <div style="font-size:12px;color:#9ca3af;margin-top:1px;">${classOf(s)} · ${s.total_points.toLocaleString()} คะแนน · ${s.badge_level}</div>
+            <div style="font-size:12px;color:#9ca3af;margin-top:1px;">รหัส ${s.student_code} · ${classOf(s)} · ${s.total_points.toLocaleString()} คะแนน · ${s.badge_level}</div>
           </div>
         </div>
       `).join('')}

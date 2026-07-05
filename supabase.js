@@ -194,8 +194,16 @@ async function getPointLogs({ limit = 20 } = {}) {
 // Deed types (public read; admin manages)
 // ──────────────────────────────────────────────
 
+// teachers pick a deed manually — active only, and never the system-computed
+// bonus types (เข้าแถว/เครื่องแบบ), those are only ever awarded by the RPC
 async function getDeedTypes() {
-  const { data, error } = await _sb.from('good_deed_types').select('*').eq('active', true).order('name');
+  const { data, error } = await _sb.from('good_deed_types').select('*').eq('active', true).is('system_key', null).order('name');
+  return { data, error: error?.message || null };
+}
+
+// admin management screen — sees everything, including inactive and system-computed types
+async function getAllDeedTypes() {
+  const { data, error } = await _sb.from('good_deed_types').select('*').order('name');
   return { data, error: error?.message || null };
 }
 

@@ -640,3 +640,152 @@ $$;
 revoke execute on function public.get_report_summary() from public;
 revoke execute on function public.get_report_summary() from anon;
 grant execute on function public.get_report_summary() to authenticated;
+
+-- =============================================
+-- 13. Weekly auto-bonus points from the existing attendance (เข้าแถว, morning
+-- session only — the evening check is only taken for a subset of students,
+-- not the whole school, so it's not a fair basis) and uniform-check systems.
+-- Additive only — reads those tables, doesn't touch them.
+--
+-- A week only counts once it's actually over (Friday of that week has
+-- passed), and thresholds are adaptive to whatever the school actually
+-- recorded that week (not hardcoded to 5 days), so real gaps in the source
+-- data don't unfairly disqualify students. auto_bonus_log makes awarding
+-- idempotent — safe to re-run (used by both the manual backfill and the
+-- weekly pg_cron job below).
+--
+-- Admin can turn either bonus on/off from "ประเภทความดี" (จัดการ) — it's the
+-- same `active` flag every other deed type uses; the RPC just checks it via
+-- `system_key` before running that section, rather than a separate setting.
+-- =============================================
+insert into public.good_deed_types (icon, name, description, points_min, points_max) values
+  ('🚩', 'เข้าแถวครบทุกครั้ง (รายสัปดาห์)', 'มาเข้าแถวเคารพธงชาติตอนเช้าครบทุกวันตลอดสัปดาห์ (คำนวณอัตโนมัติจากระบบเช็คชื่อกิจกรรม)', 15, 15),
+  ('👔', 'แต่งกายเรียบร้อยทุกวัน (รายสัปดาห์)', 'ผ่านการตรวจเครื่องแบบทุกวันตลอดสัปดาห์ (คำนวณอัตโนมัติจากระบบตรวจเครื่องแบบ)', 15, 15)
+on conflict (name) do nothing;
+
+alter table public.good_deed_types add column if not exists system_key text unique;
+update public.good_deed_types set system_key = 'attendance_week' where name = 'เข้าแถวครบทุกครั้ง (รายสัปดาห์)';
+update public.good_deed_types set system_key = 'uniform_week' where name = 'แต่งกายเรียบร้อยทุกวัน (รายสัปดาห์)';
+
+create table if not exists public.auto_bonus_log (
+  id uuid primary key default extensions.uuid_generate_v4(),
+  student_id uuid not null references public.students(id) on delete cascade,
+  bonus_key text not null check (bonus_key in ('attendance_week', 'uniform_week')),
+  period_start date not null,
+  created_at timestamptz default now(),
+  unique (student_id, bonus_key, period_start)
+);
+alter table public.auto_bonus_log enable row level security;
+create policy "auto_bonus_log_staff_read" on public.auto_bonus_log for select using (auth.role() = 'authenticated');
+
+create or replace function public.award_weekly_deed_bonuses()
+returns table (kind text, awarded_count int)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_attendance_deed_id int;
+  v_attendance_active boolean;
+  v_uniform_deed_id int;
+  v_uniform_active boolean;
+  v_attendance_count int := 0;
+  v_uniform_count int := 0;
+begin
+  select id, active into v_attendance_deed_id, v_attendance_active
+    from public.good_deed_types where system_key = 'attendance_week';
+  select id, active into v_uniform_deed_id, v_uniform_active
+    from public.good_deed_types where system_key = 'uniform_week';
+
+  if coalesce(v_attendance_active, false) then
+    with class_days as (
+      select date_trunc('week', date)::date as week_start, count(distinct date) as n_days
+      from public.activity_attend
+      where session = 'morning'
+      group by date_trunc('week', date)::date
+      having count(distinct date) >= 3
+         and date_trunc('week', date)::date + 4 < current_date
+    ),
+    student_weekly as (
+      select student_id, date_trunc('week', date)::date as week_start,
+             count(*) filter (where status = 'present') as n_present
+      from public.activity_attend
+      where session = 'morning'
+      group by student_id, date_trunc('week', date)::date
+    ),
+    qualifying as (
+      select sw.student_id, cd.week_start
+      from student_weekly sw join class_days cd using (week_start)
+      where sw.n_present = cd.n_days
+    ),
+    inserted_log as (
+      insert into public.auto_bonus_log (student_id, bonus_key, period_start)
+      select student_id, 'attendance_week', week_start from qualifying
+      on conflict (student_id, bonus_key, period_start) do nothing
+      returning student_id, period_start
+    ),
+    inserted_points as (
+      insert into public.point_logs (student_id, teacher_id, deed_type_id, points, note)
+      select student_id, null, v_attendance_deed_id, 15,
+             'โบนัสอัตโนมัติ: เข้าแถวครบทุกวัน สัปดาห์ ' || to_char(period_start, 'DD/MM/YYYY')
+      from inserted_log
+      returning 1
+    )
+    select count(*) into v_attendance_count from inserted_points;
+  end if;
+
+  if coalesce(v_uniform_active, false) then
+    with class_days as (
+      select date_trunc('week', date)::date as week_start, count(distinct date) as n_days
+      from public.uniform_checks
+      group by date_trunc('week', date)::date
+      having count(distinct date) >= 3
+         and date_trunc('week', date)::date + 4 < current_date
+    ),
+    student_weekly as (
+      select student_id, date_trunc('week', date)::date as week_start,
+             count(*) filter (where status = 'pass') as n_pass
+      from public.uniform_checks
+      group by student_id, date_trunc('week', date)::date
+    ),
+    qualifying as (
+      select sw.student_id, cd.week_start
+      from student_weekly sw join class_days cd using (week_start)
+      where sw.n_pass = cd.n_days
+    ),
+    inserted_log as (
+      insert into public.auto_bonus_log (student_id, bonus_key, period_start)
+      select student_id, 'uniform_week', week_start from qualifying
+      on conflict (student_id, bonus_key, period_start) do nothing
+      returning student_id, period_start
+    ),
+    inserted_points as (
+      insert into public.point_logs (student_id, teacher_id, deed_type_id, points, note)
+      select student_id, null, v_uniform_deed_id, 15,
+             'โบนัสอัตโนมัติ: แต่งกายเรียบร้อยทุกวัน สัปดาห์ ' || to_char(period_start, 'DD/MM/YYYY')
+      from inserted_log
+      returning 1
+    )
+    select count(*) into v_uniform_count from inserted_points;
+  end if;
+
+  return query select 'attendance_week'::text, v_attendance_count
+  union all
+  select 'uniform_week'::text, v_uniform_count;
+end;
+$$;
+
+revoke execute on function public.award_weekly_deed_bonuses() from public;
+revoke execute on function public.award_weekly_deed_bonuses() from anon;
+grant execute on function public.award_weekly_deed_bonuses() to authenticated;
+
+-- =============================================
+-- 14. Run the bonus check every Monday morning (01:10 UTC = 08:10 Thai time)
+-- =============================================
+create extension if not exists pg_cron;
+
+select cron.schedule(
+  'award-weekly-deed-bonuses',
+  '10 1 * * 1',
+  $$select public.award_weekly_deed_bonuses();$$
+);

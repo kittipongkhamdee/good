@@ -955,25 +955,46 @@ function renderAdminStudents() {
   </div>`;
 }
 
+function deedTypeRowHTML(t) {
+  return `
+    <div class="list-item">
+      <span style="font-size:24px;">${t.icon}</span>
+      <div style="flex:1;">
+        <div style="font-weight:600;font-size:14px;">${t.name}</div>
+        <div style="font-size:12px;color:#9ca3af;margin-top:1px;">${t.points_min}–${t.points_max} คะแนน</div>
+        <div style="margin-top:4px;display:inline-block;font-size:11px;border-radius:20px;padding:2px 8px;background:${t.active ? '#d1fae5' : '#fee2e2'};color:${t.active ? 'var(--g)' : '#ef4444'};">
+          ● ${t.active ? 'เปิดใช้งาน' : 'ปิดใช้งาน'}
+        </div>
+      </div>
+      <div class="action-btns" style="flex-direction:column;">
+        <button class="btn-edit" data-action="open-edit-deed" data-id="${t.id}">✏️</button>
+        <button class="btn-tog" data-action="toggle-deed" data-id="${t.id}" data-name="${t.name}" data-active="${t.active}"
+                style="background:${t.active ? '#fee2e2' : '#d1fae5'};color:${t.active ? '#ef4444' : 'var(--g)'};">
+          ${t.active ? '🔒' : '🔓'}
+        </button>
+        ${t.system_key ? '' : `<button class="btn-del" data-action="del-deed" data-id="${t.id}" data-name="${t.name}">🗑️</button>`}
+      </div>
+    </div>`;
+}
+
 function renderAdminDeedTypes() {
   const types = state.deedTypes;
+  const automatic = types.filter(t => t.system_key);
+  const manual = types.filter(t => !t.system_key);
+
   return `
   <div class="screen-wrap anim-slideup">
     <button class="btn-green" data-action="open-add-deed" style="padding:14px;">+ เพิ่มประเภทความดีใหม่</button>
+
+    ${automatic.length ? `
     <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.055);">
-      ${types.map(t => `
-        <div class="list-item">
-          <span style="font-size:24px;">${t.icon}</span>
-          <div style="flex:1;">
-            <div style="font-weight:600;font-size:14px;">${t.name}</div>
-            <div style="font-size:12px;color:#9ca3af;margin-top:1px;">${t.points_min}–${t.points_max} คะแนน</div>
-          </div>
-          <div class="action-btns">
-            <button class="btn-edit" data-action="open-edit-deed" data-id="${t.id}">✏️</button>
-            <button class="btn-del" data-action="del-deed" data-id="${t.id}" data-name="${t.name}">🗑️</button>
-          </div>
-        </div>
-      `).join('')}
+      <div style="padding:12px 16px;font-weight:700;color:#7c3aed;font-size:13px;">🤖 ให้คะแนนอัตโนมัติ (ระบบคำนวณให้เองทุกสัปดาห์)</div>
+      ${automatic.map(deedTypeRowHTML).join('')}
+    </div>` : ''}
+
+    <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.055);">
+      <div style="padding:12px 16px;font-weight:700;color:var(--gd);font-size:13px;">👤 ครูให้คะแนนเอง</div>
+      ${manual.length ? manual.map(deedTypeRowHTML).join('') : `<div style="padding:20px;text-align:center;color:#9ca3af;font-size:13px;">ยังไม่มีประเภทความดี</div>`}
     </div>
   </div>`;
 }
@@ -1446,7 +1467,7 @@ async function loadDataForScreen(screen) {
     if (classesResult) state.studentClasses = classesResult.data || [];
   }
   if (screen === 'admin-deedtypes') {
-    const { data } = await getDeedTypes();
+    const { data } = await getAllDeedTypes();
     state.deedTypes = data || [];
   }
   if (screen === 'admin-rewards') {
@@ -1751,6 +1772,16 @@ document.addEventListener('click', async (e) => {
       const { error } = await deleteDeedType(btn.dataset.id);
       if (error) { showToast(`เกิดข้อผิดพลาด: ${error}`); break; }
       showToast(`ลบ "${btn.dataset.name}" แล้ว`);
+      await loadDataForScreen('admin-deedtypes');
+      render();
+      break;
+    }
+
+    case 'toggle-deed': {
+      const active = btn.dataset.active === 'true';
+      const { error } = await updateDeedType(btn.dataset.id, { active: !active });
+      if (error) { showToast(`เกิดข้อผิดพลาด: ${error}`); break; }
+      showToast(`${active ? 'ปิด' : 'เปิด'}ใช้งาน "${btn.dataset.name}" แล้ว`);
       await loadDataForScreen('admin-deedtypes');
       render();
       break;

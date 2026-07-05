@@ -1240,12 +1240,15 @@ async function submitStaffLogin() {
   const role = isAdmin ? 'admin' : 'teacher';
   const screen = isAdmin ? 'admin-dashboard' : 'teacher-dashboard';
 
-  const [{ data: badgeTiers }, { data: rolePermissions }] = await Promise.all([getBadgeTiers(), getRolePermissions()]);
-  setState({
-    loading: false, role, screen, staffUser: profile,
-    badgeTiers: badgeTiers || [], rolePermissions: rolePermissions || state.rolePermissions,
-  });
-  await loadDataForScreen(screen);
+  const [{ data: badgeTiers }, { data: rolePermissions }] = await Promise.all([
+    getBadgeTiers(),
+    getRolePermissions(),
+    loadDataForScreen(screen),
+  ]);
+  state.staffUser = profile;
+  state.badgeTiers = badgeTiers || [];
+  state.rolePermissions = rolePermissions || state.rolePermissions;
+  setState({ loading: false, role, screen });
   showToast(`ยินดีต้อนรับ ${profile.full_name}! 🌿`);
 }
 

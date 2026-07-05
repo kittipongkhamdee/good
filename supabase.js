@@ -51,6 +51,22 @@ async function getCurrentSession() {
   return data.session;
 }
 
+// เรียกตอนเปิดแอป — Supabase Auth เก็บ session ของครู/แอดมินไว้ใน localStorage ให้เองอยู่แล้ว
+// แค่เช็คว่ายังมี session ที่ใช้ได้อยู่ไหม แล้วดึงโปรไฟล์กลับมา
+async function getCurrentStaffProfile() {
+  const session = await getCurrentSession();
+  if (!session) return { profile: null, error: null };
+
+  const { data: profile, error: profErr } = await _sb
+    .from('profiles')
+    .select('id, full_name, role, is_admin, is_active')
+    .eq('id', session.user.id)
+    .single();
+  if (profErr || !profile || !profile.is_active) return { profile: null, error: null };
+
+  return { profile, error: null };
+}
+
 // ──────────────────────────────────────────────
 // Student data (via RPC — no direct table grants needed for anon)
 // ──────────────────────────────────────────────

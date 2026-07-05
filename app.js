@@ -1308,12 +1308,12 @@ async function lookupScanStudent(code) {
 // Auth actions
 // ══════════════════════════════════════════════
 
-async function submitStudentLogin() {
-  const code = document.getElementById('student-code-input')?.value.trim();
-  if (!code) { setState({ authError: 'กรุณากรอกรหัสนักเรียน' }); return; }
-  setState({ loading: true, authError: '' });
+// รหัสนักเรียนที่จำไว้ใน localStorage เพื่อ auto-login ครั้งถัดไป (จนกว่าจะออกจากระบบ)
+const STUDENT_CODE_KEY = 'tbw_student_code';
+
+async function enterStudentSession(code, { silent = false } = {}) {
   const { student, error } = await studentLogin(code);
-  if (error || !student) { setState({ loading: false, authError: error || 'ไม่พบรหัสนักเรียนนี้' }); return; }
+  if (error || !student) return { ok: false, error };
 
   const [{ data: history }, { data: leaderboard }, { data: rewards }, { data: badgeTiers }, { data: settings }] = await Promise.all([
     getStudentHistory(code, 30),
@@ -1323,22 +1323,17 @@ async function submitStudentLogin() {
     getAppSettings(),
   ]);
 
+  localStorage.setItem(STUDENT_CODE_KEY, code);
   setState({
     loading: false, role: 'student', screen: 'student-dashboard',
     student, studentHistory: history || [], leaderboard: leaderboard || [], rewards: rewards || [],
     badgeTiers: badgeTiers || [], settings: settings || state.settings, leaderboardScope: 'school',
   });
-  showToast(`ยินดีต้อนรับ ${fullName(student)}! 🌿`);
+  if (!silent) showToast(`ยินดีต้อนรับ ${fullName(student)}! 🌿`);
+  return { ok: true };
 }
 
-async function submitStaffLogin() {
-  const email = document.getElementById('staff-email-input')?.value.trim();
-  const password = document.getElementById('staff-password-input')?.value;
-  if (!email || !password) { setState({ authError: 'กรุณากรอกอีเมลและรหัสผ่าน' }); return; }
-  setState({ loading: true, authError: '' });
-  const { profile, error } = await staffLogin(email, password);
-  if (error || !profile) { setState({ loading: false, authError: error || 'เข้าสู่ระบบไม่สำเร็จ' }); return; }
-
+async function enterStaffSession(profile, { silent = false } = {}) {
   const isAdmin = !!profile.is_admin;
   const role = isAdmin ? 'admin' : 'teacher';
   const screen = isAdmin ? 'admin-dashboard' : 'teacher-dashboard';
@@ -1352,12 +1347,45 @@ async function submitStaffLogin() {
   state.badgeTiers = badgeTiers || [];
   state.rolePermissions = rolePermissions || state.rolePermissions;
   setState({ loading: false, role, screen });
-  showToast(`ยินดีต้อนรับ ${profile.full_name}! 🌿`);
+  if (!silent) showToast(`ยินดีต้อนรับ ${profile.full_name}! 🌿`);
+}
+
+async function submitStudentLogin() {
+  const code = document.getElementById('student-code-input')?.value.trim();
+  if (!code) { setState({ authError: 'กรุณากรอกรหัสนักเรียน' }); return; }
+  setState({ loading: true, authError: '' });
+  const { ok, error } = await enterStudentSession(code);
+  if (!ok) setState({ loading: false, authError: error || 'ไม่พบรหัสนักเรียนนี้' });
+}
+
+async function submitStaffLogin() {
+  const email = document.getElementById('staff-email-input')?.value.trim();
+  const password = document.getElementById('staff-password-input')?.value;
+  if (!email || !password) { setState({ authError: 'กรุณากรอกอีเมลและรหัสผ่าน' }); return; }
+  setState({ loading: true, authError: '' });
+  const { profile, error } = await staffLogin(email, password);
+  if (error || !profile) { setState({ loading: false, authError: error || 'เข้าสู่ระบบไม่สำเร็จ' }); return; }
+  await enterStaffSession(profile);
+}
+
+// เรียกตอนเปิดแอป — ลองคืน session เดิม: ครู/แอดมินเช็คจาก Supabase Auth session
+// (persist ให้เองอยู่แล้ว), นักเรียนเช็คจากรหัสที่จำไว้ใน localStorage
+async function restoreSession() {
+  const { profile } = await getCurrentStaffProfile();
+  if (profile) { await enterStaffSession(profile, { silent: true }); return; }
+
+  const savedCode = localStorage.getItem(STUDENT_CODE_KEY);
+  if (savedCode) {
+    const { ok } = await enterStudentSession(savedCode, { silent: true });
+    if (ok) return;
+    localStorage.removeItem(STUDENT_CODE_KEY); // รหัสเก่าใช้ไม่ได้แล้ว (เช่น ถูกลบออกจากระบบ)
+  }
 }
 
 async function doLogout() {
   stopScan();
   if (state.role === 'teacher' || state.role === 'admin') await staffLogout();
+  localStorage.removeItem(STUDENT_CODE_KEY);
   Object.assign(state, {
     screen: 'login', authView: null, role: null, previewAsTeacher: false, authError: '', drawerOpen: false,
     student: null, studentHistory: [], studentRedemptions: [], leaderboard: null, leaderboardScope: 'school',
@@ -1881,4 +1909,5 @@ document.addEventListener('click', async (e) => {
 // ── Init ──
 document.addEventListener('DOMContentLoaded', () => {
   render();
+  restoreSession();
 });

@@ -142,6 +142,15 @@ function getBadge(pts) {
 function fullName(s) { return (s.student_name || '').replace(/\s+/g, ' ').trim(); }
 function classOf(s)   { return `${s.grade_level || ''}/${s.room || ''}`; }
 
+// รูปโปรไฟล์นักเรียน — แสดงรูปจริงถ้ามี (เก็บใน Supabase Storage) ไม่งั้นแสดง emoji แทน
+function studentAvatar(s, { size = 60, fontSize = 26, bg = 'rgba(255,255,255,0.18)', border = '2.5px solid rgba(255,255,255,0.45)', margin = '', shadow = '' } = {}) {
+  const common = `width:${size}px;height:${size}px;border-radius:50%;flex-shrink:0;border:${border};${margin ? `margin:${margin};` : ''}${shadow ? `box-shadow:${shadow};` : ''}`;
+  if (s?.photo_url) {
+    return `<img src="${s.photo_url}" alt="" style="${common}object-fit:cover;display:block;">`;
+  }
+  return `<div style="${common}background:${bg};display:flex;align-items:center;justify-content:center;font-size:${fontSize}px;">👧</div>`;
+}
+
 // ── setState + render ──
 function setState(updates) {
   Object.assign(state, updates);
@@ -367,7 +376,7 @@ function renderStudentDashboard() {
   <div class="screen-wrap anim-slideup">
     <div class="hero-banner">
       <div style="display:flex;align-items:center;gap:14px;">
-        <div style="width:62px;height:62px;border-radius:50%;background:rgba(255,255,255,0.18);display:flex;align-items:center;justify-content:center;font-size:28px;border:2.5px solid rgba(255,255,255,0.45);flex-shrink:0;">👧</div>
+        ${studentAvatar(s, { size: 62, fontSize: 28 })}
         <div>
           <div style="font-size:18px;font-weight:700;line-height:1.2;">${fullName(s)}</div>
           <div style="font-size:12px;opacity:0.8;margin-top:3px;">${classOf(s)} · รหัส ${s.student_code}</div>
@@ -630,7 +639,7 @@ function renderStudentProfile() {
   <div class="screen-wrap anim-slideup">
     <div class="hero-banner">
       <div style="text-align:center;">
-        <div style="width:80px;height:80px;border-radius:50%;background:rgba(255,255,255,0.18);display:flex;align-items:center;justify-content:center;font-size:36px;margin:0 auto;border:2.5px solid rgba(255,255,255,0.45);">👧</div>
+        ${studentAvatar(s, { size: 80, fontSize: 36, margin: '0 auto' })}
         <div style="font-size:20px;font-weight:700;margin-top:12px;">${fullName(s)}</div>
         <div style="font-size:13px;opacity:0.8;margin-top:4px;">${classOf(s)} · รหัส ${s.student_code}</div>
         <div style="margin-top:8px;display:inline-block;background:rgba(255,255,255,0.18);border-radius:20px;padding:3px 14px;font-size:12px;">${badge.icon} ${s.badge_level} · ${s.total_points.toLocaleString()} คะแนน</div>
@@ -733,7 +742,7 @@ function renderTeacherScan() {
   <div class="screen-wrap anim-slideup">
     <div class="card">
       <div style="background:var(--gl);border-radius:12px;padding:18px;display:flex;align-items:center;gap:14px;margin-bottom:16px;">
-        <div style="width:60px;height:60px;border-radius:50%;background:var(--g);display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;box-shadow:0 4px 14px oklch(0.52 0.17 145 / 0.4);">👧</div>
+        ${studentAvatar(sc, { size: 60, fontSize: 26, bg: 'var(--g)', border: 'none', shadow: '0 4px 14px oklch(0.52 0.17 145 / 0.4)' })}
         <div>
           <div style="font-size:17px;font-weight:700;color:var(--gd);">${fullName(sc)}</div>
           <div style="font-size:13px;color:#6b7280;margin-top:3px;">รหัส ${sc.student_code} · ${classOf(sc)}</div>
@@ -877,7 +886,11 @@ function renderAdminStudents() {
       </div>
       ${students.map(s => `
         <div class="list-item">
-          <span style="font-size:22px;">👤</span>
+          <div style="position:relative;flex-shrink:0;">
+            ${studentAvatar(s, { size: 40, fontSize: 18, bg: 'var(--gl)', border: 'none' })}
+            <button data-action="open-student-photo" data-id="${s.id}"
+              style="position:absolute;bottom:-2px;right:-2px;width:18px;height:18px;border-radius:50%;background:var(--g);color:#fff;border:2px solid #fff;font-size:10px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;">📷</button>
+          </div>
           <div style="flex:1;min-width:0;">
             <div style="font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${fullName(s)}</div>
             <div style="font-size:12px;color:#9ca3af;margin-top:1px;">${classOf(s)} · ${s.total_points.toLocaleString()} คะแนน · ${s.badge_level}</div>
@@ -1367,6 +1380,20 @@ async function loadDataForScreen(screen) {
 // Event Handling
 // ══════════════════════════════════════════════
 
+document.addEventListener('change', (e) => {
+  if (e.target.id !== 'student-photo-file') return;
+  const file = e.target.files[0];
+  if (!file) return;
+  const img = document.getElementById('photo-preview');
+  const placeholder = document.getElementById('photo-preview-placeholder');
+  const reader = new FileReader();
+  reader.onload = () => {
+    if (img) { img.src = reader.result; img.style.display = 'block'; }
+    if (placeholder) placeholder.style.display = 'none';
+  };
+  reader.readAsDataURL(file);
+});
+
 document.addEventListener('click', async (e) => {
   const btn = e.target.closest('[data-action]');
   if (!btn) return;
@@ -1504,6 +1531,47 @@ document.addEventListener('click', async (e) => {
       state.studentSearch = document.getElementById('student-search')?.value.trim() || '';
       const { data, count } = await getStudents({ search: state.studentSearch, limit: 20 });
       setState({ students: data || [], studentsCount: count || 0 });
+      break;
+    }
+
+    case 'open-student-photo': {
+      const s = state.students.find(x => x.id === btn.dataset.id);
+      if (!s) break;
+      showModal(`
+        <div class="modal-title">📷 รูปโปรไฟล์ — ${fullName(s)}</div>
+        <div style="text-align:center;margin-bottom:16px;">
+          <img id="photo-preview" src="${s.photo_url || ''}" alt=""
+               style="width:120px;height:120px;border-radius:50%;object-fit:cover;background:#f3f4f6;margin:0 auto;border:2px solid #e5e7eb;display:${s.photo_url ? 'block' : 'none'};">
+          <div id="photo-preview-placeholder"
+               style="width:120px;height:120px;border-radius:50%;background:#f3f4f6;align-items:center;justify-content:center;font-size:48px;margin:0 auto;display:${s.photo_url ? 'none' : 'flex'};">👧</div>
+        </div>
+        <div class="form-group"><input type="file" accept="image/*" id="student-photo-file"></div>
+        <button class="btn-green" data-action="save-student-photo" data-id="${s.id}" style="padding:13px;margin-top:4px;">✅ บันทึกรูป</button>
+        ${s.photo_url ? `<button data-action="remove-student-photo" data-id="${s.id}" data-url="${s.photo_url}" style="width:100%;padding:10px;margin-top:8px;background:#fee2e2;color:#dc2626;border:none;border-radius:10px;font-family:Kanit;cursor:pointer;">🗑️ ลบรูป</button>` : ''}
+        <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:Kanit;color:#9ca3af;cursor:pointer;">ยกเลิก</button>
+      `);
+      break;
+    }
+
+    case 'save-student-photo': {
+      const file = document.getElementById('student-photo-file')?.files[0];
+      if (!file) { showToast('กรุณาเลือกรูปภาพ'); return; }
+      const { error } = await uploadStudentPhoto(btn.dataset.id, file);
+      closeModal();
+      if (error) { showToast(`เกิดข้อผิดพลาด: ${error}`); break; }
+      showToast('อัปโหลดรูปโปรไฟล์สำเร็จ ✅');
+      await loadDataForScreen('admin-students');
+      render();
+      break;
+    }
+
+    case 'remove-student-photo': {
+      const { error } = await removeStudentPhoto(btn.dataset.id, btn.dataset.url);
+      closeModal();
+      if (error) { showToast(`เกิดข้อผิดพลาด: ${error}`); break; }
+      showToast('ลบรูปโปรไฟล์แล้ว');
+      await loadDataForScreen('admin-students');
+      render();
       break;
     }
 

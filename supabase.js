@@ -84,7 +84,7 @@ async function getStudentRedemptions(studentCode) {
 
 async function getStudents({ search = '', limit = 20, offset = 0 } = {}) {
   let q = _sb.from('students')
-    .select('id, student_code, student_name, prefix, grade_level, room', { count: 'exact' })
+    .select('id, student_code, student_name, prefix, grade_level, room, photo_url', { count: 'exact' })
     .order('grade_level').order('room').order('student_name')
     .range(offset, offset + limit - 1);
   if (search) q = q.or(`student_name.ilike.%${search}%,student_code.ilike.%${search}%`);
@@ -108,6 +108,33 @@ async function getStudents({ search = '', limit = 20, offset = 0 } = {}) {
 
 async function getStudentByCode(code) {
   return getStudentSummary(code);
+}
+
+// ──────────────────────────────────────────────
+// Student profile photos (Supabase Storage bucket "student-photos", public
+// read; only signed-in staff can upload/replace/remove — see schema.sql §12)
+// ──────────────────────────────────────────────
+
+async function uploadStudentPhoto(studentId, file) {
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+  const path = `${studentId}.${ext}`;
+  const { error: upErr } = await _sb.storage.from('student-photos').upload(path, file, {
+    upsert: true, contentType: file.type,
+  });
+  if (upErr) return { url: null, error: upErr.message };
+
+  const { data } = _sb.storage.from('student-photos').getPublicUrl(path);
+  const url = `${data.publicUrl}?t=${Date.now()}`;
+  const { error: updErr } = await _sb.from('students').update({ photo_url: url }).eq('id', studentId);
+  if (updErr) return { url: null, error: updErr.message };
+  return { url, error: null };
+}
+
+async function removeStudentPhoto(studentId, photoUrl) {
+  const path = photoUrl?.split('/student-photos/')[1]?.split('?')[0];
+  if (path) await _sb.storage.from('student-photos').remove([path]);
+  const { error } = await _sb.from('students').update({ photo_url: null }).eq('id', studentId);
+  return { error: error?.message || null };
 }
 
 // ──────────────────────────────────────────────

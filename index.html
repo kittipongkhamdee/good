@@ -67,49 +67,14 @@
 <!-- Modal -->
 <div id="modal-container"></div>
 
-<!-- โหลด library จาก CDN โดยมีสำรอง (fallback) กรณี jsdelivr เข้าไม่ได้บนเครือข่ายบางแห่ง
-     (เช่น เครือข่ายโรงเรียนบางที่บล็อก cdn.jsdelivr.net) — ลอง unpkg.com แทนอัตโนมัติ -->
-<script>
-  function loadScriptWithFallback(urls) {
-    return new Promise((resolve) => {
-      let i = 0;
-      function tryNext() {
-        if (i >= urls.length) { console.error('โหลดสคริปต์ไม่สำเร็จทุกแหล่ง:', urls[0]); resolve(false); return; }
-        const s = document.createElement('script');
-        s.src = urls[i++];
-        s.onload = () => resolve(true);
-        s.onerror = tryNext;
-        document.body.appendChild(s);
-      }
-      tryNext();
-    });
-  }
+<!-- ไลบรารีทั้งหมดเก็บไว้ในโปรเจกต์เอง (vendor/) ไม่พึ่ง CDN ภายนอกแล้ว —
+     กันปัญหาเครือข่ายบางแห่ง (เช่น WiFi โรงเรียน) บล็อกโดเมน CDN เช่น jsdelivr/unpkg -->
+<script src="vendor/supabase.min.js"></script>
+<script src="vendor/jsQR.min.js"></script>
+<script src="vendor/qrcode.min.js"></script>
 
-  function loadLocalScript(src) {
-    return new Promise((resolve) => {
-      const s = document.createElement('script');
-      s.src = src;
-      s.onload = resolve;
-      document.body.appendChild(s);
-    });
-  }
-
-  Promise.all([
-    loadScriptWithFallback([
-      'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js',
-      'https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js',
-    ]),
-    loadScriptWithFallback([
-      'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js',
-      'https://unpkg.com/jsqr@1.4.0/dist/jsQR.js',
-    ]),
-    loadScriptWithFallback([
-      'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js',
-      'https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js',
-    ]),
-  ]).then(() => loadLocalScript('supabase.js'))
-    .then(() => loadLocalScript('app.js'));
-</script>
+<script src="supabase.js"></script>
+<script src="app.js"></script>
 
 </body>
 </html>

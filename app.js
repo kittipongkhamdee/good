@@ -151,6 +151,26 @@ function studentAvatar(s, { size = 60, fontSize = 26, bg = 'rgba(255,255,255,0.1
   return `<div style="${common}background:${bg};display:flex;align-items:center;justify-content:center;font-size:${fontSize}px;">👧</div>`;
 }
 
+// ย่อ+บีบอัดรูปฝั่ง browser ก่อนอัปโหลด (ประหยัดทั้ง storage และ bandwidth ของ Supabase)
+// avatar ที่ใหญ่ที่สุดในแอปแสดงแค่ 120px — ย่อเหลือ 480px ก็เผื่อจอ retina ไว้เกินพอแล้ว
+function compressImageFile(file, { maxSize = 480, quality = 0.82 } = {}) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('compress failed')), 'image/jpeg', quality);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('load failed')); };
+    img.src = url;
+  });
+}
+
 // ── setState + render ──
 function setState(updates) {
   Object.assign(state, updates);
@@ -1556,7 +1576,13 @@ document.addEventListener('click', async (e) => {
     case 'save-student-photo': {
       const file = document.getElementById('student-photo-file')?.files[0];
       if (!file) { showToast('กรุณาเลือกรูปภาพ'); return; }
-      const { error } = await uploadStudentPhoto(btn.dataset.id, file);
+      let uploadFile = file, photoOpts = { ext: 'jpg', contentType: 'image/jpeg' };
+      try {
+        uploadFile = await compressImageFile(file);
+      } catch {
+        photoOpts = { ext: (file.name.split('.').pop() || 'jpg').toLowerCase(), contentType: file.type || 'image/jpeg' };
+      }
+      const { error } = await uploadStudentPhoto(btn.dataset.id, uploadFile, photoOpts);
       closeModal();
       if (error) { showToast(`เกิดข้อผิดพลาด: ${error}`); break; }
       showToast('อัปโหลดรูปโปรไฟล์สำเร็จ ✅');

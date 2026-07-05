@@ -115,11 +115,10 @@ async function getStudentByCode(code) {
 // read; only signed-in staff can upload/replace/remove — see schema.sql §12)
 // ──────────────────────────────────────────────
 
-async function uploadStudentPhoto(studentId, file) {
-  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+async function uploadStudentPhoto(studentId, file, { ext = 'jpg', contentType = 'image/jpeg' } = {}) {
   const path = `${studentId}.${ext}`;
   const { error: upErr } = await _sb.storage.from('student-photos').upload(path, file, {
-    upsert: true, contentType: file.type,
+    upsert: true, contentType,
   });
   if (upErr) return { url: null, error: upErr.message };
 

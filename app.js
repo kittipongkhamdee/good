@@ -884,6 +884,7 @@ function renderAdminDeedTypes() {
             <div style="font-size:12px;color:#9ca3af;margin-top:1px;">${t.points_min}–${t.points_max} คะแนน</div>
           </div>
           <div class="action-btns">
+            <button class="btn-edit" data-action="open-edit-deed" data-id="${t.id}">✏️</button>
             <button class="btn-del" data-action="del-deed" data-id="${t.id}" data-name="${t.name}">🗑️</button>
           </div>
         </div>
@@ -909,6 +910,7 @@ function renderAdminRewards() {
             </div>
           </div>
           <div class="action-btns" style="flex-direction:column;">
+            <button class="btn-edit" data-action="open-edit-reward" data-id="${r.id}">✏️</button>
             <button class="btn-tog" data-action="toggle-reward" data-id="${r.id}" data-name="${r.name}" data-active="${r.active}"
                     style="background:${r.active ? '#fee2e2' : '#d1fae5'};color:${r.active ? '#ef4444' : 'var(--g)'};">
               ${r.active ? '🔒' : '🔓'}
@@ -985,6 +987,7 @@ function renderAdminBadges() {
             <div style="font-size:12px;color:#9ca3af;margin-top:1px;">ตั้งแต่ ${t.min_points.toLocaleString()} คะแนนขึ้นไป</div>
           </div>
           <div class="action-btns">
+            <button class="btn-edit" data-action="open-edit-badge" data-id="${t.id}">✏️</button>
             <button class="btn-del" data-action="del-badge" data-id="${t.id}" data-name="${t.name}">🗑️</button>
           </div>
         </div>
@@ -1507,6 +1510,36 @@ document.addEventListener('click', async (e) => {
       break;
     }
 
+    case 'open-edit-deed': {
+      const dt = state.deedTypes.find(d => String(d.id) === btn.dataset.id);
+      if (!dt) break;
+      showModal(`
+        <div class="modal-title">✏️ แก้ไขประเภทความดี</div>
+        <div class="form-group"><label class="form-label">ไอคอน (Emoji)</label><input class="form-input" id="edit-deed-icon" value="${dt.icon}"></div>
+        <div class="form-group"><label class="form-label">ชื่อประเภท *</label><input class="form-input" id="edit-deed-name" value="${dt.name}"></div>
+        <div class="form-group"><label class="form-label">คะแนนต่ำสุด</label><input class="form-input" type="number" id="edit-deed-min" value="${dt.points_min}"></div>
+        <div class="form-group"><label class="form-label">คะแนนสูงสุด</label><input class="form-input" type="number" id="edit-deed-max" value="${dt.points_max}"></div>
+        <button class="btn-green" data-action="save-edit-deed" data-id="${dt.id}" style="padding:13px;margin-top:4px;">✅ บันทึก</button>
+        <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:Kanit;color:#9ca3af;cursor:pointer;">ยกเลิก</button>
+      `);
+      break;
+    }
+
+    case 'save-edit-deed': {
+      const icon = document.getElementById('edit-deed-icon')?.value.trim() || '💚';
+      const name = document.getElementById('edit-deed-name')?.value.trim();
+      const points_min = parseInt(document.getElementById('edit-deed-min')?.value) || 5;
+      const points_max = parseInt(document.getElementById('edit-deed-max')?.value) || 20;
+      if (!name) { showToast('กรุณากรอกชื่อประเภท'); return; }
+      const { error } = await updateDeedType(btn.dataset.id, { icon, name, points_min, points_max });
+      closeModal();
+      if (error) { showToast(`เกิดข้อผิดพลาด: ${error}`); break; }
+      showToast(`แก้ไข "${name}" สำเร็จ! ✅`);
+      await loadDataForScreen('admin-deedtypes');
+      render();
+      break;
+    }
+
     case 'del-deed': {
       const { error } = await deleteDeedType(btn.dataset.id);
       if (error) { showToast(`เกิดข้อผิดพลาด: ${error}`); break; }
@@ -1538,6 +1571,36 @@ document.addEventListener('click', async (e) => {
       closeModal();
       if (error) { showToast(`เกิดข้อผิดพลาด: ${error}`); break; }
       showToast(`เพิ่ม "${name}" สำเร็จ! ✅`);
+      await loadDataForScreen('admin-rewards');
+      render();
+      break;
+    }
+
+    case 'open-edit-reward': {
+      const r = state.rewards.find(x => String(x.id) === btn.dataset.id);
+      if (!r) break;
+      showModal(`
+        <div class="modal-title">✏️ แก้ไขรางวัล</div>
+        <div class="form-group"><label class="form-label">ไอคอน</label><input class="form-input" id="edit-rw-icon" value="${r.icon}"></div>
+        <div class="form-group"><label class="form-label">ชื่อรางวัล *</label><input class="form-input" id="edit-rw-name" value="${r.name}"></div>
+        <div class="form-group"><label class="form-label">คะแนนที่ใช้ *</label><input class="form-input" type="number" id="edit-rw-pts" value="${r.points_required}"></div>
+        <div class="form-group"><label class="form-label">จำนวนคงเหลือ</label><input class="form-input" type="number" id="edit-rw-stock" value="${r.stock}"></div>
+        <button class="btn-green" data-action="save-edit-reward" data-id="${r.id}" style="padding:13px;margin-top:4px;">✅ บันทึก</button>
+        <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:Kanit;color:#9ca3af;cursor:pointer;">ยกเลิก</button>
+      `);
+      break;
+    }
+
+    case 'save-edit-reward': {
+      const icon = document.getElementById('edit-rw-icon')?.value.trim() || '🎁';
+      const name = document.getElementById('edit-rw-name')?.value.trim();
+      const points_required = parseInt(document.getElementById('edit-rw-pts')?.value) || 0;
+      const stock = parseInt(document.getElementById('edit-rw-stock')?.value) || 0;
+      if (!name || !points_required) { showToast('กรุณากรอกข้อมูลให้ครบ'); return; }
+      const { error } = await updateReward(btn.dataset.id, { icon, name, points_required, stock });
+      closeModal();
+      if (error) { showToast(`เกิดข้อผิดพลาด: ${error}`); break; }
+      showToast(`แก้ไข "${name}" สำเร็จ! ✅`);
       await loadDataForScreen('admin-rewards');
       render();
       break;
@@ -1575,6 +1638,36 @@ document.addEventListener('click', async (e) => {
       closeModal();
       if (error) { showToast(`เกิดข้อผิดพลาด: ${error}`); break; }
       showToast(`เพิ่ม Badge "${name}" สำเร็จ! ✅`);
+      await loadDataForScreen('admin-badges');
+      render();
+      break;
+    }
+
+    case 'open-edit-badge': {
+      const t = state.badgeTiers.find(x => String(x.id) === btn.dataset.id);
+      if (!t) break;
+      showModal(`
+        <div class="modal-title">✏️ แก้ไข Badge</div>
+        <div class="form-group"><label class="form-label">ไอคอน (Emoji)</label><input class="form-input" id="edit-badge-icon" value="${t.icon}"></div>
+        <div class="form-group"><label class="form-label">ชื่อ Badge *</label><input class="form-input" id="edit-badge-name" value="${t.name}"></div>
+        <div class="form-group"><label class="form-label">คะแนนขั้นต่ำ *</label><input class="form-input" type="number" id="edit-badge-min" value="${t.min_points}"></div>
+        <div class="form-group"><label class="form-label">สี</label><input class="form-input" type="color" id="edit-badge-color" value="${t.color}" style="height:44px;padding:4px;"></div>
+        <button class="btn-green" data-action="save-edit-badge" data-id="${t.id}" style="padding:13px;margin-top:4px;">✅ บันทึก</button>
+        <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:Kanit;color:#9ca3af;cursor:pointer;">ยกเลิก</button>
+      `);
+      break;
+    }
+
+    case 'save-edit-badge': {
+      const icon = document.getElementById('edit-badge-icon')?.value.trim() || '🏅';
+      const name = document.getElementById('edit-badge-name')?.value.trim();
+      const min_points = parseInt(document.getElementById('edit-badge-min')?.value);
+      const color = document.getElementById('edit-badge-color')?.value || '#22c55e';
+      if (!name || isNaN(min_points)) { showToast('กรุณากรอกข้อมูลให้ครบ'); return; }
+      const { error } = await updateBadgeTier(btn.dataset.id, { icon, name, min_points, color });
+      closeModal();
+      if (error) { showToast(`เกิดข้อผิดพลาด: ${error}`); break; }
+      showToast(`แก้ไข Badge "${name}" สำเร็จ! ✅`);
       await loadDataForScreen('admin-badges');
       render();
       break;

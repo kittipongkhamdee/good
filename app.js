@@ -811,6 +811,8 @@ function renderStudentDashboard() {
       </div>
     </div>
 
+    ${renderLevelProgress(s)}
+
     <div class="stat-grid-3">
       ${statBox('🥇', s.rank, 'อันดับที่', '#f59e0b', '#')}
       ${statBox('🎖️', unlockedBadgeCount(s.total_points), 'Badge', '#8b5cf6')}
@@ -861,6 +863,53 @@ function renderStudentDashboard() {
 function unlockedBadgeCount(pts) {
   const tiers = [0, 100, 500, 1000, 5000];
   return tiers.filter(t => pts >= t).length;
+}
+
+// หลอดพลังความดี — แสดงตำแหน่งเลเวลปัจจุบันเทียบกับเลเวลสูงสุด (เส้นสเกล 0..เลเวลสูงสุด
+// เพื่อให้เห็นระยะทางจริง ไม่ใช่แค่ % ไปเลเวลถัดไป) ให้นักเรียนเห็นภาพรวมทั้งเส้นทาง
+function renderLevelProgress(s) {
+  const tiers = (state.badgeTiers && state.badgeTiers.length)
+    ? [...state.badgeTiers].sort((a, b) => a.min_points - b.min_points)
+    : [{ icon: '🌿', name: 'ผู้เริ่มต้น', min_points: 0, color: '#6b7280' }];
+  const pts = s.total_points;
+  const maxTier = tiers[tiers.length - 1];
+  let currentIdx = 0;
+  tiers.forEach((t, i) => { if (t.min_points <= pts) currentIdx = i; });
+  const next = tiers[currentIdx + 1] || null;
+  const isMax = !next;
+  const pct = maxTier.min_points > 0 ? Math.min(100, (pts / maxTier.min_points) * 100) : 100;
+
+  return `
+  <div class="card">
+    <div style="font-size:14px;font-weight:700;color:var(--gd);margin-bottom:16px;text-align:center;">🌱 ระดับความดีของคุณ</div>
+
+    <div style="display:flex;justify-content:space-between;padding:0 2px;">
+      ${tiers.map((t, i) => {
+        const achieved = t.min_points <= pts;
+        const isCurrent = i === currentIdx;
+        const size = isCurrent ? 32 : 22;
+        return `
+        <div style="flex:1;text-align:center;font-size:${size}px;line-height:1;opacity:${achieved ? 1 : 0.35};filter:${achieved ? 'none' : 'grayscale(1)'};${isCurrent ? `filter:drop-shadow(0 0 7px ${t.color});` : ''}transition:opacity 0.3s;">${t.icon}</div>`;
+      }).join('')}
+    </div>
+
+    <div style="position:relative;height:10px;background:#e5e7eb;border-radius:6px;margin:10px 2px 0;">
+      <div class="level-bar-fill" data-pct="${pct}" style="position:absolute;inset:0;width:0%;background:linear-gradient(90deg,var(--gd),var(--g));border-radius:6px;transition:width 0.9s cubic-bezier(0.3,0.7,0.3,1);"></div>
+      ${tiers.slice(1).map(t => {
+        const tp = maxTier.min_points > 0 ? Math.min(100, (t.min_points / maxTier.min_points) * 100) : 100;
+        return `<div style="position:absolute;top:-2px;left:${tp}%;width:2px;height:14px;background:#fff;border-radius:1px;transform:translateX(-1px);"></div>`;
+      }).join('')}
+    </div>
+
+    <div style="text-align:center;margin-top:12px;font-size:13px;color:#374151;font-weight:700;">
+      ${pts.toLocaleString()} / ${maxTier.min_points.toLocaleString()} คะแนน
+    </div>
+    <div style="text-align:center;margin-top:3px;font-size:12px;color:${isMax ? '#f59e0b' : '#9ca3af'};">
+      ${isMax
+        ? `🎉 สุดยอด! คุณถึงระดับสูงสุดแล้ว — ${maxTier.icon} ${maxTier.name}`
+        : `อีก ${(next.min_points - pts).toLocaleString()} คะแนน ถึง ${next.icon} ${next.name}`}
+    </div>
+  </div>`;
 }
 
 function renderStudentHistory() {
@@ -1889,6 +1938,7 @@ function afterRender() {
 
   spawnHeroLeaves();
   animateCountUps();
+  animateLevelBars();
 }
 
 // ตัวเลขจุดเด่น (คะแนนสะสม/สถิติแดชบอร์ด) วิ่งขึ้นจาก 0 ให้ดูมีชีวิตชีวา —องค์ประกอบถูกสร้างใหม่
@@ -1910,6 +1960,17 @@ function animateCountUps() {
       if (t < 1) requestAnimationFrame(frame);
     }
     requestAnimationFrame(frame);
+  });
+}
+
+// หลอดพลังความดี — ตั้ง width:0 ไว้ตอน render() แล้วค่อยเลื่อนไปความกว้างจริงเฟรมถัดไป
+// เพื่อให้ CSS transition จับการเปลี่ยนแปลงได้ (แทนที่จะกระโดดไปเลยตั้งแต่เฟรมแรก)
+function animateLevelBars() {
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  document.querySelectorAll('.level-bar-fill').forEach(el => {
+    const pct = parseFloat(el.dataset.pct) || 0;
+    if (reduceMotion) { el.style.width = `${pct}%`; return; }
+    requestAnimationFrame(() => requestAnimationFrame(() => { el.style.width = `${pct}%`; }));
   });
 }
 

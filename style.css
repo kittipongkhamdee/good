@@ -39,12 +39,29 @@ select { appearance: none; -webkit-appearance: none; }
 
 /* ── Login ── */
 #login-view {
-  min-height: 100dvh;
+  min-height: 100dvh; position: relative; overflow: hidden;
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
   padding: 24px;
 }
-.login-box { width: 100%; max-width: 380px; }
+.login-box { width: 100%; max-width: 380px; position: relative; z-index: 1; }
+
+/* ── Falling leaves (login background — decorative, non-interactive) ── */
+#leaf-field { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+.leaf {
+  position: absolute; top: -10%; left: var(--x); font-size: var(--sz); opacity: 0;
+  will-change: transform, opacity; animation: leafFall var(--dur) ease-in-out infinite; animation-delay: var(--del);
+}
+@keyframes leafFall {
+  0%   { transform: translate(0, 0) rotate(0deg); opacity: 0; }
+  12%  { opacity: var(--op); }
+  50%  { transform: translate(var(--dx), 55vh) rotate(var(--rot)); }
+  88%  { opacity: var(--op); }
+  100% { transform: translate(calc(var(--dx) * 1.6), 115vh) rotate(calc(var(--rot) * 1.7)); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .leaf { display: none; }
+}
 .login-logo { text-align: center; margin-bottom: 36px; }
 .logo-icon {
   width: 90px; height: 90px; font-size: 44px; margin: 0 auto 16px;

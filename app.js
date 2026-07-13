@@ -2408,9 +2408,31 @@ document.addEventListener('click', async (e) => {
   }
 });
 
+// ใบไม้ลอยพื้นหลังหน้า login — สร้างครั้งเดียวตอนเปิดแอป ไม่ผูกกับ renderLogin()
+// เพราะ renderLogin() re-render บ่อยตอนพิมพ์/สลับแท็บ ถ้าสร้างใหม่ทุกครั้งแอนิเมชันจะสะดุด
+function spawnLoginLeaves() {
+  const field = document.getElementById('leaf-field');
+  if (!field) return;
+  const LEAVES = ['🍃', '🌿'];
+  for (let i = 0; i < 12; i++) {
+    const leaf = document.createElement('span');
+    leaf.className = 'leaf';
+    leaf.textContent = LEAVES[i % LEAVES.length];
+    leaf.style.setProperty('--x', `${Math.round(Math.random() * 90 + 5)}%`);
+    leaf.style.setProperty('--dur', `${(9 + Math.random() * 5).toFixed(1)}s`);
+    leaf.style.setProperty('--del', `${(Math.random() * 12).toFixed(1)}s`);
+    leaf.style.setProperty('--op', (0.16 + Math.random() * 0.16).toFixed(2));
+    leaf.style.setProperty('--sz', `${Math.round(13 + Math.random() * 9)}px`);
+    leaf.style.setProperty('--dx', `${Math.round(-55 + Math.random() * 110)}px`);
+    leaf.style.setProperty('--rot', `${Math.round(-140 + Math.random() * 280)}deg`);
+    field.appendChild(leaf);
+  }
+}
+
 // ── Init ──
 document.addEventListener('DOMContentLoaded', () => {
   render();
+  spawnLoginLeaves();
   loadGlobalSettings();
   restoreSession();
 });

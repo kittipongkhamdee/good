@@ -617,21 +617,21 @@ function renderStudentDashboard() {
       <div style="position:relative;z-index:1;margin-top:18px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.18);display:flex;align-items:flex-end;justify-content:space-between;">
         <div>
           <div style="font-size:12px;opacity:0.75;">คะแนนสะสมทั้งหมด</div>
-          <div style="font-size:44px;font-weight:700;line-height:1;margin-top:2px;">${s.total_points.toLocaleString()}</div>
+          <div style="font-size:44px;font-weight:700;line-height:1;margin-top:2px;" data-countup="${s.total_points}">0</div>
           <div style="font-size:13px;opacity:0.7;margin-top:2px;">คะแนน</div>
         </div>
         <div style="text-align:right;font-size:12px;opacity:0.75;">
           <div>ทำความดีแล้ว</div>
-          <div style="font-size:30px;font-weight:700;line-height:1;">${s.total_deeds}</div>
+          <div style="font-size:30px;font-weight:700;line-height:1;" data-countup="${s.total_deeds}">0</div>
           <div>ครั้ง</div>
         </div>
       </div>
     </div>
 
     <div class="stat-grid-3">
-      ${statBox('🥇', `#${s.rank}`, 'อันดับที่', '#f59e0b')}
-      ${statBox('🎖️', String(unlockedBadgeCount(s.total_points)), 'Badge', '#8b5cf6')}
-      ${statBox('🎁', String(s.redeem_count), 'แลกรางวัล', '#ef4444')}
+      ${statBox('🥇', s.rank, 'อันดับที่', '#f59e0b', '#')}
+      ${statBox('🎖️', unlockedBadgeCount(s.total_points), 'Badge', '#8b5cf6')}
+      ${statBox('🎁', s.redeem_count, 'แลกรางวัล', '#ef4444')}
     </div>
 
     <div class="card">
@@ -1082,10 +1082,10 @@ function renderAdminDashboard() {
       </div>
     </div>
     <div class="stat-grid-2">
-      ${statBox('👩‍🎓', r.studentCount.toLocaleString(), 'นักเรียน', 'var(--g)')}
-      ${statBox('👨‍🏫', r.teacherCount.toLocaleString(), 'ครู/เจ้าหน้าที่', '#3b82f6')}
-      ${statBox('💚', r.totalPoints.toLocaleString(), 'คะแนนรวม', '#8b5cf6')}
-      ${statBox('📋', r.logCount.toLocaleString(), 'รายการความดี', '#f59e0b')}
+      ${statBox('👩‍🎓', r.studentCount, 'นักเรียน', 'var(--g)')}
+      ${statBox('👨‍🏫', r.teacherCount, 'ครู/เจ้าหน้าที่', '#3b82f6')}
+      ${statBox('💚', r.totalPoints, 'คะแนนรวม', '#8b5cf6')}
+      ${statBox('📋', r.logCount, 'รายการความดี', '#f59e0b')}
     </div>
     <div class="card">
       <div style="font-weight:700;color:var(--gd);margin-bottom:12px;">⚡ จัดการด่วน</div>
@@ -1332,10 +1332,10 @@ function renderAdminReports() {
       </div>
     </div>
     <div class="stat-grid-2">
-      ${statBox('👩‍🎓', r.studentCount.toLocaleString(), 'นักเรียนทั้งหมด', 'var(--g)')}
-      ${statBox('💚', r.totalPoints.toLocaleString(), 'คะแนนรวม', '#3b82f6')}
-      ${statBox('📋', r.logCount.toLocaleString(), 'รายการความดี', '#8b5cf6')}
-      ${statBox('👨‍🏫', r.teacherCount.toLocaleString(), 'ครู/เจ้าหน้าที่', '#f59e0b')}
+      ${statBox('👩‍🎓', r.studentCount, 'นักเรียนทั้งหมด', 'var(--g)')}
+      ${statBox('💚', r.totalPoints, 'คะแนนรวม', '#3b82f6')}
+      ${statBox('📋', r.logCount, 'รายการความดี', '#8b5cf6')}
+      ${statBox('👨‍🏫', r.teacherCount, 'ครู/เจ้าหน้าที่', '#f59e0b')}
     </div>
 
     <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.055);">
@@ -1485,8 +1485,8 @@ function renderAdminSettings() {
 // Helpers
 // ══════════════════════════════════════════════
 
-function statBox(icon, val, lbl, color) {
-  return `<div class="stat-box"><div class="stat-icon">${icon}</div><div class="stat-val" style="color:${color};">${val}</div><div class="stat-lbl">${lbl}</div></div>`;
+function statBox(icon, num, lbl, color, prefix = '') {
+  return `<div class="stat-box"><div class="stat-icon">${icon}</div><div class="stat-val" style="color:${color};" data-countup="${num}" data-prefix="${prefix}">${prefix}0</div><div class="stat-lbl">${lbl}</div></div>`;
 }
 
 function listRow(icon, title, sub, right) {
@@ -1573,6 +1573,29 @@ function afterRender() {
   }
 
   spawnHeroLeaves();
+  animateCountUps();
+}
+
+// ตัวเลขจุดเด่น (คะแนนสะสม/สถิติแดชบอร์ด) วิ่งขึ้นจาก 0 ให้ดูมีชีวิตชีวา —องค์ประกอบถูกสร้างใหม่
+// จาก innerHTML ทุกครั้งที่ render() ทำงาน จึงเรียกซ้ำใน afterRender() แทนที่จะสร้างครั้งเดียว
+function animateCountUps() {
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  document.querySelectorAll('[data-countup]').forEach(el => {
+    const target = parseFloat(el.dataset.countup);
+    if (!Number.isFinite(target)) return;
+    const prefix = el.dataset.prefix || '';
+    if (reduceMotion) { el.textContent = `${prefix}${target.toLocaleString('th-TH')}`; return; }
+    const duration = 700;
+    const startTime = performance.now();
+    function frame(now) {
+      const t = Math.min((now - startTime) / duration, 1);
+      const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic — เร่งช่วงแรก ชะลอตอนใกล้ถึงเป้า
+      const current = Math.round(target * eased);
+      el.textContent = `${prefix}${current.toLocaleString('th-TH')}`;
+      if (t < 1) requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  });
 }
 
 // ══════════════════════════════════════════════

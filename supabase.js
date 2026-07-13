@@ -228,7 +228,14 @@ async function deleteDeedType(id) {
 // Rewards (public read; admin manages; redemption via RPC)
 // ──────────────────────────────────────────────
 
+// student-facing แลกรางวัล screen — active only
 async function getRewards() {
+  const { data, error } = await _sb.from('rewards').select('*').eq('active', true).order('points_required');
+  return { data, error: error?.message || null };
+}
+
+// admin management screen — sees everything, including inactive
+async function getAllRewards() {
   const { data, error } = await _sb.from('rewards').select('*').order('points_required');
   return { data, error: error?.message || null };
 }

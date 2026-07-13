@@ -1726,7 +1726,7 @@ async function loadDataForScreen(screen) {
     state.deedTypes = data || [];
   }
   if (screen === 'admin-rewards') {
-    const { data } = await getRewards();
+    const { data } = await getAllRewards();
     state.rewards = data || [];
   }
   if (screen === 'admin-reward-pickup') {

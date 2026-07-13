@@ -278,6 +278,39 @@ async function unmarkRewardCollected(requestId) {
 }
 
 // ──────────────────────────────────────────────
+// Reward suggestions — students suggest what they'd like to see on the
+// แลกรางวัล screen; staff read them on a dedicated screen
+// ──────────────────────────────────────────────
+
+async function submitRewardSuggestion(studentCode, message) {
+  const { error } = await _sb.rpc('submit_reward_suggestion', { p_student_code: studentCode, p_message: message });
+  return { error: error?.message || null };
+}
+
+async function getRewardSuggestions() {
+  const { data, error } = await _sb
+    .from('reward_suggestions')
+    .select('id, message, created_at, read_at, students(student_name, prefix, grade_level, room, student_code), profiles(full_name)')
+    .order('created_at', { ascending: false });
+  return { data, error: error?.message || null };
+}
+
+async function markSuggestionRead(id) {
+  const session = await getCurrentSession();
+  const { error } = await _sb.from('reward_suggestions')
+    .update({ read_at: new Date().toISOString(), read_by: session?.user?.id || null })
+    .eq('id', id);
+  return { error: error?.message || null };
+}
+
+async function unmarkSuggestionRead(id) {
+  const { error } = await _sb.from('reward_suggestions')
+    .update({ read_at: null, read_by: null })
+    .eq('id', id);
+  return { error: error?.message || null };
+}
+
+// ──────────────────────────────────────────────
 // Reports (staff-only, aggregated from real tables)
 // ──────────────────────────────────────────────
 

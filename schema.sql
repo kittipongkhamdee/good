@@ -805,3 +805,55 @@ alter table public.reward_requests
 
 insert into public.role_permissions (screen_key, teacher_enabled) values ('admin-reward-pickup', true)
 on conflict (screen_key) do nothing;
+
+-- =============================================
+-- 16. Reward suggestions — students can suggest rewards they'd like to see
+-- on the "แลกรางวัล" screen; shows up for staff on a new "ข้อเสนอแนะ" screen.
+-- Students have no Supabase Auth session (login by code only), so inserts
+-- only happen through this SECURITY DEFINER RPC, same pattern as
+-- redeem_reward / add_point_log.
+-- =============================================
+create table if not exists public.reward_suggestions (
+  id uuid primary key default extensions.uuid_generate_v4(),
+  student_id uuid not null references public.students(id) on delete cascade,
+  message text not null,
+  read_at timestamptz,
+  read_by uuid references public.profiles(id) on delete set null,
+  created_at timestamptz default now()
+);
+alter table public.reward_suggestions enable row level security;
+create policy "reward_suggestions_staff_read" on public.reward_suggestions for select using (auth.role() = 'authenticated');
+create policy "reward_suggestions_staff_update" on public.reward_suggestions for update
+  using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+
+create or replace function public.submit_reward_suggestion(p_student_code text, p_message text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_student_id uuid;
+  v_msg text;
+begin
+  v_msg := trim(p_message);
+  if v_msg = '' then
+    raise exception 'กรุณากรอกข้อความ';
+  end if;
+  if length(v_msg) > 500 then
+    raise exception 'ข้อความยาวเกินไป (ไม่เกิน 500 ตัวอักษร)';
+  end if;
+
+  select id into v_student_id from public.students where student_code = p_student_code;
+  if v_student_id is null then
+    raise exception 'ไม่พบนักเรียนรหัสนี้';
+  end if;
+
+  insert into public.reward_suggestions(student_id, message) values (v_student_id, v_msg);
+end;
+$$;
+revoke execute on function public.submit_reward_suggestion(text,text) from public;
+grant execute on function public.submit_reward_suggestion(text,text) to anon, authenticated;
+
+insert into public.role_permissions (screen_key, teacher_enabled) values ('admin-suggestions', true)
+on conflict (screen_key) do nothing;

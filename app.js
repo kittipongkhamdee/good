@@ -39,6 +39,7 @@ const state = {
   reportSummary: null,
   reportError: null,
   reportLeaderboard: null,
+  reportGradeFilter: '',
   badgeTiers: [],
   settings: { leaderboardEnabled: true, leaderboardTopN: 10 },
   rolePermissions: { 'admin-deedtypes': true, 'admin-rewards': true, 'admin-reward-pickup': true, 'admin-suggestions': true, 'admin-reports': true },
@@ -1071,9 +1072,13 @@ function renderAdminDashboard() {
   </div>`;
 }
 
+function distinctGrades() {
+  return [...new Set(state.studentClasses.map(c => c.grade_level))].sort((a, b) => a.localeCompare(b, 'th', { numeric: true }));
+}
+
 function renderAdminStudents() {
   const students = state.students;
-  const grades = [...new Set(state.studentClasses.map(c => c.grade_level))].sort((a, b) => a.localeCompare(b, 'th', { numeric: true }));
+  const grades = distinctGrades();
   const rooms = [...new Set(
     state.studentClasses
       .filter(c => !state.studentGradeFilter || c.grade_level === state.studentGradeFilter)
@@ -1291,7 +1296,13 @@ function renderAdminReports() {
     </div>
 
     <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.055);">
-      <div style="padding:14px 16px 10px;font-weight:700;color:var(--gd);">🏆 อันดับนักเรียน (คะแนนสะสม)</div>
+      <div style="padding:14px 16px 10px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
+        <div style="font-weight:700;color:var(--gd);white-space:nowrap;">🏆 อันดับนักเรียน Top 10${state.reportGradeFilter ? ` · ชั้น ${state.reportGradeFilter}` : ''}</div>
+        <select class="form-input" id="report-grade-filter" style="width:auto;padding:6px 10px;font-size:12px;">
+          <option value="">ทุกชั้น</option>
+          ${distinctGrades().map(g => `<option value="${g}" ${state.reportGradeFilter === g ? 'selected' : ''}>ชั้น ${g}</option>`).join('')}
+        </select>
+      </div>
       ${renderReportLeaderboardRows()}
     </div>
   </div>`;
@@ -1662,7 +1673,7 @@ async function doLogout() {
     screen: 'login', authView: 'student', role: null, previewAsTeacher: false, authError: '', drawerOpen: false,
     student: null, studentHistory: [], studentRedemptions: [], leaderboard: null, leaderboardScope: 'school',
     staffUser: null, deedTypes: [], rewards: [], rewardRequests: [], rewardSuggestions: [], students: [], studentGradeFilter: '', studentRoomFilter: '', studentClasses: [], pointLogs: [], badgeTiers: [],
-    reportSummary: null, reportError: null, reportLeaderboard: null, scanStep: 0, scanStudent: null, selectedDeedId: null, points: 10,
+    reportSummary: null, reportError: null, reportLeaderboard: null, reportGradeFilter: '', scanStep: 0, scanStudent: null, selectedDeedId: null, points: 10,
     settings: { leaderboardEnabled: true, leaderboardTopN: 10 },
     rolePermissions: { 'admin-deedtypes': true, 'admin-rewards': true, 'admin-reward-pickup': true, 'admin-suggestions': true, 'admin-reports': true },
   });
@@ -1685,12 +1696,16 @@ async function loadDataForScreen(screen) {
   }
   if (screen === 'admin-dashboard' || screen === 'admin-reports') {
     const tasks = [getReportSummary(), getPointLogs({ limit: 6 })];
-    if (screen === 'admin-reports') tasks.push(getLeaderboard({ limit: 100 }));
-    const [{ data: summary, error: reportError }, { data: logs }, leaderboardResult] = await Promise.all(tasks);
+    if (screen === 'admin-reports') {
+      tasks.push(getLeaderboard({ limit: 10, gradeLevel: state.reportGradeFilter || null }));
+      if (!state.studentClasses.length) tasks.push(getStudentClasses());
+    }
+    const [{ data: summary, error: reportError }, { data: logs }, leaderboardResult, classesResult] = await Promise.all(tasks);
     state.reportSummary = summary;
     state.reportError = reportError || null;
     state.pointLogs = logs || [];
     if (leaderboardResult) state.reportLeaderboard = leaderboardResult.data || [];
+    if (classesResult) state.studentClasses = classesResult.data || [];
   }
   if (screen === 'admin-students') {
     const tasks = [getStudents({
@@ -1734,18 +1749,26 @@ async function loadDataForScreen(screen) {
 // Event Handling
 // ══════════════════════════════════════════════
 
-document.addEventListener('change', (e) => {
-  if (e.target.id !== 'student-photo-file') return;
-  const file = e.target.files[0];
-  if (!file) return;
-  const img = document.getElementById('photo-preview');
-  const placeholder = document.getElementById('photo-preview-placeholder');
-  const reader = new FileReader();
-  reader.onload = () => {
-    if (img) { img.src = reader.result; img.style.display = 'block'; }
-    if (placeholder) placeholder.style.display = 'none';
-  };
-  reader.readAsDataURL(file);
+document.addEventListener('change', async (e) => {
+  if (e.target.id === 'student-photo-file') {
+    const file = e.target.files[0];
+    if (!file) return;
+    const img = document.getElementById('photo-preview');
+    const placeholder = document.getElementById('photo-preview-placeholder');
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (img) { img.src = reader.result; img.style.display = 'block'; }
+      if (placeholder) placeholder.style.display = 'none';
+    };
+    reader.readAsDataURL(file);
+    return;
+  }
+
+  if (e.target.id === 'report-grade-filter') {
+    state.reportGradeFilter = e.target.value;
+    const { data } = await getLeaderboard({ limit: 10, gradeLevel: state.reportGradeFilter || null });
+    setState({ reportLeaderboard: data || [] });
+  }
 });
 
 document.addEventListener('click', async (e) => {

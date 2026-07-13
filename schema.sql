@@ -898,3 +898,75 @@ insert into public.app_settings (key, value) values
   ('school_name', 'ตาเบาวิทยา'),
   ('school_tagline', 'ระบบสะสมคะแนนความดีนักเรียน')
 on conflict (key) do nothing;
+
+-- =============================================
+-- 19. Point codes — ครูสร้างโค้ด (QR + 6-digit) ให้นักเรียนทั้งห้องสแกนพร้อมกันรับคะแนน
+-- โค้ดหมดอายุตามเวลาที่ตั้ง (default 10 นาที) และผูกขอบเขตชั้น/ห้องได้ (null = ไม่จำกัด)
+-- ทุกการอ่าน/เขียนผ่าน SECURITY DEFINER RPC เท่านั้น — ไม่มี RLS policy ให้ client
+-- คุยกับตารางตรงๆ. ยังไม่มีฝั่ง "นักเรียนสแกนโค้ด" (จะตามมาในเฟสถัดไป).
+-- =============================================
+create table if not exists public.point_codes (
+  id uuid primary key default extensions.uuid_generate_v4(),
+  code text not null unique,
+  deed_type_id int references public.good_deed_types(id) on delete set null,
+  points int not null check (points > 0),
+  grade_level text,
+  room text,
+  created_by uuid references public.profiles(id) on delete set null,
+  expires_at timestamptz not null,
+  created_at timestamptz default now()
+);
+alter table public.point_codes enable row level security;
+
+create or replace function public.create_point_code(
+  p_deed_type_id int, p_points int, p_grade_level text default null,
+  p_room text default null, p_duration_seconds int default 600
+)
+returns public.point_codes
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_code text;
+  v_row public.point_codes;
+begin
+  if auth.uid() is null then
+    raise exception 'ต้องเข้าสู่ระบบก่อน';
+  end if;
+
+  loop
+    v_code := '';
+    for i in 1..6 loop
+      v_code := v_code || substr('ABCDEFGHJKLMNPQRSTUVWXYZ23456789', floor(random() * 32)::int + 1, 1);
+    end loop;
+    exit when not exists (select 1 from public.point_codes where code = v_code and expires_at > now());
+  end loop;
+
+  insert into public.point_codes(code, deed_type_id, points, grade_level, room, created_by, expires_at)
+  values (v_code, p_deed_type_id, p_points, p_grade_level, p_room, auth.uid(), now() + make_interval(secs => p_duration_seconds))
+  returning * into v_row;
+
+  return v_row;
+end;
+$$;
+revoke execute on function public.create_point_code(int,int,text,text,int) from public;
+revoke execute on function public.create_point_code(int,int,text,text,int) from anon;
+grant execute on function public.create_point_code(int,int,text,text,int) to authenticated;
+
+create or replace function public.cancel_point_code(p_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'ต้องเข้าสู่ระบบก่อน';
+  end if;
+  update public.point_codes set expires_at = now() where id = p_id and created_by = auth.uid();
+end;
+$$;
+revoke execute on function public.cancel_point_code(uuid) from public;
+revoke execute on function public.cancel_point_code(uuid) from anon;
+grant execute on function public.cancel_point_code(uuid) to authenticated;

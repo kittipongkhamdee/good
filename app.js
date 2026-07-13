@@ -49,6 +49,11 @@ const state = {
   scanStudent: null,
   selectedDeedId: null,
   points: 10,
+
+  pointCode: null,       // { id, code, icon, name, points, scopeLabel, expiresAt, totalMs } — active generated code
+  codeDurationMin: 10,
+  codeGradeFilter: '',
+  codeRoomFilter: '',
 };
 
 // ── Screen titles ──
@@ -63,6 +68,8 @@ const TITLES = {
   'teacher-scan':      'สแกน QR Code',
   'teacher-addpoints': 'เพิ่มคะแนน',
   'teacher-history':   'ประวัติการให้คะแนน',
+  'teacher-createcode': 'สร้างโค้ดรับคะแนน',
+  'teacher-codedisplay': 'โค้ดรับคะแนน',
   'admin-dashboard':   'Admin Dashboard',
   'admin-students':    'จัดการนักเรียน',
   'admin-deedtypes':   'ประเภทความดี',
@@ -579,6 +586,8 @@ function renderScreen(screen) {
     'teacher-scan':        renderTeacherScan,
     'teacher-addpoints':   renderTeacherAddPoints,
     'teacher-history':     renderTeacherHistory,
+    'teacher-createcode':  renderTeacherCreateCode,
+    'teacher-codedisplay': renderTeacherCodeDisplay,
     'admin-dashboard':     renderAdminDashboard,
     'admin-students':      renderAdminStudents,
     'admin-deedtypes':     renderAdminDeedTypes,
@@ -915,7 +924,6 @@ function renderStudentProfile() {
 
 function renderTeacherDashboard() {
   const u = state.staffUser;
-  const recent = state.pointLogs.slice(0, 3);
   return `
   <div class="screen-wrap anim-slideup">
     <div class="hero-banner">
@@ -933,16 +941,10 @@ function renderTeacherDashboard() {
       <span style="font-size:22px;">📷</span> สแกน QR Code นักเรียน
     </button>
 
-    <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.055);">
-      <div style="padding:14px 16px 10px;font-weight:700;color:var(--gd);">⏱️ ให้คะแนนล่าสุด</div>
-      ${recent.length
-        ? recent.map(l => listRow(studentGenderIcon(l.students), `${fullName(l.students)} · ${classOf(l.students)}`, `${l.good_deed_types?.name || ''} · ${formatDate(l.created_at)}`, `+${l.points}`)).join('')
-        : `<div style="padding:20px;text-align:center;color:#9ca3af;font-size:13px;">ยังไม่มีประวัติ</div>`}
-      <button data-action="nav" data-screen="teacher-history"
-        style="width:100%;padding:12px;border:none;background:var(--gl);color:var(--g);font-family:Kanit;font-weight:700;font-size:13px;cursor:pointer;border-radius:0 0 16px 16px;">
-        ดูประวัติทั้งหมด →
-      </button>
-    </div>
+    <button data-action="nav" data-screen="teacher-createcode"
+      style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:16px;background:linear-gradient(90deg,#d97706,#f59e0b);color:#fff;border:none;border-radius:14px;font-family:Kanit;font-weight:700;font-size:16px;cursor:pointer;box-shadow:0 4px 20px rgba(245,158,11,0.35);">
+      <span style="font-size:22px;">🎯</span> สร้างโค้ดรับคะแนน
+    </button>
   </div>`;
 }
 
@@ -970,6 +972,10 @@ function renderTeacherScan() {
         <button data-action="nav" data-screen="teacher-addpoints"
           style="width:100%;margin-top:8px;padding:12px;background:#f9fafb;color:#374151;border:1px solid #e5e7eb;border-radius:12px;font-family:Kanit;font-weight:600;font-size:13px;cursor:pointer;">
           ✏️ เพิ่มคะแนนด้วยรหัสนักเรียน
+        </button>
+        <button data-action="nav" data-screen="teacher-createcode"
+          style="width:100%;margin-top:8px;padding:12px;background:#fffbeb;color:#b45309;border:1px solid #fde68a;border-radius:12px;font-family:Kanit;font-weight:600;font-size:13px;cursor:pointer;">
+          🎯 สร้างโค้ดรับคะแนน
         </button>
       </div>
     </div>`;
@@ -1062,6 +1068,95 @@ function renderTeacherHistory() {
       ${logs.length
         ? logs.map(l => listRow(studentGenderIcon(l.students), `${fullName(l.students)} · ${classOf(l.students)}`, `${l.good_deed_types?.name || ''} · ${formatDate(l.created_at)} · ${l.profiles?.full_name || ''}`, `+${l.points}`)).join('')
         : `<div style="padding:30px;text-align:center;color:#9ca3af;font-size:13px;">ยังไม่มีประวัติ</div>`}
+    </div>
+  </div>`;
+}
+
+// หน้าตั้งค่าโค้ดก่อนสร้าง — เลือกประเภทความดี/คะแนน/ขอบเขตห้องเรียน/เวลาหมดอายุ
+function renderTeacherCreateCode() {
+  const deedTypes = state.deedTypes;
+  const grades = distinctGrades();
+  const rooms = [...new Set(
+    state.studentClasses
+      .filter(c => !state.codeGradeFilter || c.grade_level === state.codeGradeFilter)
+      .map(c => c.room)
+  )].sort((a, b) => a.localeCompare(b, 'th', { numeric: true }));
+
+  return `
+  <div class="screen-wrap anim-slideup">
+    <div class="card">
+      <div style="background:linear-gradient(135deg,#d97706,#f59e0b);border-radius:12px;padding:16px 20px;color:#fff;text-align:center;margin-bottom:16px;">
+        <div style="font-size:18px;font-weight:700;">🎯 สร้างโค้ดรับคะแนน</div>
+        <div style="font-size:12px;opacity:0.85;margin-top:4px;">ให้นักเรียนสแกนรับคะแนนพร้อมกันได้ทั้งห้อง</div>
+      </div>
+
+      <div style="font-weight:700;color:var(--gd);margin-bottom:12px;">เลือกประเภทความดี</div>
+      <div class="deed-grid" style="margin-bottom:16px;">
+        ${deedTypes.map(d => `
+          <button class="deed-chip ${state.selectedDeedId === d.id ? 'selected' : ''}" data-action="select-deed" data-deed-id="${d.id}">
+            ${d.icon} ${d.name}
+          </button>
+        `).join('')}
+      </div>
+
+      <div style="font-weight:700;color:var(--gd);margin-bottom:8px;">คะแนน: <span id="pts-display">${state.points}</span> คะแนน</div>
+      <input type="range" min="5" max="50" step="5" value="${state.points}" id="pts-range"
+             style="background:linear-gradient(to right, var(--g) ${((state.points - 5) / 45) * 100}%, #e5e7eb ${((state.points - 5) / 45) * 100}%);">
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:#9ca3af;margin-top:2px;">
+        <span>5</span><span>25</span><span>50</span>
+      </div>
+
+      <div style="font-weight:700;color:var(--gd);margin:18px 0 10px;">ขอบเขตผู้ใช้โค้ด</div>
+      <div style="display:flex;gap:10px;margin-bottom:18px;">
+        <select class="form-input" id="code-grade-filter" style="flex:1;">
+          <option value="">ทุกชั้น</option>
+          ${grades.map(g => `<option value="${g}" ${state.codeGradeFilter === g ? 'selected' : ''}>ชั้น ${gradeLabel(g)}</option>`).join('')}
+        </select>
+        <select class="form-input" id="code-room-filter" style="flex:1;">
+          <option value="">ทุกห้อง</option>
+          ${rooms.map(r => `<option value="${r}" ${state.codeRoomFilter === r ? 'selected' : ''}>ห้อง ${r}</option>`).join('')}
+        </select>
+      </div>
+
+      <div style="font-weight:700;color:var(--gd);margin-bottom:10px;">⏱️ เวลาที่ใช้ได้</div>
+      <div class="deed-grid" style="margin-bottom:18px;">
+        ${[5, 10, 15, 30].map(m => `
+          <button class="deed-chip ${state.codeDurationMin === m ? 'selected' : ''}" data-action="select-code-duration" data-min="${m}">${m} นาที</button>
+        `).join('')}
+      </div>
+
+      <button class="btn-green" data-action="generate-point-code" style="padding:14px;opacity:${state.selectedDeedId ? 1 : 0.5};" ${state.loading ? 'disabled' : ''}>
+        ${state.loading ? 'กำลังสร้าง...' : '🎯 สร้างโค้ด'}
+      </button>
+    </div>
+  </div>`;
+}
+
+// หน้าโชว์โค้ดขนาดใหญ่ให้นักเรียนสแกน พร้อมนับเวลาถอยหลัง — animateCodeCountdown() คุมการนับเวลาจริง
+function renderTeacherCodeDisplay() {
+  const pc = state.pointCode;
+  if (!pc) return loadingBlock();
+  return `
+  <div class="screen-wrap anim-slideup">
+    <div class="card" style="text-align:center;">
+      <div style="font-size:15px;font-weight:700;color:var(--gd);">${pc.icon} ${pc.name}</div>
+      <div style="font-size:13px;color:#9ca3af;margin-top:4px;margin-bottom:18px;">${pc.scopeLabel} · +${pc.points} คะแนน</div>
+
+      <div class="qr-display"><div class="qr-frame"><canvas id="teacher-code-qr" width="164" height="164"></canvas></div></div>
+
+      <div style="font-size:34px;font-weight:700;letter-spacing:8px;color:var(--gd);margin-top:18px;">${pc.code}</div>
+      <div style="font-size:12px;color:#9ca3af;margin-top:4px;">ให้นักเรียนพลิกกล้องจาก QR Code ประจำตัว แล้วสแกนโค้ดนี้</div>
+
+      <div style="margin-top:22px;display:flex;flex-direction:column;align-items:center;">
+        <div id="code-countdown-ring" style="width:76px;height:76px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:conic-gradient(var(--g) 360deg, #e5e7eb 0deg);">
+          <div style="width:62px;height:62px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:var(--gd);">
+            <span id="code-countdown-text">--:--</span>
+          </div>
+        </div>
+        <div style="font-size:12px;color:#9ca3af;margin-top:8px;">เวลาที่เหลือ</div>
+      </div>
+
+      <button data-action="cancel-point-code" style="width:100%;margin-top:22px;padding:12px;background:#fee2e2;color:#dc2626;border:none;border-radius:10px;font-family:Kanit;font-weight:600;cursor:pointer;">✕ ปิดโค้ดนี้</button>
     </div>
   </div>`;
 }
@@ -1536,6 +1631,18 @@ function afterRender() {
     }
   }
 
+  const codeQrCanvas = document.getElementById('teacher-code-qr');
+  if (codeQrCanvas && state.pointCode) {
+    if (typeof QRCode !== 'undefined') {
+      QRCode.toCanvas(codeQrCanvas, JSON.stringify({ point_code: state.pointCode.code }), {
+        width: 164, color: { dark: '#b45309', light: '#ffffff' },
+      }, (err) => { if (err) showQrFallback(codeQrCanvas, state.pointCode.code); });
+    } else {
+      showQrFallback(codeQrCanvas, state.pointCode.code);
+    }
+    startCodeCountdown();
+  }
+
   const rangeInput = document.getElementById('pts-range');
   if (rangeInput) {
     rangeInput.addEventListener('input', () => {
@@ -1596,6 +1703,41 @@ function animateCountUps() {
     }
     requestAnimationFrame(frame);
   });
+}
+
+// นับเวลาถอยหลังของโค้ดรับคะแนนที่ครูโชว์อยู่ — วง conic-gradient + เวลา mm:ss
+// อัปเดต DOM ตรงๆ ทุกวินาที (ไม่ผ่าน setState) เพื่อไม่ต้อง render() ทั้งจอทุกวินาที
+function startCodeCountdown() {
+  stopCodeCountdown();
+  tickCodeCountdown();
+  state._codeCountdownTimer = setInterval(tickCodeCountdown, 1000);
+}
+
+function stopCodeCountdown() {
+  if (state._codeCountdownTimer) { clearInterval(state._codeCountdownTimer); state._codeCountdownTimer = null; }
+}
+
+async function tickCodeCountdown() {
+  if (state.screen !== 'teacher-codedisplay' || !state.pointCode) { stopCodeCountdown(); return; }
+  const ring = document.getElementById('code-countdown-ring');
+  const text = document.getElementById('code-countdown-text');
+  if (!ring || !text) { stopCodeCountdown(); return; }
+
+  const remainMs = new Date(state.pointCode.expiresAt).getTime() - Date.now();
+  if (remainMs <= 0) {
+    stopCodeCountdown();
+    showToast('⏰ โค้ดหมดเวลาแล้ว');
+    await loadDataForScreen('teacher-dashboard');
+    setState({ screen: 'teacher-dashboard', pointCode: null });
+    return;
+  }
+
+  const remainSec = Math.ceil(remainMs / 1000);
+  const mm = String(Math.floor(remainSec / 60)).padStart(2, '0');
+  const ss = String(remainSec % 60).padStart(2, '0');
+  text.textContent = `${mm}:${ss}`;
+  const deg = Math.max(0, Math.min(360, (remainMs / state.pointCode.totalMs) * 360));
+  ring.style.background = `conic-gradient(var(--g) ${deg}deg, #e5e7eb ${deg}deg)`;
 }
 
 // ══════════════════════════════════════════════
@@ -1770,6 +1912,7 @@ async function restoreSession() {
 
 async function doLogout() {
   stopScan();
+  stopCodeCountdown();
   if (state.role === 'teacher' || state.role === 'admin') await staffLogout();
   localStorage.removeItem(STUDENT_CODE_KEY);
   Object.assign(state, {
@@ -1777,6 +1920,7 @@ async function doLogout() {
     student: null, studentHistory: [], studentRedemptions: [], leaderboard: null, leaderboardScope: 'school',
     staffUser: null, deedTypes: [], rewards: [], rewardRequests: [], rewardSuggestions: [], students: [], studentGradeFilter: '', studentRoomFilter: '', studentClasses: [], pointLogs: [], badgeTiers: [],
     reportSummary: null, reportError: null, reportLeaderboard: null, reportGradeFilter: '', scanStep: 0, scanStudent: null, selectedDeedId: null, points: 10,
+    pointCode: null, codeDurationMin: 10, codeGradeFilter: '', codeRoomFilter: '',
     settings: { leaderboardEnabled: true, leaderboardTopN: 10, schoolLogoUrl: null, schoolName: 'ตาเบาวิทยา', schoolTagline: 'ระบบสะสมคะแนนความดีนักเรียน' },
     rolePermissions: { 'admin-deedtypes': true, 'admin-rewards': true, 'admin-reward-pickup': true, 'admin-suggestions': true, 'admin-reports': true },
   });
@@ -1789,13 +1933,17 @@ async function doLogout() {
 // ══════════════════════════════════════════════
 
 async function loadDataForScreen(screen) {
-  if (screen === 'teacher-dashboard' || screen === 'teacher-history') {
+  if (screen === 'teacher-history') {
     const { data } = await getPointLogs({ limit: 20 });
     state.pointLogs = data || [];
   }
-  if (screen === 'teacher-scan' || screen === 'teacher-addpoints') {
+  if (screen === 'teacher-scan' || screen === 'teacher-addpoints' || screen === 'teacher-createcode') {
     const { data } = await getDeedTypes();
     state.deedTypes = data || [];
+  }
+  if (screen === 'teacher-createcode' && !state.studentClasses.length) {
+    const { data } = await getStudentClasses();
+    state.studentClasses = data || [];
   }
   if (screen === 'admin-dashboard' || screen === 'admin-reports') {
     const tasks = [getReportSummary(), getPointLogs({ limit: 6 })];
@@ -1872,6 +2020,13 @@ document.addEventListener('change', async (e) => {
     const { data } = await getLeaderboard({ limit: 10, gradeLevel: state.reportGradeFilter || null });
     setState({ reportLeaderboard: data || [] });
   }
+
+  if (e.target.id === 'code-grade-filter') {
+    setState({ codeGradeFilter: e.target.value, codeRoomFilter: '' });
+  }
+  if (e.target.id === 'code-room-filter') {
+    setState({ codeRoomFilter: e.target.value });
+  }
 });
 
 document.addEventListener('click', async (e) => {
@@ -1898,6 +2053,7 @@ document.addEventListener('click', async (e) => {
 
     case 'nav': {
       if (state.screen === 'teacher-scan') stopScan();
+      if (state.screen === 'teacher-codedisplay') stopCodeCountdown();
       const screen = btn.dataset.screen;
       setState({ loading: true });
       await loadDataForScreen(screen);
@@ -1918,6 +2074,7 @@ document.addEventListener('click', async (e) => {
     case 'drawer-nav': {
       closeDrawer();
       if (state.screen === 'teacher-scan') stopScan();
+      if (state.screen === 'teacher-codedisplay') stopCodeCountdown();
       const screen = btn.dataset.screen;
       setState({ loading: true });
       await loadDataForScreen(screen);
@@ -1955,6 +2112,41 @@ document.addEventListener('click', async (e) => {
       setState({ loading: false, scanStep: 0, selectedDeedId: null, points: 10, scanStudent: null, screen: 'teacher-dashboard' });
       await loadDataForScreen('teacher-dashboard');
       render();
+      break;
+    }
+
+    case 'select-code-duration':
+      setState({ codeDurationMin: parseInt(btn.dataset.min) });
+      break;
+
+    case 'generate-point-code': {
+      if (!state.selectedDeedId) { showToast('กรุณาเลือกประเภทความดีก่อน'); return; }
+      const deed = state.deedTypes.find(d => d.id === state.selectedDeedId);
+      const gradeLevel = state.codeGradeFilter || null;
+      const room = state.codeRoomFilter || null;
+      const durationSeconds = state.codeDurationMin * 60;
+      setState({ loading: true });
+      const { data, error } = await createPointCode({
+        deedTypeId: state.selectedDeedId, points: state.points, gradeLevel, room, durationSeconds,
+      });
+      if (error || !data) { setState({ loading: false }); showToast(`เกิดข้อผิดพลาด: ${error || 'สร้างโค้ดไม่สำเร็จ'}`); break; }
+      const scopeLabel = gradeLevel ? `ม.${gradeLevel}${room ? '/' + room : ''}` : 'ทุกชั้นเรียน';
+      setState({
+        loading: false, screen: 'teacher-codedisplay', selectedDeedId: null,
+        pointCode: {
+          id: data.id, code: data.code, icon: deed?.icon || '💚', name: deed?.name || '',
+          points: state.points, scopeLabel, expiresAt: data.expires_at, totalMs: durationSeconds * 1000,
+        },
+      });
+      break;
+    }
+
+    case 'cancel-point-code': {
+      stopCodeCountdown();
+      if (state.pointCode?.id) await cancelPointCode(state.pointCode.id);
+      showToast('ปิดโค้ดแล้ว');
+      await loadDataForScreen('teacher-dashboard');
+      setState({ screen: 'teacher-dashboard', pointCode: null });
       break;
     }
 

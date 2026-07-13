@@ -208,6 +208,23 @@ async function addPointLog({ studentCode, deedTypeId, points, note = '' }) {
   return { error: error?.message || null };
 }
 
+// ──────────────────────────────────────────────
+// Point codes — ครูสร้างโค้ดให้ทั้งห้องสแกนพร้อมกัน (requires real Supabase Auth session)
+// ──────────────────────────────────────────────
+
+async function createPointCode({ deedTypeId, points, gradeLevel = null, room = null, durationSeconds = 600 }) {
+  const { data, error } = await _sb.rpc('create_point_code', {
+    p_deed_type_id: deedTypeId, p_points: points,
+    p_grade_level: gradeLevel, p_room: room, p_duration_seconds: durationSeconds,
+  });
+  return { data, error: error?.message || null };
+}
+
+async function cancelPointCode(id) {
+  const { error } = await _sb.rpc('cancel_point_code', { p_id: id });
+  return { error: error?.message || null };
+}
+
 async function getPointLogs({ limit = 20 } = {}) {
   const { data, error } = await _sb
     .from('point_logs')

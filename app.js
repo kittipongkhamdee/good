@@ -1076,6 +1076,9 @@ function distinctGrades() {
   return [...new Set(state.studentClasses.map(c => c.grade_level))].sort((a, b) => a.localeCompare(b, 'th', { numeric: true }));
 }
 
+// grade_level เก็บในฐานข้อมูลเป็นตัวเลขล้วน (1-6) — โรงเรียนนี้เป็นมัธยม จึงเติม "ม." ตอนแสดงผล
+function gradeLabel(g) { return `ม.${g}`; }
+
 function renderAdminStudents() {
   const students = state.students;
   const grades = distinctGrades();
@@ -1090,7 +1093,7 @@ function renderAdminStudents() {
     <div style="display:flex;gap:10px;">
       <select class="form-input" id="student-grade-filter" style="flex:1;">
         <option value="">ทุกชั้น</option>
-        ${grades.map(g => `<option value="${g}" ${state.studentGradeFilter === g ? 'selected' : ''}>ชั้น ${g}</option>`).join('')}
+        ${grades.map(g => `<option value="${g}" ${state.studentGradeFilter === g ? 'selected' : ''}>ชั้น ${gradeLabel(g)}</option>`).join('')}
       </select>
       <select class="form-input" id="student-room-filter" style="flex:1;">
         <option value="">ทุกห้อง</option>
@@ -1297,10 +1300,10 @@ function renderAdminReports() {
 
     <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.055);">
       <div style="padding:14px 16px 10px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
-        <div style="font-weight:700;color:var(--gd);white-space:nowrap;">🏆 อันดับนักเรียน Top 10${state.reportGradeFilter ? ` · ชั้น ${state.reportGradeFilter}` : ''}</div>
+        <div style="font-weight:700;color:var(--gd);white-space:nowrap;">🏆 อันดับนักเรียน Top 10${state.reportGradeFilter ? ` · ชั้น ${gradeLabel(state.reportGradeFilter)}` : ''}</div>
         <select class="form-input" id="report-grade-filter" style="width:auto;padding:6px 10px;font-size:12px;">
           <option value="">ทุกชั้น</option>
-          ${distinctGrades().map(g => `<option value="${g}" ${state.reportGradeFilter === g ? 'selected' : ''}>ชั้น ${g}</option>`).join('')}
+          ${distinctGrades().map(g => `<option value="${g}" ${state.reportGradeFilter === g ? 'selected' : ''}>ชั้น ${gradeLabel(g)}</option>`).join('')}
         </select>
       </div>
       ${renderReportLeaderboardRows()}

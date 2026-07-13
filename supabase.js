@@ -168,6 +168,33 @@ async function removeStudentPhoto(studentId, photoUrl) {
 }
 
 // ──────────────────────────────────────────────
+// School logo (Storage bucket "school-assets", public read, staff-only
+// write) — URL kept in app_settings.school_logo_url; falls back to the
+// 🌿 emoji everywhere in the UI when not set — see schema.sql §17
+// ──────────────────────────────────────────────
+
+async function uploadSchoolLogo(file) {
+  const path = 'school-logo.png';
+  const { error: upErr } = await _sb.storage.from('school-assets').upload(path, file, {
+    upsert: true, contentType: 'image/png',
+  });
+  if (upErr) return { url: null, error: upErr.message };
+
+  const { data } = _sb.storage.from('school-assets').getPublicUrl(path);
+  const url = `${data.publicUrl}?t=${Date.now()}`;
+  const { error: updErr } = await _sb.from('app_settings').update({ value: url }).eq('key', 'school_logo_url');
+  if (updErr) return { url: null, error: updErr.message };
+  return { url, error: null };
+}
+
+async function removeSchoolLogo(logoUrl) {
+  const path = logoUrl?.split('/school-assets/')[1]?.split('?')[0];
+  if (path) await _sb.storage.from('school-assets').remove([path]);
+  const { error } = await _sb.from('app_settings').update({ value: null }).eq('key', 'school_logo_url');
+  return { error: error?.message || null };
+}
+
+// ──────────────────────────────────────────────
 // Points — teacher awards points (requires real Supabase Auth session)
 // ──────────────────────────────────────────────
 
@@ -391,6 +418,7 @@ async function getAppSettings() {
     data: {
       leaderboardEnabled: settings.leaderboard_enabled !== 'false',
       leaderboardTopN: parseInt(settings.leaderboard_top_n) || 10,
+      schoolLogoUrl: settings.school_logo_url || null,
     },
     error: null,
   };

@@ -862,3 +862,29 @@ grant execute on function public.submit_reward_suggestion(text,text) to anon, au
 
 insert into public.role_permissions (screen_key, teacher_enabled) values ('admin-suggestions', true)
 on conflict (screen_key) do nothing;
+
+-- =============================================
+-- 17. School logo — replaces the hardcoded 🌿 emoji everywhere (login page,
+-- app header, drawer, share card) once an admin uploads one. Stored the
+-- same way as student photos: a public Storage bucket + staff-only write,
+-- with the URL kept in app_settings (falls back to 🌿 if not set).
+-- =============================================
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('school-assets', 'school-assets', true, 2097152, array['image/png','image/jpeg','image/webp','image/svg+xml'])
+on conflict (id) do nothing;
+
+create policy "school_assets_read" on storage.objects for select
+  using (bucket_id = 'school-assets');
+
+create policy "school_assets_staff_insert" on storage.objects for insert
+  with check (bucket_id = 'school-assets' and auth.role() = 'authenticated');
+
+create policy "school_assets_staff_update" on storage.objects for update
+  using (bucket_id = 'school-assets' and auth.role() = 'authenticated')
+  with check (bucket_id = 'school-assets' and auth.role() = 'authenticated');
+
+create policy "school_assets_staff_delete" on storage.objects for delete
+  using (bucket_id = 'school-assets' and auth.role() = 'authenticated');
+
+insert into public.app_settings (key, value) values ('school_logo_url', null)
+on conflict (key) do nothing;

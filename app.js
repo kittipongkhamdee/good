@@ -41,7 +41,7 @@ const state = {
   reportLeaderboard: null,
   reportGradeFilter: '',
   badgeTiers: [],
-  settings: { leaderboardEnabled: true, leaderboardTopN: 10 },
+  settings: { leaderboardEnabled: true, leaderboardTopN: 10, schoolLogoUrl: null },
   rolePermissions: { 'admin-deedtypes': true, 'admin-rewards': true, 'admin-reward-pickup': true, 'admin-suggestions': true, 'admin-reports': true },
 
   scanStep: 0,
@@ -168,9 +168,26 @@ function studentAvatar(s, { size = 60, fontSize = 26, bg = 'rgba(255,255,255,0.1
   return `<div style="${common}background:${bg};display:flex;align-items:center;justify-content:center;font-size:${fontSize}px;">👧</div>`;
 }
 
+// โลโก้โรงเรียน — แสดงรูปที่แอดมินอัปโหลดไว้ (หน้าตั้งค่า) ถ้ามี ไม่งั้น fallback เป็น 🌿
+function schoolLogoHTML(size) {
+  const url = state.settings.schoolLogoUrl;
+  if (url) return `<img src="${url}" alt="ตาเบาวิทยา" style="width:${size}px;height:${size}px;object-fit:contain;vertical-align:middle;display:inline-block;">`;
+  return `<span style="font-size:${size}px;line-height:1;vertical-align:middle;">🌿</span>`;
+}
+
+function loadImageForCanvas(url) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
 // ย่อ+บีบอัดรูปฝั่ง browser ก่อนอัปโหลด (ประหยัดทั้ง storage และ bandwidth ของ Supabase)
 // avatar ที่ใหญ่ที่สุดในแอปแสดงแค่ 120px — ย่อเหลือ 480px ก็เผื่อจอ retina ไว้เกินพอแล้ว
-function compressImageFile(file, { maxSize = 480, quality = 0.82 } = {}) {
+function compressImageFile(file, { maxSize = 480, quality = 0.82, format = 'image/jpeg' } = {}) {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
     const img = new Image();
@@ -181,7 +198,7 @@ function compressImageFile(file, { maxSize = 480, quality = 0.82 } = {}) {
       canvas.width = Math.round(img.width * scale);
       canvas.height = Math.round(img.height * scale);
       canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-      canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('compress failed')), 'image/jpeg', quality);
+      canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('compress failed')), format, quality);
     };
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('load failed')); };
     img.src = url;
@@ -256,10 +273,19 @@ async function drawShareCard(canvas, student, badge) {
   ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = 'rgba(255,255,255,0.9)';
 
-  // top row: brand + tier tag
+  // top row: brand (+ logo image if the school uploaded one) + tier tag
   ctx.font = '600 32px Kanit';
   ctx.textAlign = 'left';
-  ctx.fillText('🌿 ตาเบาวิทยา', pad, pad + 30);
+  let brandTextX = pad;
+  if (state.settings.schoolLogoUrl) {
+    try {
+      const logoImg = await loadImageForCanvas(state.settings.schoolLogoUrl);
+      const logoSize = 40;
+      ctx.drawImage(logoImg, pad, pad - 6, logoSize, logoSize);
+      brandTextX = pad + logoSize + 10;
+    } catch { /* CORS/network hiccup — fall back to plain text below */ }
+  }
+  ctx.fillText(state.settings.schoolLogoUrl && brandTextX !== pad ? 'ตาเบาวิทยา' : '🌿 ตาเบาวิทยา', brandTextX, pad + 30);
 
   const tierLabel = `${badge.icon} ${student.badge_level}`;
   ctx.font = '700 28px Kanit';
@@ -405,6 +431,7 @@ function render() {
   const avatar = { student: '👧', teacher: '👨‍🏫', admin: '🛡️' }[dRole];
 
   document.getElementById('title-a').textContent = title;
+  document.getElementById('header-logo-a').innerHTML = schoolLogoHTML(22);
   const badgeEl = document.getElementById('badge-a');
   badgeEl.textContent = roleLabel;
   if (state.previewAsTeacher) {
@@ -429,7 +456,7 @@ function renderLogin() {
   const box = document.querySelector('.login-box');
   box.innerHTML = `
     <div class="login-logo">
-      <div class="logo-icon">🌿</div>
+      <div class="logo-icon">${schoolLogoHTML(56)}</div>
       <h1>ตาเบาวิทยา</h1>
       <p>ระบบสะสมคะแนนความดีนักเรียน</p>
     </div>
@@ -512,7 +539,7 @@ function renderDrawer() {
 
   document.getElementById('drawer-panel').innerHTML = `
     <div class="sidebar-brand">
-      <div class="sidebar-brand-name">🌿 ตาเบาวิทยา</div>
+      <div class="sidebar-brand-name">${schoolLogoHTML(20)} ตาเบาวิทยา</div>
       <div class="sidebar-brand-sub">ระบบคะแนนความดี</div>
     </div>
     <nav class="sidebar-nav">${nav}</nav>
@@ -1395,6 +1422,20 @@ function renderAdminSettings() {
     </div>
 
     <div class="card">
+      <div style="font-size:15px;font-weight:700;color:var(--gd);margin-bottom:6px;">🌿 โลโก้โรงเรียน</div>
+      <div style="font-size:12px;color:#9ca3af;margin-bottom:16px;">แสดงแทน 🌿 ทุกจุดในแอป (หน้า login, หัวแอป, เมนู, การ์ดแชร์ผลงาน)</div>
+      <div style="display:flex;align-items:center;gap:16px;margin-bottom:14px;">
+        <div style="width:64px;height:64px;border-radius:16px;background:var(--gl);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;">
+          ${s.schoolLogoUrl ? `<img src="${s.schoolLogoUrl}" alt="" style="width:100%;height:100%;object-fit:contain;">` : `<span style="font-size:30px;">🌿</span>`}
+        </div>
+        <div style="flex:1;font-size:12px;color:#9ca3af;">${s.schoolLogoUrl ? 'กำลังใช้โลโก้ที่อัปโหลดไว้' : 'ยังไม่ได้อัปโหลด — ใช้ 🌿 เป็นค่าเริ่มต้น'}</div>
+      </div>
+      <div class="form-group"><input type="file" accept="image/*" id="school-logo-file"></div>
+      <button class="btn-green" data-action="upload-school-logo" style="padding:13px;">📤 อัปโหลดโลโก้</button>
+      ${s.schoolLogoUrl ? `<button data-action="remove-school-logo" style="width:100%;padding:10px;margin-top:8px;background:#fee2e2;color:#dc2626;border:none;border-radius:10px;font-family:Kanit;cursor:pointer;">🗑️ ลบโลโก้ (กลับไปใช้ 🌿)</button>` : ''}
+    </div>
+
+    <div class="card">
       <div style="font-size:15px;font-weight:700;color:var(--gd);margin-bottom:6px;">👨‍🏫 สิทธิ์การเข้าถึงของครู</div>
       <div style="font-size:12px;color:#9ca3af;margin-bottom:16px;">กำหนดว่าครูทุกคนเห็น/จัดการเมนูใดได้บ้าง (บังคับจริงที่ฐานข้อมูล)</div>
 
@@ -1659,6 +1700,13 @@ async function submitStaffLogin() {
   await enterStaffSession(profile);
 }
 
+// โหลดตั้งแต่หน้า login ยังไม่ทันล็อกอิน เพื่อให้โลโก้/ค่าตั้งค่าอื่นๆ ถูกต้องตั้งแต่แรก
+// (public read — ไม่ต้องมี session) — ล็อกอินสำเร็จแล้วจะ fetch ซ้ำอีกครั้งเพื่อความชัวร์ ซึ่งไม่มีผลเสีย
+async function loadGlobalSettings() {
+  const { data } = await getAppSettings();
+  if (data) setState({ settings: data });
+}
+
 // เรียกตอนเปิดแอป — ลองคืน session เดิม: ครู/แอดมินเช็คจาก Supabase Auth session
 // (persist ให้เองอยู่แล้ว), นักเรียนเช็คจากรหัสที่จำไว้ใน localStorage
 async function restoreSession() {
@@ -1682,7 +1730,7 @@ async function doLogout() {
     student: null, studentHistory: [], studentRedemptions: [], leaderboard: null, leaderboardScope: 'school',
     staffUser: null, deedTypes: [], rewards: [], rewardRequests: [], rewardSuggestions: [], students: [], studentGradeFilter: '', studentRoomFilter: '', studentClasses: [], pointLogs: [], badgeTiers: [],
     reportSummary: null, reportError: null, reportLeaderboard: null, reportGradeFilter: '', scanStep: 0, scanStudent: null, selectedDeedId: null, points: 10,
-    settings: { leaderboardEnabled: true, leaderboardTopN: 10 },
+    settings: { leaderboardEnabled: true, leaderboardTopN: 10, schoolLogoUrl: null },
     rolePermissions: { 'admin-deedtypes': true, 'admin-rewards': true, 'admin-reward-pickup': true, 'admin-suggestions': true, 'admin-reports': true },
   });
   render();
@@ -2315,6 +2363,28 @@ document.addEventListener('click', async (e) => {
       break;
     }
 
+    case 'upload-school-logo': {
+      const file = document.getElementById('school-logo-file')?.files[0];
+      if (!file) { showToast('กรุณาเลือกไฟล์รูปก่อน'); return; }
+      let uploadFile = file;
+      try { uploadFile = await compressImageFile(file, { maxSize: 512, format: 'image/png' }); } catch {}
+      const { error } = await uploadSchoolLogo(uploadFile);
+      if (error) { showToast(`เกิดข้อผิดพลาด: ${error}`); break; }
+      const { data } = await getAppSettings();
+      setState({ settings: data || state.settings });
+      showToast('อัปโหลดโลโก้สำเร็จ ✅');
+      break;
+    }
+
+    case 'remove-school-logo': {
+      const { error } = await removeSchoolLogo(state.settings.schoolLogoUrl);
+      if (error) { showToast(`เกิดข้อผิดพลาด: ${error}`); break; }
+      const { data } = await getAppSettings();
+      setState({ settings: data || state.settings });
+      showToast('ลบโลโก้แล้ว กลับไปใช้ 🌿');
+      break;
+    }
+
     case 'save-all-settings': {
       const topN = parseInt(document.getElementById('top-n-input')?.value) || 10;
       setState({ loading: true });
@@ -2341,5 +2411,6 @@ document.addEventListener('click', async (e) => {
 // ── Init ──
 document.addEventListener('DOMContentLoaded', () => {
   render();
+  loadGlobalSettings();
   restoreSession();
 });

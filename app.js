@@ -8,7 +8,7 @@
 // ── State ──
 const state = {
   screen: 'login',
-  authView: null,     // null | 'student' | 'staff'
+  authView: 'student', // 'student' | 'staff' — which login tab is active
   role: null,         // 'student' | 'teacher' | 'admin'
   previewAsTeacher: false, // Admin-only: preview the teacher nav/screens without a separate login
   drawerOpen: false,
@@ -421,51 +421,23 @@ function render() {
 
 function renderLogin() {
   const box = document.querySelector('.login-box');
-  if (state.authView === 'student') {
-    box.innerHTML = studentLoginFormHTML();
-  } else if (state.authView === 'staff') {
-    box.innerHTML = staffLoginFormHTML();
-  } else {
-    box.innerHTML = roleSelectHTML();
-  }
-}
-
-function roleSelectHTML() {
-  return `
+  box.innerHTML = `
     <div class="login-logo">
       <div class="logo-icon">🌿</div>
       <h1>ตาเบาวิทยา</h1>
       <p>ระบบสะสมคะแนนความดีนักเรียน</p>
     </div>
-    <div class="role-cards">
-      <button class="role-card" data-action="show-auth" data-view="student">
-        <div class="role-icon" style="background:var(--gl);">👩‍🎓</div>
-        <div class="role-info">
-          <div class="role-name">นักเรียน</div>
-          <div class="role-desc">เข้าด้วยรหัสนักเรียน</div>
-        </div>
-        <div class="role-arrow">›</div>
-      </button>
-      <button class="role-card" data-action="show-auth" data-view="staff">
-        <div class="role-icon" style="background:oklch(0.93 0.07 200);">👨‍🏫</div>
-        <div class="role-info">
-          <div class="role-name">ครู / เจ้าหน้าที่</div>
-          <div class="role-desc">เข้าด้วยอีเมลและรหัสผ่าน</div>
-        </div>
-        <div class="role-arrow">›</div>
-      </button>
+    <div class="login-tabs">
+      <button class="login-tab ${state.authView === 'student' ? 'active' : ''}" data-action="show-auth" data-view="student">👩‍🎓 นักเรียน</button>
+      <button class="login-tab ${state.authView === 'staff' ? 'active' : ''}" data-action="show-auth" data-view="staff">👨‍🏫 ครู</button>
     </div>
+    ${state.authView === 'staff' ? staffLoginFormHTML() : studentLoginFormHTML()}
     <p class="login-note">เชื่อมต่อฐานข้อมูลจริง — ตาเบาวิทยา</p>
   `;
 }
 
 function studentLoginFormHTML() {
   return `
-    <div class="login-logo">
-      <div class="logo-icon">👩‍🎓</div>
-      <h1>เข้าสู่ระบบนักเรียน</h1>
-      <p>กรอกรหัสนักเรียนของคุณ</p>
-    </div>
     <div class="form-group">
       <label class="form-label">รหัสนักเรียน</label>
       <input class="form-input" id="student-code-input" placeholder="เช่น 65001" autofocus
@@ -475,20 +447,14 @@ function studentLoginFormHTML() {
     <button class="btn-green" data-action="submit-student-login" style="padding:14px;" ${state.loading ? 'disabled' : ''}>
       ${state.loading ? 'กำลังตรวจสอบ...' : 'เข้าสู่ระบบ'}
     </button>
-    <button data-action="back-to-roles" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:Kanit;color:#9ca3af;cursor:pointer;font-size:13px;">← กลับ</button>
   `;
 }
 
 function staffLoginFormHTML() {
   return `
-    <div class="login-logo">
-      <div class="logo-icon">👨‍🏫</div>
-      <h1>เข้าสู่ระบบเจ้าหน้าที่</h1>
-      <p>สำหรับครูและผู้ดูแลระบบ</p>
-    </div>
     <div class="form-group">
       <label class="form-label">อีเมล</label>
-      <input class="form-input" type="email" id="staff-email-input" placeholder="you@taobao.ac.th">
+      <input class="form-input" type="email" id="staff-email-input" placeholder="you@taobao.ac.th" autofocus>
     </div>
     <div class="form-group">
       <label class="form-label">รหัสผ่าน</label>
@@ -498,7 +464,6 @@ function staffLoginFormHTML() {
     <button class="btn-green" data-action="submit-staff-login" style="padding:14px;" ${state.loading ? 'disabled' : ''}>
       ${state.loading ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}
     </button>
-    <button data-action="back-to-roles" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:Kanit;color:#9ca3af;cursor:pointer;font-size:13px;">← กลับ</button>
   `;
 }
 
@@ -1694,7 +1659,7 @@ async function doLogout() {
   if (state.role === 'teacher' || state.role === 'admin') await staffLogout();
   localStorage.removeItem(STUDENT_CODE_KEY);
   Object.assign(state, {
-    screen: 'login', authView: null, role: null, previewAsTeacher: false, authError: '', drawerOpen: false,
+    screen: 'login', authView: 'student', role: null, previewAsTeacher: false, authError: '', drawerOpen: false,
     student: null, studentHistory: [], studentRedemptions: [], leaderboard: null, leaderboardScope: 'school',
     staffUser: null, deedTypes: [], rewards: [], rewardRequests: [], rewardSuggestions: [], students: [], studentGradeFilter: '', studentRoomFilter: '', studentClasses: [], pointLogs: [], badgeTiers: [],
     reportSummary: null, reportError: null, reportLeaderboard: null, scanStep: 0, scanStudent: null, selectedDeedId: null, points: 10,
@@ -1791,10 +1756,6 @@ document.addEventListener('click', async (e) => {
   switch (action) {
     case 'show-auth':
       setState({ authView: btn.dataset.view, authError: '' });
-      break;
-
-    case 'back-to-roles':
-      setState({ authView: null, authError: '' });
       break;
 
     case 'submit-student-login':

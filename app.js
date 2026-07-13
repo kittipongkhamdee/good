@@ -159,13 +159,20 @@ function classOf(s) {
   return (!room || room === '0') ? `ม.${grade}` : `ม.${grade}/${room}`;
 }
 
-// รูปโปรไฟล์นักเรียน — แสดงรูปจริงถ้ามี (เก็บใน Supabase Storage) ไม่งั้นแสดง emoji แทน
+// เดาเพศจากคำนำหน้าชื่อที่ baked ไว้ใน student_name (เด็กชาย/นาย = ชาย, ที่เหลือ = หญิง)
+// เพื่อเลือกอวตาร emoji เริ่มต้นให้ตรงเพศเวลายังไม่มีรูปโปรไฟล์จริง
+function studentGenderIcon(s) {
+  const name = (s?.student_name || '').trim();
+  return /^(เด็กชาย|นาย)/.test(name) ? '👦' : '👧';
+}
+
+// รูปโปรไฟล์นักเรียน — แสดงรูปจริงถ้ามี (เก็บใน Supabase Storage) ไม่งั้นแสดง emoji ตามเพศแทน
 function studentAvatar(s, { size = 60, fontSize = 26, bg = 'rgba(255,255,255,0.18)', border = '2.5px solid rgba(255,255,255,0.45)', margin = '', shadow = '' } = {}) {
   const common = `width:${size}px;height:${size}px;border-radius:50%;flex-shrink:0;border:${border};${margin ? `margin:${margin};` : ''}${shadow ? `box-shadow:${shadow};` : ''}`;
   if (s?.photo_url) {
     return `<img src="${s.photo_url}" alt="" style="${common}object-fit:cover;display:block;">`;
   }
-  return `<div style="${common}background:${bg};display:flex;align-items:center;justify-content:center;font-size:${fontSize}px;">👧</div>`;
+  return `<div style="${common}background:${bg};display:flex;align-items:center;justify-content:center;font-size:${fontSize}px;">${studentGenderIcon(s)}</div>`;
 }
 
 // โลโก้โรงเรียน — แสดงรูปที่แอดมินอัปโหลดไว้ (หน้าตั้งค่า) ถ้ามี ไม่งั้น fallback เป็น 🌿
@@ -428,7 +435,7 @@ function render() {
   const title = TITLES[state.screen] || state.screen;
   const dRole = effectiveRole();
   const roleLabel = { student: 'นักเรียน', teacher: state.previewAsTeacher ? 'ครู (พรีวิว) ✕' : 'ครู', admin: 'Admin' }[dRole];
-  const avatar = { student: '👧', teacher: '👨‍🏫', admin: '🛡️' }[dRole];
+  const avatar = { student: studentGenderIcon(state.student), teacher: '👨‍🏫', admin: '🛡️' }[dRole];
 
   document.getElementById('title-a').textContent = title;
   document.getElementById('header-logo-a').innerHTML = schoolLogoHTML(22);
@@ -929,7 +936,7 @@ function renderTeacherDashboard() {
     <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.055);">
       <div style="padding:14px 16px 10px;font-weight:700;color:var(--gd);">⏱️ ให้คะแนนล่าสุด</div>
       ${recent.length
-        ? recent.map(l => listRow('👧', `${fullName(l.students)} · ${classOf(l.students)}`, `${l.good_deed_types?.name || ''} · ${formatDate(l.created_at)}`, `+${l.points}`)).join('')
+        ? recent.map(l => listRow(studentGenderIcon(l.students), `${fullName(l.students)} · ${classOf(l.students)}`, `${l.good_deed_types?.name || ''} · ${formatDate(l.created_at)}`, `+${l.points}`)).join('')
         : `<div style="padding:20px;text-align:center;color:#9ca3af;font-size:13px;">ยังไม่มีประวัติ</div>`}
       <button data-action="nav" data-screen="teacher-history"
         style="width:100%;padding:12px;border:none;background:var(--gl);color:var(--g);font-family:Kanit;font-weight:700;font-size:13px;cursor:pointer;border-radius:0 0 16px 16px;">
@@ -1053,7 +1060,7 @@ function renderTeacherHistory() {
     <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.055);">
       <div style="padding:14px 16px 10px;font-weight:700;color:var(--gd);">ประวัติการให้คะแนน</div>
       ${logs.length
-        ? logs.map(l => listRow('👧', `${fullName(l.students)} · ${classOf(l.students)}`, `${l.good_deed_types?.name || ''} · ${formatDate(l.created_at)} · ${l.profiles?.full_name || ''}`, `+${l.points}`)).join('')
+        ? logs.map(l => listRow(studentGenderIcon(l.students), `${fullName(l.students)} · ${classOf(l.students)}`, `${l.good_deed_types?.name || ''} · ${formatDate(l.created_at)} · ${l.profiles?.full_name || ''}`, `+${l.points}`)).join('')
         : `<div style="padding:30px;text-align:center;color:#9ca3af;font-size:13px;">ยังไม่มีประวัติ</div>`}
     </div>
   </div>`;
@@ -1099,7 +1106,7 @@ function renderAdminDashboard() {
     </div>
     <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.055);">
       <div style="padding:14px 16px 10px;font-weight:700;color:var(--gd);">📋 กิจกรรมล่าสุดของระบบ</div>
-      ${state.pointLogs.slice(0, 4).map(l => listRow('👧', `${fullName(l.students)} ได้รับ ${l.points} คะแนน`, `${l.good_deed_types?.name || ''} · ${formatDate(l.created_at)}`, '')).join('')
+      ${state.pointLogs.slice(0, 4).map(l => listRow(studentGenderIcon(l.students), `${fullName(l.students)} ได้รับ ${l.points} คะแนน`, `${l.good_deed_types?.name || ''} · ${formatDate(l.created_at)}`, '')).join('')
         || `<div style="padding:20px;text-align:center;color:#9ca3af;font-size:13px;">ยังไม่มีกิจกรรม</div>`}
     </div>
   </div>`;
@@ -2053,7 +2060,7 @@ document.addEventListener('click', async (e) => {
           <img id="photo-preview" src="${s.photo_url || ''}" alt=""
                style="width:120px;height:120px;border-radius:50%;object-fit:cover;background:#f3f4f6;margin:0 auto;border:2px solid #e5e7eb;display:${s.photo_url ? 'block' : 'none'};">
           <div id="photo-preview-placeholder"
-               style="width:120px;height:120px;border-radius:50%;background:#f3f4f6;align-items:center;justify-content:center;font-size:48px;margin:0 auto;display:${s.photo_url ? 'none' : 'flex'};">👧</div>
+               style="width:120px;height:120px;border-radius:50%;background:#f3f4f6;align-items:center;justify-content:center;font-size:48px;margin:0 auto;display:${s.photo_url ? 'none' : 'flex'};">${studentGenderIcon(s)}</div>
         </div>
         <div class="form-group"><input type="file" accept="image/*" id="student-photo-file"></div>
         <button class="btn-green" data-action="save-student-photo" data-id="${s.id}" style="padding:13px;margin-top:4px;">✅ บันทึกรูป</button>

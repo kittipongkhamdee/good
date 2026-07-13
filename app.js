@@ -629,7 +629,7 @@ function renderStudentDashboard() {
 
     <div class="card">
       <div style="font-size:14px;font-weight:700;color:var(--gd);margin-bottom:12px;text-align:center;">📲 QR Code ประจำตัวนักเรียน</div>
-      <div class="qr-display"><div class="qr-frame"><canvas id="student-qr" width="220" height="220"></canvas></div></div>
+      <div class="qr-display"><div class="qr-frame"><canvas id="student-qr" width="164" height="164"></canvas></div></div>
       <div style="text-align:center;margin-top:10px;font-size:12px;color:#9ca3af;">รหัส ${s.student_code} · ${classOf(s)} · ${state.settings.schoolName}</div>
     </div>
 
@@ -1510,10 +1510,10 @@ function showQrFallback(canvas, studentCode) {
   const frame = canvas.closest('.qr-frame');
   if (!frame) return;
   frame.innerHTML = `
-    <div style="width:220px;height:220px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:8px;">
-      <div style="font-size:32px;">⚠️</div>
-      <div style="font-size:13px;color:#9ca3af;margin-top:6px;">โหลด QR ไม่สำเร็จ</div>
-      <div style="font-size:24px;font-weight:700;color:var(--gd);margin-top:6px;">${studentCode}</div>
+    <div style="width:164px;height:164px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:8px;">
+      <div style="font-size:28px;">⚠️</div>
+      <div style="font-size:12px;color:#9ca3af;margin-top:6px;">โหลด QR ไม่สำเร็จ</div>
+      <div style="font-size:20px;font-weight:700;color:var(--gd);margin-top:6px;">${studentCode}</div>
     </div>`;
 }
 
@@ -1522,7 +1522,7 @@ function afterRender() {
   if (qrCanvas && state.student) {
     if (typeof QRCode !== 'undefined') {
       QRCode.toCanvas(qrCanvas, JSON.stringify({ student_code: state.student.student_code }), {
-        width: 220, color: { dark: '#1a4d1a', light: '#ffffff' },
+        width: 164, color: { dark: '#1a4d1a', light: '#ffffff' },
       }, (err) => { if (err) showQrFallback(qrCanvas, state.student.student_code); });
     } else {
       showQrFallback(qrCanvas, state.student.student_code);

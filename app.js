@@ -465,7 +465,7 @@ function renderLogin() {
       <button class="login-tab ${state.authView === 'staff' ? 'active' : ''}" data-action="show-auth" data-view="staff">👨‍🏫 ครู</button>
     </div>
     ${state.authView === 'staff' ? staffLoginFormHTML() : studentLoginFormHTML()}
-    <p class="login-note">เชื่อมต่อฐานข้อมูลจริง — ตาเบาวิทยา</p>
+    <p class="login-note">พัฒนาระบบ : นายกิตติพงษ์ คำดี</p>
   `;
 }
 

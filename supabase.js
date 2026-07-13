@@ -225,6 +225,13 @@ async function cancelPointCode(id) {
   return { error: error?.message || null };
 }
 
+// นักเรียนพลิก QR Code ประจำตัวเป็นกล้อง แล้วสแกนโค้ดของครู — ไม่มี Supabase Auth session
+// จึงเรียก RPC (anon-callable) เหมือน redeem_reward/submit_reward_suggestion
+async function redeemPointCode(studentCode, code) {
+  const { data, error } = await _sb.rpc('redeem_point_code', { p_student_code: studentCode, p_code: code });
+  return { data: data?.[0] || null, error: error?.message || null };
+}
+
 async function getPointLogs({ limit = 20 } = {}) {
   const { data, error } = await _sb
     .from('point_logs')

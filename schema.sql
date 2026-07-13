@@ -903,7 +903,7 @@ on conflict (key) do nothing;
 -- 19. Point codes — ครูสร้างโค้ด (QR + 6-digit) ให้นักเรียนทั้งห้องสแกนพร้อมกันรับคะแนน
 -- โค้ดหมดอายุตามเวลาที่ตั้ง (default 10 นาที) และผูกขอบเขตชั้น/ห้องได้ (null = ไม่จำกัด)
 -- ทุกการอ่าน/เขียนผ่าน SECURITY DEFINER RPC เท่านั้น — ไม่มี RLS policy ให้ client
--- คุยกับตารางตรงๆ. ยังไม่มีฝั่ง "นักเรียนสแกนโค้ด" (จะตามมาในเฟสถัดไป).
+-- คุยกับตารางตรงๆ. ฝั่งนักเรียนสแกนโค้ดอยู่ใน §20 ถัดไป.
 -- =============================================
 create table if not exists public.point_codes (
   id uuid primary key default extensions.uuid_generate_v4(),
@@ -970,3 +970,79 @@ $$;
 revoke execute on function public.cancel_point_code(uuid) from public;
 revoke execute on function public.cancel_point_code(uuid) from anon;
 grant execute on function public.cancel_point_code(uuid) to authenticated;
+
+-- =============================================
+-- 20. Point code redemption — นักเรียนพลิก QR Code ประจำตัวเป็นกล้อง แล้วสแกนโค้ดของครู
+-- (จาก §19) เพื่อรับคะแนนทันที. กันสแกนซ้ำด้วย unique(code_id, student_id), ตรวจสอบ
+-- วันหมดอายุ + ขอบเขตชั้น/ห้องฝั่งเซิร์ฟเวอร์ทั้งหมด — นักเรียนไม่มี Supabase Auth session
+-- จึงต้องเป็น SECURITY DEFINER + grant ให้ anon เหมือน redeem_reward/add_point_log.
+-- =============================================
+create table if not exists public.point_code_redemptions (
+  id uuid primary key default extensions.uuid_generate_v4(),
+  code_id uuid not null references public.point_codes(id) on delete cascade,
+  student_id uuid not null references public.students(id) on delete cascade,
+  redeemed_at timestamptz default now(),
+  unique (code_id, student_id)
+);
+alter table public.point_code_redemptions enable row level security;
+
+create or replace function public.redeem_point_code(p_student_code text, p_code text)
+returns table (points int, deed_icon text, deed_name text)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_student_id uuid;
+  v_student_grade text;
+  v_student_room text;
+  v_code_id uuid;
+  v_deed_type_id int;
+  v_points int;
+  v_grade_level text;
+  v_room text;
+  v_expires_at timestamptz;
+  v_created_by uuid;
+  v_code text;
+  v_deed_icon text;
+  v_deed_name text;
+begin
+  select id, grade_level, room into v_student_id, v_student_grade, v_student_room
+  from public.students where student_code = p_student_code;
+  if v_student_id is null then
+    raise exception 'ไม่พบนักเรียนรหัสนี้';
+  end if;
+
+  select pc.id, pc.deed_type_id, pc.points, pc.grade_level, pc.room, pc.expires_at, pc.created_by, pc.code,
+         gdt.icon, gdt.name
+  into v_code_id, v_deed_type_id, v_points, v_grade_level, v_room, v_expires_at, v_created_by, v_code,
+       v_deed_icon, v_deed_name
+  from public.point_codes pc
+  left join public.good_deed_types gdt on gdt.id = pc.deed_type_id
+  where pc.code = upper(trim(p_code));
+
+  if v_code_id is null then
+    raise exception 'ไม่พบโค้ดนี้ กรุณาตรวจสอบอีกครั้ง';
+  end if;
+  if v_expires_at <= now() then
+    raise exception 'โค้ดหมดเวลาแล้ว';
+  end if;
+  if v_grade_level is not null and v_grade_level <> v_student_grade then
+    raise exception 'โค้ดนี้ไม่ได้ใช้กับชั้นเรียนของคุณ';
+  end if;
+  if v_room is not null and v_room <> v_student_room then
+    raise exception 'โค้ดนี้ไม่ได้ใช้กับห้องเรียนของคุณ';
+  end if;
+  if exists (select 1 from public.point_code_redemptions where code_id = v_code_id and student_id = v_student_id) then
+    raise exception 'คุณรับคะแนนจากโค้ดนี้ไปแล้ว';
+  end if;
+
+  insert into public.point_code_redemptions(code_id, student_id) values (v_code_id, v_student_id);
+  insert into public.point_logs(student_id, teacher_id, deed_type_id, points, note)
+  values (v_student_id, v_created_by, v_deed_type_id, v_points, 'รับผ่านโค้ดกลุ่ม: ' || v_code);
+
+  return query select v_points, v_deed_icon, v_deed_name;
+end;
+$$;
+revoke execute on function public.redeem_point_code(text,text) from public;
+grant execute on function public.redeem_point_code(text,text) to anon, authenticated;

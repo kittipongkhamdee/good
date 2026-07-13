@@ -51,6 +51,7 @@ const state = {
   points: 10,
   addStudentCode: '',
   addStudentName: '',
+  studentScanMode: false, // นักเรียนพลิก QR Code ประจำตัวเป็นกล้อง (double-tap) เพื่อสแกนโค้ดรับคะแนนจากครู
 
   pointCode: null,       // { id, code, icon, name, points, scopeLabel, expiresAt, totalMs } — active generated code
   codeDurationMin: 10,
@@ -817,9 +818,26 @@ function renderStudentDashboard() {
     </div>
 
     <div class="card">
-      <div style="font-size:14px;font-weight:700;color:var(--gd);margin-bottom:12px;text-align:center;">📲 QR Code ประจำตัวนักเรียน</div>
-      <div class="qr-display"><div class="qr-frame"><canvas id="student-qr" width="164" height="164"></canvas></div></div>
-      <div style="text-align:center;margin-top:10px;font-size:12px;color:#9ca3af;">รหัส ${s.student_code} · ${classOf(s)} · ${state.settings.schoolName}</div>
+      <div class="qr-flip-wrap" data-action="qr-card-tap">
+        <div class="qr-flip-inner ${state.studentScanMode ? 'flipped' : ''}">
+          <div class="qr-flip-face qr-flip-front">
+            <div style="font-size:14px;font-weight:700;color:var(--gd);margin-bottom:12px;text-align:center;">📲 QR Code ประจำตัวนักเรียน</div>
+            <div class="qr-display"><div class="qr-frame"><canvas id="student-qr" width="164" height="164"></canvas></div></div>
+            <div style="text-align:center;margin-top:10px;font-size:12px;color:#9ca3af;">รหัส ${s.student_code} · ${classOf(s)} · ${state.settings.schoolName}</div>
+            <div style="text-align:center;margin-top:8px;font-size:11px;color:#c7d2c2;">👆👆 แตะ 2 ครั้งเพื่อสแกนรับคะแนนจากครู</div>
+          </div>
+          <div class="qr-flip-face qr-flip-back">
+            <div style="font-size:14px;font-weight:700;color:var(--gd);margin-bottom:12px;text-align:center;">📷 สแกนโค้ดรับคะแนนจากครู</div>
+            <div class="qr-scan-box" style="width:100%;">
+              <video id="student-scan-video" class="scan-video" autoplay playsinline muted></video>
+              <canvas id="student-scan-canvas" style="display:none;"></canvas>
+              <div class="qr-corner qr-tl"></div><div class="qr-corner qr-tr"></div>
+              <div class="qr-corner qr-bl"></div><div class="qr-corner qr-br"></div>
+            </div>
+            <div style="text-align:center;margin-top:10px;font-size:11px;color:#9ca3af;">👆👆 แตะ 2 ครั้งเพื่อกลับไปที่ QR Code</div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <button data-action="open-share-card"
@@ -1131,7 +1149,7 @@ function renderTeacherScan() {
           <div style="font-size:12px;opacity:0.8;margin-top:4px;">นำกล้องไปยัง QR Code ของนักเรียน</div>
         </div>
         <div class="qr-scan-box" id="scan-box">
-          <video id="qr-video" autoplay playsinline muted style="display:none;"></video>
+          <video id="qr-video" class="scan-video" autoplay playsinline muted style="display:none;"></video>
           <canvas id="scan-canvas" style="display:none;"></canvas>
           <div class="qr-corner qr-tl"></div><div class="qr-corner qr-tr"></div>
           <div class="qr-corner qr-bl"></div><div class="qr-corner qr-br"></div>
@@ -2014,6 +2032,72 @@ async function lookupScanStudent(code) {
   setState({ scanStep: 1, scanStudent: data });
 }
 
+// ── Student-side: พลิก QR Code ประจำตัวเป็นกล้อง แล้วสแกนโค้ดของครู (เหมือน startScan/scanLoop/stopScan
+// ข้างบน แต่แยกชุดเพราะคนละหน้าจอ/เงื่อนไขหยุด และตัวจบ (redeem) ไม่เหมือนกัน) ──
+async function startStudentScan() {
+  if (typeof jsQR === 'undefined') {
+    showToast('โหลดตัวสแกน QR ไม่สำเร็จ กรุณาลองรีเฟรชหน้าใหม่ 🔄');
+    setState({ studentScanMode: false });
+    return;
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    state._studentVideoStream = stream;
+    const video = document.getElementById('student-scan-video');
+    if (!video) { stream.getTracks().forEach(t => t.stop()); state._studentVideoStream = null; return; }
+    video.srcObject = stream;
+    video.addEventListener('loadedmetadata', () => video.play());
+    studentScanLoop();
+  } catch (e) {
+    showToast('ไม่สามารถเข้าถึงกล้องได้ กรุณาอนุญาตการใช้กล้อง 📷');
+    setState({ studentScanMode: false });
+  }
+}
+
+function studentScanLoop() {
+  const video = document.getElementById('student-scan-video');
+  const canvas = document.getElementById('student-scan-canvas');
+  if (!video || !canvas || state.screen !== 'student-dashboard' || !state.studentScanMode) { stopStudentScan(); return; }
+  if (video.readyState === video.HAVE_ENOUGH_DATA) {
+    const ctx = canvas.getContext('2d');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    if (typeof jsQR !== 'undefined') {
+      const result = jsQR(imageData.data, imageData.width, imageData.height);
+      if (result) { stopStudentScan(); handleStudentScanResult(result.data); return; }
+    }
+  }
+  state._studentScanRaf = requestAnimationFrame(studentScanLoop);
+}
+
+function stopStudentScan() {
+  if (state._studentVideoStream) { state._studentVideoStream.getTracks().forEach(t => t.stop()); state._studentVideoStream = null; }
+  if (state._studentScanRaf) { cancelAnimationFrame(state._studentScanRaf); state._studentScanRaf = null; }
+}
+
+async function handleStudentScanResult(raw) {
+  let code = '';
+  try { code = (JSON.parse(raw).point_code || '').trim(); } catch { /* not a point-code QR — ignore below */ }
+  if (!code) { showToast('QR นี้ไม่ใช่โค้ดรับคะแนน ❌'); setState({ studentScanMode: false }); return; }
+
+  setState({ loading: true });
+  const { data, error } = await redeemPointCode(state.student.student_code, code);
+  if (error) {
+    setState({ loading: false, studentScanMode: false });
+    showToast(`❌ ${error}`);
+    return;
+  }
+
+  const [{ student }, { data: history }] = await Promise.all([
+    studentLogin(state.student.student_code),
+    getStudentHistory(state.student.student_code, 30),
+  ]);
+  setState({ loading: false, studentScanMode: false, student: student || state.student, studentHistory: history || [] });
+  showToast(`🎉 ได้รับ +${data.points} คะแนน! ${data.deed_icon || ''} ${data.deed_name || ''}`);
+}
+
 // ══════════════════════════════════════════════
 // Auth actions
 // ══════════════════════════════════════════════
@@ -2103,6 +2187,7 @@ async function restoreSession() {
 async function doLogout() {
   stopScan();
   stopCodeCountdown();
+  stopStudentScan();
   if (state.role === 'teacher' || state.role === 'admin') await staffLogout();
   localStorage.removeItem(STUDENT_CODE_KEY);
   Object.assign(state, {
@@ -2110,7 +2195,7 @@ async function doLogout() {
     student: null, studentHistory: [], studentRedemptions: [], leaderboard: null, leaderboardScope: 'school',
     staffUser: null, deedTypes: [], rewards: [], rewardRequests: [], rewardSuggestions: [], students: [], studentGradeFilter: '', studentRoomFilter: '', studentClasses: [], pointLogs: [], badgeTiers: [],
     reportSummary: null, reportError: null, reportLeaderboard: null, reportGradeFilter: '', scanStep: 0, scanStudent: null, selectedDeedId: null, points: 10,
-    addStudentCode: '', addStudentName: '',
+    addStudentCode: '', addStudentName: '', studentScanMode: false,
     pointCode: null, codeDurationMin: 10, codeGradeFilter: '', codeRoomFilter: '',
     settings: { leaderboardEnabled: true, leaderboardTopN: 10, schoolLogoUrl: null, schoolName: 'ตาเบาวิทยา', schoolTagline: 'ระบบสะสมคะแนนความดีนักเรียน' },
     rolePermissions: { 'admin-deedtypes': true, 'admin-rewards': true, 'admin-reward-pickup': true, 'admin-suggestions': true, 'admin-reports': true },
@@ -2245,10 +2330,11 @@ document.addEventListener('click', async (e) => {
     case 'nav': {
       if (state.screen === 'teacher-scan') stopScan();
       if (state.screen === 'teacher-codedisplay') stopCodeCountdown();
+      if (state.studentScanMode) stopStudentScan();
       const screen = btn.dataset.screen;
       setState({ loading: true });
       await loadDataForScreen(screen);
-      setState({ loading: false, screen, scanStep: 0, selectedDeedId: null, scanStudent: null, addStudentCode: '', addStudentName: '' });
+      setState({ loading: false, screen, scanStep: 0, selectedDeedId: null, scanStudent: null, addStudentCode: '', addStudentName: '', studentScanMode: false });
       break;
     }
 
@@ -2266,24 +2352,44 @@ document.addEventListener('click', async (e) => {
       closeDrawer();
       if (state.screen === 'teacher-scan') stopScan();
       if (state.screen === 'teacher-codedisplay') stopCodeCountdown();
+      if (state.studentScanMode) stopStudentScan();
       const screen = btn.dataset.screen;
       setState({ loading: true });
       await loadDataForScreen(screen);
-      setState({ loading: false, screen, scanStep: 0, selectedDeedId: null, scanStudent: null, addStudentCode: '', addStudentName: '' });
+      setState({ loading: false, screen, scanStep: 0, selectedDeedId: null, scanStudent: null, addStudentCode: '', addStudentName: '', studentScanMode: false });
       break;
     }
 
     case 'go-profile':
-      if (state.role === 'student') setState({ screen: 'student-profile' });
+      if (state.role === 'student') {
+        if (state.studentScanMode) stopStudentScan();
+        setState({ screen: 'student-profile', studentScanMode: false });
+      }
       break;
 
     case 'start-scan':
       startScan();
       break;
 
+    case 'qr-card-tap': {
+      const now = Date.now();
+      const last = state._lastQrTapAt || 0;
+      state._lastQrTapAt = now;
+      if (now - last >= 400) break; // รอแตะครั้งที่ 2 ภายใน 400ms ถึงจะนับเป็นดับเบิลแทป
+      state._lastQrTapAt = 0;
+      if (state.studentScanMode) {
+        stopStudentScan();
+        setState({ studentScanMode: false });
+      } else {
+        setState({ studentScanMode: true });
+        await startStudentScan();
+      }
+      break;
+    }
+
     case 'reset-scan':
       stopScan();
-      setState({ scanStep: 0, selectedDeedId: null, scanStudent: null, addStudentCode: '', addStudentName: '' });
+      setState({ scanStep: 0, selectedDeedId: null, scanStudent: null, addStudentCode: '', addStudentName: '', studentScanMode: false });
       break;
 
     case 'select-deed':
@@ -2831,7 +2937,7 @@ document.addEventListener('click', async (e) => {
       const screen = entering ? 'teacher-dashboard' : 'admin-dashboard';
       setState({ loading: true });
       await loadDataForScreen(screen);
-      setState({ loading: false, previewAsTeacher: entering, screen, scanStep: 0, selectedDeedId: null, scanStudent: null, addStudentCode: '', addStudentName: '' });
+      setState({ loading: false, previewAsTeacher: entering, screen, scanStep: 0, selectedDeedId: null, scanStudent: null, addStudentCode: '', addStudentName: '', studentScanMode: false });
       showToast(entering ? 'กำลังดูมุมมองครู 🧑‍🏫' : 'กลับสู่มุมมอง Admin');
       break;
     }

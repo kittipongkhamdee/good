@@ -19,24 +19,16 @@
       <h1>ตาเบาวิทยา</h1>
       <p>ระบบสะสมคะแนนความดีนักเรียน</p>
     </div>
-    <div class="role-cards">
-      <button class="role-card" data-action="show-auth" data-view="student">
-        <div class="role-icon" style="background:var(--gl);">👩‍🎓</div>
-        <div class="role-info">
-          <div class="role-name">นักเรียน</div>
-          <div class="role-desc">เข้าด้วยรหัสนักเรียน</div>
-        </div>
-        <div class="role-arrow">›</div>
-      </button>
-      <button class="role-card" data-action="show-auth" data-view="staff">
-        <div class="role-icon" style="background:oklch(0.93 0.07 200);">👨‍🏫</div>
-        <div class="role-info">
-          <div class="role-name">ครู / เจ้าหน้าที่</div>
-          <div class="role-desc">เข้าด้วยอีเมลและรหัสผ่าน</div>
-        </div>
-        <div class="role-arrow">›</div>
-      </button>
+    <div class="login-tabs">
+      <button class="login-tab active" data-action="show-auth" data-view="student">👩‍🎓 นักเรียน</button>
+      <button class="login-tab" data-action="show-auth" data-view="staff">👨‍🏫 ครู</button>
     </div>
+    <div class="form-group">
+      <label class="form-label">รหัสนักเรียน</label>
+      <input class="form-input" id="student-code-input" placeholder="เช่น 65001" autofocus
+             style="font-size:18px;text-align:center;letter-spacing:1px;">
+    </div>
+    <button class="btn-green" data-action="submit-student-login" style="padding:14px;">เข้าสู่ระบบ</button>
     <p class="login-note" id="login-note">เชื่อมต่อฐานข้อมูลจริง — ตาเบาวิทยา</p>
   </div>
 </div>

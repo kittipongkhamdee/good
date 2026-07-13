@@ -888,3 +888,13 @@ create policy "school_assets_staff_delete" on storage.objects for delete
 
 insert into public.app_settings (key, value) values ('school_logo_url', null)
 on conflict (key) do nothing;
+
+-- =============================================
+-- 18. School name & tagline — admin-editable (settings screen), replaces the
+-- hardcoded "ตาเบาวิทยา" / "ระบบสะสมคะแนนความดีนักเรียน" text everywhere
+-- (login page, app header, drawer, admin dashboard, share card, document title).
+-- =============================================
+insert into public.app_settings (key, value) values
+  ('school_name', 'ตาเบาวิทยา'),
+  ('school_tagline', 'ระบบสะสมคะแนนความดีนักเรียน')
+on conflict (key) do nothing;

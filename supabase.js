@@ -419,6 +419,8 @@ async function getAppSettings() {
       leaderboardEnabled: settings.leaderboard_enabled !== 'false',
       leaderboardTopN: parseInt(settings.leaderboard_top_n) || 10,
       schoolLogoUrl: settings.school_logo_url || null,
+      schoolName: settings.school_name || 'ตาเบาวิทยา',
+      schoolTagline: settings.school_tagline || 'ระบบสะสมคะแนนความดีนักเรียน',
     },
     error: null,
   };

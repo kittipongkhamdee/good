@@ -41,7 +41,7 @@ const state = {
   reportLeaderboard: null,
   reportGradeFilter: '',
   badgeTiers: [],
-  settings: { leaderboardEnabled: true, leaderboardTopN: 10, schoolLogoUrl: null },
+  settings: { leaderboardEnabled: true, leaderboardTopN: 10, schoolLogoUrl: null, schoolName: 'ตาเบาวิทยา', schoolTagline: 'ระบบสะสมคะแนนความดีนักเรียน' },
   rolePermissions: { 'admin-deedtypes': true, 'admin-rewards': true, 'admin-reward-pickup': true, 'admin-suggestions': true, 'admin-reports': true },
 
   scanStep: 0,
@@ -171,7 +171,7 @@ function studentAvatar(s, { size = 60, fontSize = 26, bg = 'rgba(255,255,255,0.1
 // โลโก้โรงเรียน — แสดงรูปที่แอดมินอัปโหลดไว้ (หน้าตั้งค่า) ถ้ามี ไม่งั้น fallback เป็น 🌿
 function schoolLogoHTML(size) {
   const url = state.settings.schoolLogoUrl;
-  if (url) return `<img src="${url}" alt="ตาเบาวิทยา" style="width:${size}px;height:${size}px;object-fit:contain;vertical-align:middle;display:inline-block;">`;
+  if (url) return `<img src="${url}" alt="${state.settings.schoolName}" style="width:${size}px;height:${size}px;object-fit:contain;vertical-align:middle;display:inline-block;">`;
   return `<span style="font-size:${size}px;line-height:1;vertical-align:middle;">🌿</span>`;
 }
 
@@ -285,7 +285,7 @@ async function drawShareCard(canvas, student, badge) {
       brandTextX = pad + logoSize + 10;
     } catch { /* CORS/network hiccup — fall back to plain text below */ }
   }
-  ctx.fillText(state.settings.schoolLogoUrl && brandTextX !== pad ? 'ตาเบาวิทยา' : '🌿 ตาเบาวิทยา', brandTextX, pad + 30);
+  ctx.fillText(state.settings.schoolLogoUrl && brandTextX !== pad ? state.settings.schoolName : `🌿 ${state.settings.schoolName}`, brandTextX, pad + 30);
 
   const tierLabel = `${badge.icon} ${student.badge_level}`;
   ctx.font = '700 28px Kanit';
@@ -337,7 +337,7 @@ async function drawShareCard(canvas, student, badge) {
   ctx.fillText(name, W / 2, nameY);
   ctx.font = '400 26px Kanit';
   ctx.fillStyle = 'rgba(255,255,255,0.82)';
-  ctx.fillText(`${classOf(student)} · โรงเรียนตาเบาวิทยา`, W / 2, nameY + 42);
+  ctx.fillText(`${classOf(student)} · โรงเรียน${state.settings.schoolName}`, W / 2, nameY + 42);
 
   // big point total
   const pointsY = nameY + 150;
@@ -383,7 +383,7 @@ async function drawShareCard(canvas, student, badge) {
   ctx.textAlign = 'center';
   ctx.font = '600 28px Kanit';
   ctx.fillStyle = '#fff';
-  ctx.fillText('🌿 โรงเรียนตาเบาวิทยา · จ.สุรินทร์', W / 2, barY + barH / 2 + 10);
+  ctx.fillText(`🌿 โรงเรียน${state.settings.schoolName} · จ.สุรินทร์`, W / 2, barY + barH / 2 + 10);
 }
 
 function openShareCardModal() {
@@ -456,9 +456,9 @@ function renderLogin() {
   const box = document.querySelector('.login-box');
   box.innerHTML = `
     <div class="login-logo">
-      <div class="logo-icon">${schoolLogoHTML(56)}</div>
-      <h1>ตาเบาวิทยา</h1>
-      <p>ระบบสะสมคะแนนความดีนักเรียน</p>
+      <div class="logo-icon">${schoolLogoHTML(76)}</div>
+      <h1>${state.settings.schoolName}</h1>
+      <p>${state.settings.schoolTagline}</p>
     </div>
     <div class="login-tabs">
       <button class="login-tab ${state.authView === 'student' ? 'active' : ''}" data-action="show-auth" data-view="student">👩‍🎓 นักเรียน</button>
@@ -539,7 +539,7 @@ function renderDrawer() {
 
   document.getElementById('drawer-panel').innerHTML = `
     <div class="sidebar-brand">
-      <div class="sidebar-brand-name">${schoolLogoHTML(20)} ตาเบาวิทยา</div>
+      <div class="sidebar-brand-name">${schoolLogoHTML(20)} ${state.settings.schoolName}</div>
       <div class="sidebar-brand-sub">ระบบคะแนนความดี</div>
     </div>
     <nav class="sidebar-nav">${nav}</nav>
@@ -630,7 +630,7 @@ function renderStudentDashboard() {
     <div class="card">
       <div style="font-size:14px;font-weight:700;color:var(--gd);margin-bottom:12px;text-align:center;">📲 QR Code ประจำตัวนักเรียน</div>
       <div class="qr-display"><div class="qr-frame"><canvas id="student-qr" width="220" height="220"></canvas></div></div>
-      <div style="text-align:center;margin-top:10px;font-size:12px;color:#9ca3af;">รหัส ${s.student_code} · ${classOf(s)} · ตาเบาวิทยา</div>
+      <div style="text-align:center;margin-top:10px;font-size:12px;color:#9ca3af;">รหัส ${s.student_code} · ${classOf(s)} · ${state.settings.schoolName}</div>
     </div>
 
     <button data-action="open-share-card"
@@ -1070,7 +1070,7 @@ function renderAdminDashboard() {
   <div class="screen-wrap anim-slideup">
     <div class="hero-banner">
       <div>
-        <div style="font-size:22px;font-weight:700;">🏫 ตาเบาวิทยา</div>
+        <div style="font-size:22px;font-weight:700;">🏫 ${state.settings.schoolName}</div>
         <div style="font-size:13px;opacity:0.8;margin-top:4px;">แผงควบคุมผู้ดูแลระบบ</div>
       </div>
     </div>
@@ -1406,6 +1406,19 @@ function renderAdminSettings() {
   return `
   <div class="screen-wrap anim-slideup">
     <div class="card">
+      <div style="font-size:15px;font-weight:700;color:var(--gd);margin-bottom:6px;">🏫 ชื่อและคำอธิบายระบบ</div>
+      <div style="font-size:12px;color:#9ca3af;margin-bottom:16px;">แสดงที่หน้า login, หัวแอป และเมนู</div>
+      <div class="form-group">
+        <label class="form-label">ชื่อระบบ / ชื่อโรงเรียน</label>
+        <input class="form-input" id="school-name-input" value="${s.schoolName}" placeholder="เช่น ตาเบาวิทยา">
+      </div>
+      <div class="form-group">
+        <label class="form-label">คำอธิบายระบบ</label>
+        <input class="form-input" id="school-tagline-input" value="${s.schoolTagline}" placeholder="เช่น ระบบสะสมคะแนนความดีนักเรียน">
+      </div>
+    </div>
+
+    <div class="card">
       <div style="font-size:15px;font-weight:700;color:var(--gd);margin-bottom:20px;">⚙️ ตั้งค่าอันดับนักเรียน (Leaderboard)</div>
 
       <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid oklch(0.96 0.02 145);margin-bottom:16px;">
@@ -1708,6 +1721,7 @@ async function submitStaffLogin() {
 async function loadGlobalSettings() {
   const { data } = await getAppSettings();
   if (data) setState({ settings: data });
+  if (data) document.title = `${data.schoolTagline} — ${data.schoolName}`;
 }
 
 // เรียกตอนเปิดแอป — ลองคืน session เดิม: ครู/แอดมินเช็คจาก Supabase Auth session
@@ -1733,7 +1747,7 @@ async function doLogout() {
     student: null, studentHistory: [], studentRedemptions: [], leaderboard: null, leaderboardScope: 'school',
     staffUser: null, deedTypes: [], rewards: [], rewardRequests: [], rewardSuggestions: [], students: [], studentGradeFilter: '', studentRoomFilter: '', studentClasses: [], pointLogs: [], badgeTiers: [],
     reportSummary: null, reportError: null, reportLeaderboard: null, reportGradeFilter: '', scanStep: 0, scanStudent: null, selectedDeedId: null, points: 10,
-    settings: { leaderboardEnabled: true, leaderboardTopN: 10, schoolLogoUrl: null },
+    settings: { leaderboardEnabled: true, leaderboardTopN: 10, schoolLogoUrl: null, schoolName: 'ตาเบาวิทยา', schoolTagline: 'ระบบสะสมคะแนนความดีนักเรียน' },
     rolePermissions: { 'admin-deedtypes': true, 'admin-rewards': true, 'admin-reward-pickup': true, 'admin-suggestions': true, 'admin-reports': true },
   });
   render();
@@ -2390,15 +2404,20 @@ document.addEventListener('click', async (e) => {
 
     case 'save-all-settings': {
       const topN = parseInt(document.getElementById('top-n-input')?.value) || 10;
+      const schoolName = document.getElementById('school-name-input')?.value.trim() || 'ตาเบาวิทยา';
+      const schoolTagline = document.getElementById('school-tagline-input')?.value.trim() || 'ระบบสะสมคะแนนความดีนักเรียน';
       setState({ loading: true });
       const permKeys = ['admin-deedtypes', 'admin-rewards', 'admin-reward-pickup', 'admin-suggestions', 'admin-reports'];
       const results = await Promise.all([
         updateAppSetting('leaderboard_enabled', state.settings.leaderboardEnabled ? 'true' : 'false'),
         updateAppSetting('leaderboard_top_n', topN),
+        updateAppSetting('school_name', schoolName),
+        updateAppSetting('school_tagline', schoolTagline),
         ...permKeys.map(k => updateRolePermission(k, state.rolePermissions[k] !== false)),
       ]);
       const firstError = results.map(r => r.error).find(Boolean);
-      setState({ loading: false, settings: { ...state.settings, leaderboardTopN: topN } });
+      setState({ loading: false, settings: { ...state.settings, leaderboardTopN: topN, schoolName, schoolTagline } });
+      document.title = `${schoolTagline} — ${schoolName}`;
       if (firstError) { showToast(`เกิดข้อผิดพลาด: ${firstError}`); break; }
       showToast('บันทึกการตั้งค่าสำเร็จ! ✅');
       break;

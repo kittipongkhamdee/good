@@ -67,10 +67,9 @@ select { appearance: none; -webkit-appearance: none; }
 }
 .login-logo { text-align: center; margin-bottom: 36px; }
 .logo-icon {
-  width: 90px; height: 90px; font-size: 44px; margin: 0 auto 16px;
-  background: linear-gradient(135deg, var(--gd), var(--g));
-  border-radius: 24px; display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 8px 32px oklch(0.52 0.17 145 / 0.35);
+  width: 90px; height: 90px; font-size: 60px; margin: 0 auto 16px;
+  display: flex; align-items: center; justify-content: center;
+  filter: drop-shadow(0 0 12px oklch(0.68 0.21 145 / 0.6)) drop-shadow(0 0 28px oklch(0.6 0.22 145 / 0.4));
 }
 .login-logo h1 { margin: 0; font-size: 26px; font-weight: 700; color: var(--text); }
 .login-logo p  { margin: 6px 0 0; font-size: 14px; color: var(--text-soft); }

@@ -420,6 +420,177 @@ function shareCardFileName(student) {
   return `การ์ดผลงาน-${student.student_code}.png`;
 }
 
+// วาดข้อความแบบมี letter-spacing กึ่งกลาง — canvas ไม่มี CSS letter-spacing ให้ใช้ตรงๆ
+function drawLetterSpacedText(ctx, text, cx, y, spacing) {
+  const chars = [...text];
+  const widths = chars.map(ch => ctx.measureText(ch).width);
+  const totalWidth = widths.reduce((a, b) => a + b, 0) + spacing * (chars.length - 1);
+  const prevAlign = ctx.textAlign;
+  ctx.textAlign = 'left';
+  let x = cx - totalWidth / 2;
+  chars.forEach((ch, i) => { ctx.fillText(ch, x, y); x += widths[i] + spacing; });
+  ctx.textAlign = prevAlign;
+}
+
+// การ์ดโค้ดรับคะแนน — ให้ครูบันทึก/แชร์/พิมพ์ส่งต่อให้นักเรียนที่ไม่ได้อยู่หน้าจอโปรเจคเตอร์
+async function drawPointCodeCard(canvas, pc) {
+  const W = 1080, H = 1920;
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+
+  try { await document.fonts.load('700 100px Kanit'); await document.fonts.load('600 100px Kanit'); } catch {}
+
+  // background: amber/gold gradient — แยกจากการ์ดผลงาน (เขียว) ให้รู้สึกว่าเป็น "โค้ดชั่วคราว"
+  const bg = ctx.createLinearGradient(0, 0, W * 0.55, H);
+  bg.addColorStop(0, '#7c3a00');
+  bg.addColorStop(0.46, '#b45309');
+  bg.addColorStop(0.78, '#d97706');
+  bg.addColorStop(1, '#f59e0b');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  const glow = ctx.createRadialGradient(W * 0.15, -H * 0.05, 0, W * 0.15, -H * 0.05, W * 1.1);
+  glow.addColorStop(0, 'rgba(255,214,140,0.35)');
+  glow.addColorStop(0.6, 'rgba(255,214,140,0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, W, H);
+
+  dotPatternFill(ctx, W, H);
+
+  const pad = W * 0.073;
+  ctx.textBaseline = 'alphabetic';
+
+  // brand row
+  ctx.font = '600 32px Kanit';
+  ctx.textAlign = 'left';
+  ctx.fillStyle = 'rgba(255,255,255,0.9)';
+  let brandTextX = pad;
+  if (state.settings.schoolLogoUrl) {
+    try {
+      const logoImg = await loadImageForCanvas(state.settings.schoolLogoUrl);
+      const logoSize = 40;
+      ctx.drawImage(logoImg, pad, pad - 6, logoSize, logoSize);
+      brandTextX = pad + logoSize + 10;
+    } catch { /* CORS/network hiccup — fall back to plain text below */ }
+  }
+  ctx.fillText(state.settings.schoolLogoUrl && brandTextX !== pad ? state.settings.schoolName : `🌿 ${state.settings.schoolName}`, brandTextX, pad + 30);
+
+  // "โค้ดรับคะแนน" tag top-right
+  const tagLabel = '🎯 โค้ดรับคะแนน';
+  ctx.font = '700 28px Kanit';
+  const tagW = ctx.measureText(tagLabel).width;
+  const tagPadX = 26, tagH = 52;
+  const tagX = W - pad - tagW - tagPadX * 2;
+  const tagY = pad - 8;
+  ctx.fillStyle = 'rgba(255,255,255,0.18)';
+  roundedRectPath(ctx, tagX, tagY, tagW + tagPadX * 2, tagH, tagH / 2);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+  ctx.lineWidth = 1.5;
+  roundedRectPath(ctx, tagX, tagY, tagW + tagPadX * 2, tagH, tagH / 2);
+  ctx.stroke();
+  ctx.fillStyle = '#fff';
+  ctx.fillText(tagLabel, tagX + tagPadX, tagY + tagH / 2 + 10);
+
+  // deed headline + scope/points
+  ctx.textAlign = 'center';
+  const headline = `${pc.icon} ${pc.name}`;
+  let headlineSize = 56;
+  ctx.font = `700 ${headlineSize}px Kanit`;
+  const headlineMaxWidth = W - pad * 2;
+  while (ctx.measureText(headline).width > headlineMaxWidth && headlineSize > 34) {
+    headlineSize -= 2;
+    ctx.font = `700 ${headlineSize}px Kanit`;
+  }
+  ctx.fillStyle = '#fff';
+  ctx.fillText(headline, W / 2, pad + 170);
+
+  ctx.font = '400 32px Kanit';
+  ctx.fillStyle = 'rgba(255,255,255,0.88)';
+  ctx.fillText(`${pc.scopeLabel} · +${pc.points} คะแนน`, W / 2, pad + 222);
+
+  // white QR card
+  const qrSize = 620, qrPad = 34;
+  const qrBoxSize = qrSize + qrPad * 2;
+  const qrBoxX = (W - qrBoxSize) / 2;
+  const qrBoxY = pad + 270;
+  ctx.fillStyle = '#fff';
+  roundedRectPath(ctx, qrBoxX, qrBoxY, qrBoxSize, qrBoxSize, 32);
+  ctx.fill();
+
+  if (typeof QRCode !== 'undefined') {
+    const qrCanvas = document.createElement('canvas');
+    await new Promise(resolve => {
+      QRCode.toCanvas(qrCanvas, JSON.stringify({ point_code: pc.code }), {
+        width: qrSize, margin: 0, color: { dark: '#b45309', light: '#ffffff' },
+      }, () => resolve());
+    });
+    ctx.drawImage(qrCanvas, qrBoxX + qrPad, qrBoxY + qrPad, qrSize, qrSize);
+  }
+
+  // big code
+  const codeY = qrBoxY + qrBoxSize + 130;
+  ctx.font = '700 92px Kanit';
+  ctx.fillStyle = '#fff';
+  drawLetterSpacedText(ctx, pc.code, W / 2, codeY, 16);
+
+  // expiry pill
+  const expiryLabel = `⏰ หมดเวลา ${formatTimeHM(pc.expiresAt)} น.`;
+  ctx.font = '700 34px Kanit';
+  const expW = ctx.measureText(expiryLabel).width;
+  const expPadX = 30, expH = 68;
+  const expX = W / 2 - (expW + expPadX * 2) / 2;
+  const expY = codeY + 55;
+  ctx.fillStyle = 'rgba(255,255,255,0.18)';
+  roundedRectPath(ctx, expX, expY, expW + expPadX * 2, expH, expH / 2);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+  ctx.lineWidth = 1.5;
+  roundedRectPath(ctx, expX, expY, expW + expPadX * 2, expH, expH / 2);
+  ctx.stroke();
+  ctx.fillStyle = '#fff';
+  ctx.fillText(expiryLabel, W / 2, expY + expH / 2 + 12);
+
+  // footer instructions
+  const barY = H - pad - 110, barH = 110;
+  ctx.fillStyle = 'rgba(255,255,255,0.14)';
+  roundedRectPath(ctx, pad, barY, W - pad * 2, barH, 24);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+  roundedRectPath(ctx, pad, barY, W - pad * 2, barH, 24);
+  ctx.stroke();
+  const footer = 'พลิกกล้องจาก QR Code ประจำตัว แล้วสแกนโค้ดนี้เพื่อรับคะแนน';
+  let footerSize = 30;
+  ctx.font = `600 ${footerSize}px Kanit`;
+  const footerMaxWidth = W - pad * 2 - 60;
+  while (ctx.measureText(footer).width > footerMaxWidth && footerSize > 20) {
+    footerSize -= 2;
+    ctx.font = `600 ${footerSize}px Kanit`;
+  }
+  ctx.fillStyle = '#fff';
+  ctx.fillText(footer, W / 2, barY + barH / 2 + 10);
+}
+
+function openPointCodeCardModal() {
+  const pc = state.pointCode;
+  if (!pc) return;
+  showModal(`
+    <div class="modal-title">📤 การ์ดโค้ดรับคะแนน</div>
+    <div style="text-align:center;">
+      <canvas id="point-code-card-canvas" style="width:100%;max-width:270px;border-radius:16px;box-shadow:0 8px 24px rgba(0,0,0,0.15);"></canvas>
+    </div>
+    <button class="btn-green" data-action="download-point-code-card" style="padding:13px;margin-top:16px;background:linear-gradient(90deg,#d97706,#f59e0b);">💾 บันทึกรูปภาพ</button>
+    <button data-action="share-point-code-card" style="width:100%;padding:12px;margin-top:8px;background:#fffbeb;color:#b45309;border:none;border-radius:12px;font-family:Kanit;font-weight:700;cursor:pointer;">📤 แชร์ไปยังแอปอื่น</button>
+    <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:Kanit;color:#9ca3af;cursor:pointer;">ปิด</button>
+  `);
+  const canvas = document.getElementById('point-code-card-canvas');
+  if (canvas) drawPointCodeCard(canvas, pc);
+}
+
+function pointCodeCardFileName(pc) {
+  return `โค้ดรับคะแนน-${pc.code}.png`;
+}
+
 // ── setState + render ──
 function setState(updates) {
   Object.assign(state, updates);
@@ -1154,9 +1325,11 @@ function renderTeacherCodeDisplay() {
           </div>
         </div>
         <div style="font-size:12px;color:#9ca3af;margin-top:8px;">เวลาที่เหลือ</div>
+        <div style="font-size:12px;color:#b45309;font-weight:700;margin-top:4px;">⏰ หมดเวลา ${formatTimeHM(pc.expiresAt)} น.</div>
       </div>
 
-      <button data-action="cancel-point-code" style="width:100%;margin-top:22px;padding:12px;background:#fee2e2;color:#dc2626;border:none;border-radius:10px;font-family:Kanit;font-weight:600;cursor:pointer;">✕ ปิดโค้ดนี้</button>
+      <button data-action="open-point-code-card" style="width:100%;margin-top:22px;padding:13px;background:linear-gradient(90deg,#d97706,#f59e0b);color:#fff;border:none;border-radius:10px;font-family:Kanit;font-weight:700;font-size:14px;cursor:pointer;">📤 บันทึก/แชร์การ์ดโค้ด</button>
+      <button data-action="cancel-point-code" style="width:100%;margin-top:8px;padding:12px;background:#fee2e2;color:#dc2626;border:none;border-radius:10px;font-family:Kanit;font-weight:600;cursor:pointer;">✕ ปิดโค้ดนี้</button>
     </div>
   </div>`;
 }
@@ -1604,6 +1777,12 @@ function formatDate(iso) {
   if (!iso) return '';
   const d = new Date(iso);
   return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' });
+}
+
+function formatTimeHM(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
 // เมื่อโหลด library สร้าง QR Code ไม่สำเร็จ (เช่น เครือข่ายบล็อก CDN)
@@ -2218,6 +2397,49 @@ document.addEventListener('click', async (e) => {
           const a = document.createElement('a');
           a.href = url;
           a.download = shareCardFileName(state.student);
+          a.click();
+          URL.revokeObjectURL(url);
+          showToast('เบราว์เซอร์นี้แชร์ตรงไม่ได้ บันทึกรูปให้แทน 💾');
+        }
+      }, 'image/png');
+      break;
+    }
+
+    case 'open-point-code-card':
+      openPointCodeCardModal();
+      break;
+
+    case 'download-point-code-card': {
+      const canvas = document.getElementById('point-code-card-canvas');
+      if (!canvas || !state.pointCode) break;
+      canvas.toBlob(blob => {
+        if (!blob) { showToast('สร้างรูปไม่สำเร็จ'); return; }
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = pointCodeCardFileName(state.pointCode);
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast('บันทึกรูปแล้ว ✅');
+      }, 'image/png');
+      break;
+    }
+
+    case 'share-point-code-card': {
+      const canvas = document.getElementById('point-code-card-canvas');
+      if (!canvas || !state.pointCode) break;
+      canvas.toBlob(async blob => {
+        if (!blob) { showToast('สร้างรูปไม่สำเร็จ'); return; }
+        const file = new File([blob], pointCodeCardFileName(state.pointCode), { type: 'image/png' });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          try {
+            await navigator.share({ files: [file], title: 'โค้ดรับคะแนน' });
+          } catch {}
+        } else {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = pointCodeCardFileName(state.pointCode);
           a.click();
           URL.revokeObjectURL(url);
           showToast('เบราว์เซอร์นี้แชร์ตรงไม่ได้ บันทึกรูปให้แทน 💾');

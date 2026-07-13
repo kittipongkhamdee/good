@@ -598,7 +598,8 @@ function renderStudentDashboard() {
   return `
   <div class="screen-wrap anim-slideup">
     <div class="hero-banner">
-      <div style="display:flex;align-items:center;gap:14px;">
+      <div id="hero-leaf-field" aria-hidden="true"></div>
+      <div style="position:relative;z-index:1;display:flex;align-items:center;gap:14px;">
         ${studentAvatar(s, { size: 62, fontSize: 28 })}
         <div>
           <div style="font-size:18px;font-weight:700;line-height:1.2;">${fullName(s)}</div>
@@ -606,7 +607,7 @@ function renderStudentDashboard() {
           <div style="margin-top:6px;display:inline-block;background:rgba(255,255,255,0.2);border-radius:20px;padding:2px 10px;font-size:12px;">${badge.icon} ${s.badge_level}</div>
         </div>
       </div>
-      <div style="margin-top:18px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.18);display:flex;align-items:flex-end;justify-content:space-between;">
+      <div style="position:relative;z-index:1;margin-top:18px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.18);display:flex;align-items:flex-end;justify-content:space-between;">
         <div>
           <div style="font-size:12px;opacity:0.75;">คะแนนสะสมทั้งหมด</div>
           <div style="font-size:44px;font-weight:700;line-height:1;margin-top:2px;">${s.total_points.toLocaleString()}</div>
@@ -1550,6 +1551,8 @@ function afterRender() {
   if (staffPwInput) {
     staffPwInput.addEventListener('keydown', e => { if (e.key === 'Enter') submitStaffLogin(); });
   }
+
+  spawnHeroLeaves();
 }
 
 // ══════════════════════════════════════════════
@@ -2408,25 +2411,42 @@ document.addEventListener('click', async (e) => {
   }
 });
 
-// ใบไม้ลอยพื้นหลังหน้า login — สร้างครั้งเดียวตอนเปิดแอป ไม่ผูกกับ renderLogin()
-// เพราะ renderLogin() re-render บ่อยตอนพิมพ์/สลับแท็บ ถ้าสร้างใหม่ทุกครั้งแอนิเมชันจะสะดุด
-function spawnLoginLeaves() {
-  const field = document.getElementById('leaf-field');
+// ใบไม้ลอยพื้นหลัง (login เต็มจอ + การ์ดนักเรียนหน้าหลัก) — --dy คำนวณจากความสูงจริง
+// ของ field นั้นๆ ทำให้ keyframe เดียวใช้ได้ทั้งพื้นที่เต็มจอและการ์ดสั้นๆ
+function spawnLeaves(field, { count, sizeMin, sizeMax, durMin, durMax, delMax }) {
   if (!field) return;
   const LEAVES = ['🍃', '🌿'];
-  for (let i = 0; i < 12; i++) {
+  const dy = Math.max(field.offsetHeight, 60);
+  for (let i = 0; i < count; i++) {
     const leaf = document.createElement('span');
     leaf.className = 'leaf';
     leaf.textContent = LEAVES[i % LEAVES.length];
     leaf.style.setProperty('--x', `${Math.round(Math.random() * 90 + 5)}%`);
-    leaf.style.setProperty('--dur', `${(9 + Math.random() * 5).toFixed(1)}s`);
-    leaf.style.setProperty('--del', `${(Math.random() * 12).toFixed(1)}s`);
+    leaf.style.setProperty('--dur', `${(durMin + Math.random() * (durMax - durMin)).toFixed(1)}s`);
+    leaf.style.setProperty('--del', `${(Math.random() * delMax).toFixed(1)}s`);
     leaf.style.setProperty('--op', (0.16 + Math.random() * 0.16).toFixed(2));
-    leaf.style.setProperty('--sz', `${Math.round(13 + Math.random() * 9)}px`);
+    leaf.style.setProperty('--sz', `${Math.round(sizeMin + Math.random() * (sizeMax - sizeMin))}px`);
     leaf.style.setProperty('--dx', `${Math.round(-55 + Math.random() * 110)}px`);
     leaf.style.setProperty('--rot', `${Math.round(-140 + Math.random() * 280)}deg`);
+    leaf.style.setProperty('--dy', `${dy}px`);
     field.appendChild(leaf);
   }
+}
+
+// สร้างครั้งเดียวตอนเปิดแอป ไม่ผูกกับ renderLogin() เพราะ renderLogin() re-render บ่อยตอนพิมพ์/สลับแท็บ
+// ถ้าสร้างใหม่ทุกครั้งแอนิเมชันจะสะดุด — #leaf-field เป็น sibling ของ .login-box ไม่ใช่ลูก จึงไม่โดน re-render ทับ
+function spawnLoginLeaves() {
+  spawnLeaves(document.getElementById('leaf-field'),
+    { count: 12, sizeMin: 13, sizeMax: 22, durMin: 9, durMax: 14, delMax: 12 });
+}
+
+// การ์ดนักเรียนหน้าหลัก (.hero-banner) ถูก re-render ทับทุกครั้งที่ setState() ทำงาน (นำทาง/เปิดเมนู/ฯลฯ)
+// จึงต้องสร้างใบไม้ใหม่ทุกครั้งใน afterRender() แทนที่จะสร้างครั้งเดียวแบบหน้า login
+function spawnHeroLeaves() {
+  const field = document.getElementById('hero-leaf-field');
+  if (!field) return;
+  field.innerHTML = '';
+  spawnLeaves(field, { count: 7, sizeMin: 11, sizeMax: 17, durMin: 6, durMax: 9, delMax: 7 });
 }
 
 // ── Init ──

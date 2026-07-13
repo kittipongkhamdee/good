@@ -46,18 +46,21 @@ select { appearance: none; -webkit-appearance: none; }
 }
 .login-box { width: 100%; max-width: 380px; position: relative; z-index: 1; }
 
-/* ── Falling leaves (login background — decorative, non-interactive) ── */
-#leaf-field { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+/* ── Falling leaves (decorative, non-interactive) ── */
+/* --dy = fall distance in px, computed in JS from the container's own height so the
+   same animation works both full-page (login) and inside a short card (student hero) */
+#leaf-field, #hero-leaf-field { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
 .leaf {
   position: absolute; top: -10%; left: var(--x); font-size: var(--sz); opacity: 0;
   will-change: transform, opacity; animation: leafFall var(--dur) ease-in-out infinite; animation-delay: var(--del);
 }
+.hero-banner .leaf { filter: brightness(0) invert(1); }
 @keyframes leafFall {
   0%   { transform: translate(0, 0) rotate(0deg); opacity: 0; }
   12%  { opacity: var(--op); }
-  50%  { transform: translate(var(--dx), 55vh) rotate(var(--rot)); }
+  50%  { transform: translate(var(--dx), var(--dy)) rotate(var(--rot)); }
   88%  { opacity: var(--op); }
-  100% { transform: translate(calc(var(--dx) * 1.6), 115vh) rotate(calc(var(--rot) * 1.7)); opacity: 0; }
+  100% { transform: translate(calc(var(--dx) * 1.6), calc(var(--dy) * 2)) rotate(calc(var(--rot) * 1.7)); opacity: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
   .leaf { display: none; }

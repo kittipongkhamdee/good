@@ -49,6 +49,8 @@ const state = {
   scanStudent: null,
   selectedDeedId: null,
   points: 10,
+  addStudentCode: '',
+  addStudentName: '',
 
   pointCode: null,       // { id, code, icon, name, points, scopeLabel, expiresAt, totalMs } — active generated code
   codeDurationMin: 10,
@@ -1202,28 +1204,34 @@ function renderTeacherAddPoints() {
       <div style="font-size:15px;font-weight:700;color:var(--gd);margin-bottom:20px;">✏️ เพิ่มคะแนนความดี (ระบุรหัส)</div>
       <div class="form-group">
         <label class="form-label">รหัสนักเรียน *</label>
-        <input class="form-input" placeholder="เช่น 65001" id="add-student-code">
+        <input class="form-input" placeholder="เช่น 65001" id="add-student-code" value="${state.addStudentCode}">
       </div>
       <div class="form-group">
         <label class="form-label">ชื่อ-สกุล (อัตโนมัติ)</label>
-        <input class="form-input" id="add-student-name" readonly placeholder="ค้นหาจากรหัสนักเรียน">
+        <input class="form-input" id="add-student-name" readonly placeholder="ค้นหาจากรหัสนักเรียน" value="${state.addStudentName}">
       </div>
-      <div class="form-group">
-        <label class="form-label">ประเภทความดี *</label>
-        <select class="form-input" id="add-deed-type">
-          <option value="">เลือกประเภท...</option>
-          ${deedTypes.map(d => `<option value="${d.id}">${d.icon} ${d.name}</option>`).join('')}
-        </select>
+
+      <div style="font-weight:700;color:var(--gd);margin-bottom:12px;">เลือกประเภทความดี</div>
+      <div class="deed-grid" style="margin-bottom:16px;">
+        ${deedTypes.map(d => `
+          <button class="deed-chip ${state.selectedDeedId === d.id ? 'selected' : ''}" data-action="select-deed" data-deed-id="${d.id}">
+            ${d.icon} ${d.name}
+          </button>
+        `).join('')}
       </div>
-      <div class="form-group">
-        <label class="form-label">คะแนน *</label>
-        <input class="form-input" type="number" value="10" min="1" max="100" id="add-points">
+
+      <div style="font-weight:700;color:var(--gd);margin-bottom:8px;">คะแนน: <span id="pts-display">${state.points}</span> คะแนน</div>
+      <input type="range" min="1" max="20" step="1" value="${state.points}" id="pts-range"
+             style="background:linear-gradient(to right, var(--g) ${((state.points - 1) / 19) * 100}%, #e5e7eb ${((state.points - 1) / 19) * 100}%);">
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:#9ca3af;margin-top:2px;">
+        <span>1</span><span>10</span><span>20</span>
       </div>
-      <div class="form-group">
+
+      <div class="form-group" style="margin-top:16px;">
         <label class="form-label">หมายเหตุ</label>
         <textarea class="form-input" rows="3" placeholder="รายละเอียดเพิ่มเติม..." id="add-note" style="resize:none;"></textarea>
       </div>
-      <button class="btn-green" data-action="submit-addpoints" style="padding:14px;" ${state.loading ? 'disabled' : ''}>
+      <button class="btn-green" data-action="submit-addpoints" style="padding:14px;opacity:${state.selectedDeedId ? 1 : 0.5};" ${state.loading ? 'disabled' : ''}>
         ${state.loading ? 'กำลังบันทึก...' : '✅ บันทึกคะแนน'}
       </button>
     </div>
@@ -1271,10 +1279,10 @@ function renderTeacherCreateCode() {
       </div>
 
       <div style="font-weight:700;color:var(--gd);margin-bottom:8px;">คะแนน: <span id="pts-display">${state.points}</span> คะแนน</div>
-      <input type="range" min="5" max="50" step="5" value="${state.points}" id="pts-range"
-             style="background:linear-gradient(to right, var(--g) ${((state.points - 5) / 45) * 100}%, #e5e7eb ${((state.points - 5) / 45) * 100}%);">
+      <input type="range" min="1" max="20" step="1" value="${state.points}" id="pts-range"
+             style="background:linear-gradient(to right, var(--g) ${((state.points - 1) / 19) * 100}%, #e5e7eb ${((state.points - 1) / 19) * 100}%);">
       <div style="display:flex;justify-content:space-between;font-size:11px;color:#9ca3af;margin-top:2px;">
-        <span>5</span><span>25</span><span>50</span>
+        <span>1</span><span>10</span><span>20</span>
       </div>
 
       <div style="font-weight:700;color:var(--gd);margin:18px 0 10px;">ขอบเขตผู้ใช้โค้ด</div>
@@ -1826,10 +1834,11 @@ function afterRender() {
   if (rangeInput) {
     rangeInput.addEventListener('input', () => {
       const v = parseInt(rangeInput.value);
+      const min = parseInt(rangeInput.min), max = parseInt(rangeInput.max);
       state.points = v;
       const display = document.getElementById('pts-display');
       if (display) display.textContent = v;
-      const pct = ((v - 5) / 45) * 100;
+      const pct = ((v - min) / (max - min)) * 100;
       rangeInput.style.background = `linear-gradient(to right, var(--g) ${pct}%, #e5e7eb ${pct}%)`;
     });
   }
@@ -1838,13 +1847,15 @@ function afterRender() {
   if (codeInput) {
     codeInput.addEventListener('input', async () => {
       const code = codeInput.value.trim();
+      state.addStudentCode = code;
       const nameField = document.getElementById('add-student-name');
       if (code.length >= 3) {
         const { data } = await getStudentByCode(code);
-        if (nameField) nameField.value = data ? fullName(data) : 'ไม่พบนักเรียน';
-      } else if (nameField) {
-        nameField.value = '';
+        state.addStudentName = data ? fullName(data) : 'ไม่พบนักเรียน';
+      } else {
+        state.addStudentName = '';
       }
+      if (nameField) nameField.value = state.addStudentName;
     });
   }
 
@@ -2099,6 +2110,7 @@ async function doLogout() {
     student: null, studentHistory: [], studentRedemptions: [], leaderboard: null, leaderboardScope: 'school',
     staffUser: null, deedTypes: [], rewards: [], rewardRequests: [], rewardSuggestions: [], students: [], studentGradeFilter: '', studentRoomFilter: '', studentClasses: [], pointLogs: [], badgeTiers: [],
     reportSummary: null, reportError: null, reportLeaderboard: null, reportGradeFilter: '', scanStep: 0, scanStudent: null, selectedDeedId: null, points: 10,
+    addStudentCode: '', addStudentName: '',
     pointCode: null, codeDurationMin: 10, codeGradeFilter: '', codeRoomFilter: '',
     settings: { leaderboardEnabled: true, leaderboardTopN: 10, schoolLogoUrl: null, schoolName: 'ตาเบาวิทยา', schoolTagline: 'ระบบสะสมคะแนนความดีนักเรียน' },
     rolePermissions: { 'admin-deedtypes': true, 'admin-rewards': true, 'admin-reward-pickup': true, 'admin-suggestions': true, 'admin-reports': true },
@@ -2236,7 +2248,7 @@ document.addEventListener('click', async (e) => {
       const screen = btn.dataset.screen;
       setState({ loading: true });
       await loadDataForScreen(screen);
-      setState({ loading: false, screen, scanStep: 0, selectedDeedId: null, scanStudent: null });
+      setState({ loading: false, screen, scanStep: 0, selectedDeedId: null, scanStudent: null, addStudentCode: '', addStudentName: '' });
       break;
     }
 
@@ -2257,7 +2269,7 @@ document.addEventListener('click', async (e) => {
       const screen = btn.dataset.screen;
       setState({ loading: true });
       await loadDataForScreen(screen);
-      setState({ loading: false, screen, scanStep: 0, selectedDeedId: null, scanStudent: null });
+      setState({ loading: false, screen, scanStep: 0, selectedDeedId: null, scanStudent: null, addStudentCode: '', addStudentName: '' });
       break;
     }
 
@@ -2271,7 +2283,7 @@ document.addEventListener('click', async (e) => {
 
     case 'reset-scan':
       stopScan();
-      setState({ scanStep: 0, selectedDeedId: null, scanStudent: null });
+      setState({ scanStep: 0, selectedDeedId: null, scanStudent: null, addStudentCode: '', addStudentName: '' });
       break;
 
     case 'select-deed':
@@ -2331,17 +2343,17 @@ document.addEventListener('click', async (e) => {
 
     case 'submit-addpoints': {
       const code = document.getElementById('add-student-code')?.value.trim();
-      const deedTypeId = parseInt(document.getElementById('add-deed-type')?.value);
-      const points = parseInt(document.getElementById('add-points')?.value);
+      const deedTypeId = state.selectedDeedId;
+      const points = state.points;
       const note = document.getElementById('add-note')?.value || '';
-      if (!code || !deedTypeId || !points) { showToast('กรุณากรอกข้อมูลให้ครบ'); return; }
+      if (!code || !deedTypeId || !points) { showToast('กรุณากรอกรหัสนักเรียนและเลือกประเภทความดี'); return; }
       setState({ loading: true });
       const { error } = await addPointLog({ studentCode: code, deedTypeId, points, note });
       setState({ loading: false });
       if (error) { showToast(`เกิดข้อผิดพลาด: ${error}`); break; }
       showToast('บันทึกคะแนนสำเร็จ! ✅');
       await loadDataForScreen('teacher-dashboard');
-      setState({ screen: 'teacher-dashboard' });
+      setState({ screen: 'teacher-dashboard', selectedDeedId: null, points: 10, addStudentCode: '', addStudentName: '' });
       break;
     }
 
@@ -2819,7 +2831,7 @@ document.addEventListener('click', async (e) => {
       const screen = entering ? 'teacher-dashboard' : 'admin-dashboard';
       setState({ loading: true });
       await loadDataForScreen(screen);
-      setState({ loading: false, previewAsTeacher: entering, screen, scanStep: 0, selectedDeedId: null, scanStudent: null });
+      setState({ loading: false, previewAsTeacher: entering, screen, scanStep: 0, selectedDeedId: null, scanStudent: null, addStudentCode: '', addStudentName: '' });
       showToast(entering ? 'กำลังดูมุมมองครู 🧑‍🏫' : 'กลับสู่มุมมอง Admin');
       break;
     }

@@ -356,12 +356,17 @@ create policy "badge_tiers_staff_write" on public.badge_tiers
   for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 
 insert into public.badge_tiers (icon, name, min_points, color) values
-  ('🌿', 'ผู้เริ่มต้น',    0,    '#6b7280'),
+  ('🌰', 'ผู้เริ่มต้น',    0,    '#6b7280'),
   ('🌱', 'คนดีระดับต้น',   100,  'oklch(0.52 0.17 145)'),
-  ('🌟', 'คนดีระดับกลาง', 500,  '#3b82f6'),
-  ('⭐', 'คนดีระดับสูง',  1000, '#8b5cf6'),
-  ('👑', 'คนดีต้นแบบ',    5000, '#f59e0b')
+  ('🌿', 'คนดีระดับกลาง', 500,  '#3b82f6'),
+  ('🪴', 'คนดีระดับสูง',  1000, '#8b5cf6'),
+  ('🌳', 'คนดีต้นแบบ',    5000, '#f59e0b')
 on conflict do nothing;
+
+-- 2026-07: icons updated to a seed→tree growth progression (🌰🌱🌿🪴🌳) so a
+-- student's Badge visually grows bigger the more points they accumulate.
+-- Applied directly to the live PP5 project via Supabase MCP (data-only
+-- change, no code/deploy needed) — reflected here so a fresh install matches.
 
 -- =============================================
 -- 8. App settings — key/value config (Leaderboard visibility, Top N)

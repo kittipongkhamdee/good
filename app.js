@@ -152,7 +152,12 @@ function getBadge(pts) {
 // student_name already includes the prefix (เด็กชาย/เด็กหญิง/นาย/...) baked in
 // from the source data — don't prepend s.prefix again or it doubles up.
 function fullName(s) { return (s.student_name || '').replace(/\s+/g, ' ').trim(); }
-function classOf(s)   { return `ม.${s.grade_level || ''}/${s.room || ''}`; }
+// room "0" หมายถึงชั้นนั้นมีห้องเดียว (ไม่ได้แบ่งห้อง) — ไม่ต้องโชว์ "/0"
+function classOf(s) {
+  const grade = s.grade_level || '';
+  const room = s.room;
+  return (!room || room === '0') ? `ม.${grade}` : `ม.${grade}/${room}`;
+}
 
 // รูปโปรไฟล์นักเรียน — แสดงรูปจริงถ้ามี (เก็บใน Supabase Storage) ไม่งั้นแสดง emoji แทน
 function studentAvatar(s, { size = 60, fontSize = 26, bg = 'rgba(255,255,255,0.18)', border = '2.5px solid rgba(255,255,255,0.45)', margin = '', shadow = '' } = {}) {

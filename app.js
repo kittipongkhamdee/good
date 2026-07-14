@@ -802,7 +802,7 @@ function renderStudentDashboard() {
   return `
   <div class="screen-wrap anim-slideup">
     <div class="hero-banner">
-      <div id="hero-leaf-field" aria-hidden="true"></div>
+      <div id="hero-leaf-field" class="leaf-field" aria-hidden="true"></div>
       <div style="position:relative;z-index:1;display:flex;align-items:center;gap:14px;">
         ${studentAvatar(s, { size: 62, fontSize: 28 })}
         <div>
@@ -1191,7 +1191,8 @@ function renderTeacherDashboard() {
   return `
   <div class="screen-wrap anim-slideup">
     <div class="hero-banner">
-      <div style="display:flex;align-items:center;gap:14px;">
+      <div id="teacher-hero-leaf-field" class="leaf-field" aria-hidden="true"></div>
+      <div style="position:relative;z-index:1;display:flex;align-items:center;gap:14px;">
         <div style="position:relative;flex-shrink:0;">
           ${staffAvatar(u, { size: 60, fontSize: 26 })}
           <button data-action="open-staff-photo" style="position:absolute;bottom:-2px;right:-2px;width:20px;height:20px;border-radius:50%;background:var(--g);color:#fff;border:2px solid #fff;font-size:11px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;">📷</button>
@@ -1201,7 +1202,7 @@ function renderTeacherDashboard() {
           <div style="font-size:12px;opacity:0.8;margin-top:3px;">ครู</div>
         </div>
       </div>
-      <div style="margin-top:18px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.18);display:flex;align-items:flex-end;justify-content:space-between;">
+      <div style="position:relative;z-index:1;margin-top:18px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.18);display:flex;align-items:flex-end;justify-content:space-between;">
         <div>
           <div style="font-size:12px;opacity:0.75;">ให้คะแนนทั้งหมด</div>
           <div style="font-size:44px;font-weight:700;line-height:1;margin-top:2px;" data-countup="${totalPointsGiven}">0</div>
@@ -2048,6 +2049,7 @@ function afterRender() {
   }
 
   spawnHeroLeaves();
+  spawnTeacherHeroLeaves();
   animateCountUps();
   animateLevelBars();
 }
@@ -3284,6 +3286,14 @@ function spawnHeroLeaves() {
   if (!field) return;
   field.innerHTML = '';
   spawnLeaves(field, { count: 7, sizeMin: 11, sizeMax: 17, durMin: 6, durMax: 9, delMax: 7 });
+}
+
+// การ์ดชื่อครู — ใบไม้ใหญ่กว่าของนักเรียนตามที่ขอ (สัดส่วนอื่นเหมือนกันหมด)
+function spawnTeacherHeroLeaves() {
+  const field = document.getElementById('teacher-hero-leaf-field');
+  if (!field) return;
+  field.innerHTML = '';
+  spawnLeaves(field, { count: 7, sizeMin: 18, sizeMax: 26, durMin: 6, durMax: 9, delMax: 7 });
 }
 
 // วงสีสันกระจายจากกึ่งกลาง element ที่แตะ — ลบตัวเองทิ้งเมื่อแอนิเมชันจบ (ไม่ต้องผูกกับ render())

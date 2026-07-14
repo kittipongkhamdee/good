@@ -49,7 +49,7 @@ select { appearance: none; -webkit-appearance: none; }
 /* ── Falling leaves (decorative, non-interactive) ── */
 /* --dy = fall distance in px, computed in JS from the container's own height so the
    same animation works both full-page (login) and inside a short card (student hero) */
-#leaf-field, #hero-leaf-field { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+#leaf-field, .leaf-field { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
 .leaf {
   position: absolute; top: -10%; left: var(--x); font-size: var(--sz); opacity: 0;
   will-change: transform, opacity; animation: leafFall var(--dur) ease-in-out infinite; animation-delay: var(--del);

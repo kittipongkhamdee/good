@@ -59,6 +59,18 @@ const state = {
   codeRoomFilter: '',
   codeHistory: [],       // Admin: ประวัติโค้ดที่ครูสร้างทั้งหมด (admin-codehistory)
   teacherRecentLogs: [], // เฉพาะของครูคนที่ login อยู่ (เดือนนี้) — ใช้คำนวณสถิติ+กิจกรรมล่าสุดที่หน้าหลักครู
+
+  // เรียกหานักเรียนทำความดี — ฝั่งครู (schema.sql §24)
+  deedCall: null,          // { id, deed_type_id, icon, name, message, scopeLabel, slots, filled_count, expiresAt, totalMs } — งานที่กำลังเรียกอยู่
+  deedCallResponses: [],   // [{ student_name, responded_at }]
+  callDurationMin: 15,
+  callGradeFilter: '',
+  callRoomFilter: '',
+  callSlots: 2,
+  callMessage: '',         // ต้องเก็บใน state เพราะฟอร์มนี้มีปุ่ม/select อื่นที่ re-render ทั้งจอ ถ้าไม่เก็บ ข้อความที่พิมพ์จะหายเวลากดปุ่มอื่นก่อนส่ง
+
+  // เรียกหานักเรียนทำความดี — ฝั่งนักเรียน
+  incomingDeedCall: null,  // งานเรียกที่กำลังแสดงเป็น alert เต็มจอ (แสดงผ่าน #deedcall-container ตรงๆ ไม่ผ่าน render())
 };
 
 // ── Screen titles ──
@@ -75,6 +87,7 @@ const TITLES = {
   'teacher-history':   'ประวัติการให้คะแนน',
   'teacher-createcode': 'สร้างโค้ดรับคะแนน',
   'teacher-codedisplay': 'โค้ดรับคะแนน',
+  'teacher-calldeeds':  'เรียกหานักเรียน',
   'admin-dashboard':   'Admin Dashboard',
   'admin-students':    'จัดการนักเรียน',
   'admin-deedtypes':   'ประเภทความดี',
@@ -99,6 +112,7 @@ const NAV = {
     { id: 'teacher-dashboard',  icon: '🏠', label: 'หน้าหลัก' },
     { id: 'teacher-scan',       icon: '📷', label: 'สแกน QR' },
     { id: 'teacher-addpoints',  icon: '✏️', label: 'เพิ่มคะแนน' },
+    { id: 'teacher-calldeeds',  icon: '📣', label: 'เรียกหา' },
     { id: 'teacher-history',    icon: '📋', label: 'ประวัติ' },
     { id: 'admin-students',    icon: '👩‍🎓', label: 'นักเรียน' },
     { id: 'admin-deedtypes',   icon: '💚', label: 'ความดี' },
@@ -112,6 +126,7 @@ const NAV = {
     { id: 'admin-dashboard',  icon: '📊', label: 'Dashboard' },
     { id: 'teacher-scan',     icon: '📷', label: 'สแกน QR' },
     { id: 'teacher-addpoints', icon: '✏️', label: 'เพิ่มคะแนน' },
+    { id: 'teacher-calldeeds', icon: '📣', label: 'เรียกหานักเรียน' },
     { id: 'teacher-history',  icon: '📋', label: 'ประวัติให้คะแนน' },
     { id: 'admin-students',   icon: '👩‍🎓', label: 'นักเรียน' },
     { id: 'admin-deedtypes',  icon: '💚', label: 'ความดี' },
@@ -851,6 +866,7 @@ function renderScreen(screen) {
     'teacher-history':     renderTeacherHistory,
     'teacher-createcode':  renderTeacherCreateCode,
     'teacher-codedisplay': renderTeacherCodeDisplay,
+    'teacher-calldeeds':   renderTeacherCallForDeeds,
     'admin-dashboard':     renderAdminDashboard,
     'admin-students':      renderAdminStudents,
     'admin-deedtypes':     renderAdminDeedTypes,
@@ -1568,6 +1584,116 @@ function renderTeacherCodeDisplay() {
   </div>`;
 }
 
+// เรียกหานักเรียนทำความดี (คล้ายเรียกไรเดอร์ส่งอาหาร) — Foreground-only ผ่าน Supabase Realtime
+// จอเดียวสลับสองสถานะ: ยังไม่มีงานเรียกอยู่ → ฟอร์มสร้างงาน / มีงานเรียกอยู่ → แผงติดตามสถานะสด
+function renderTeacherCallForDeeds() {
+  if (state.deedCall) return renderDeedCallDispatchPanel();
+
+  const deedTypes = state.deedTypes;
+  const grades = distinctGrades();
+  const rooms = [...new Set(
+    state.studentClasses
+      .filter(c => !state.callGradeFilter || c.grade_level === state.callGradeFilter)
+      .map(c => c.room)
+  )].sort((a, b) => a.localeCompare(b, 'th', { numeric: true }));
+
+  return `
+  <div class="screen-wrap anim-slideup">
+    <div class="card">
+      <div style="background:linear-gradient(135deg,#d97706,#f59e0b);border-radius:12px;padding:16px 20px;color:#fff;text-align:center;margin-bottom:16px;">
+        <div style="font-size:18px;font-weight:700;">📣 เรียกหานักเรียนทำความดี</div>
+        <div style="font-size:12px;opacity:0.85;margin-top:4px;">นักเรียนที่เปิดแอปอยู่ในขอบเขตที่เลือกจะได้รับแจ้งเตือนทันที</div>
+      </div>
+
+      <div style="font-weight:700;color:var(--gd);margin-bottom:12px;">เลือกประเภทความดี</div>
+      <div class="deed-grid" style="margin-bottom:16px;">
+        ${deedTypes.map(d => `
+          <button class="deed-chip ${state.selectedDeedId === d.id ? 'selected' : ''}" data-action="select-deed" data-deed-id="${d.id}">
+            ${d.icon} ${d.name}
+          </button>
+        `).join('')}
+      </div>
+
+      <div style="font-weight:700;color:var(--gd);margin-bottom:8px;">ข้อความถึงนักเรียน</div>
+      <textarea class="form-input" id="call-message" rows="2" style="resize:none;margin-bottom:16px;" placeholder="เช่น ใครช่วยเก็บขยะหน้าห้องพักครูหน่อยครับ 🙏">${state.callMessage}</textarea>
+
+      <div style="font-weight:700;color:var(--gd);margin-bottom:10px;">ขอบเขต</div>
+      <div style="display:flex;gap:10px;margin-bottom:16px;">
+        <select class="form-input" id="call-grade-filter" style="flex:1;">
+          <option value="">ทั้งโรงเรียน</option>
+          ${grades.map(g => `<option value="${g}" ${state.callGradeFilter === g ? 'selected' : ''}>ชั้น ${gradeLabel(g)}</option>`).join('')}
+        </select>
+        <select class="form-input" id="call-room-filter" style="flex:1;" ${state.callGradeFilter ? '' : 'disabled'}>
+          <option value="">ทุกห้อง</option>
+          ${rooms.map(r => `<option value="${r}" ${state.callRoomFilter === r ? 'selected' : ''}>ห้อง ${r}</option>`).join('')}
+        </select>
+      </div>
+
+      <div style="font-weight:700;color:var(--gd);margin-bottom:10px;">รับกี่คน</div>
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;">
+        <button class="slots-btn" data-action="call-slots-minus" style="width:34px;height:34px;border-radius:50%;border:1.5px solid #e5e7eb;background:#fff;font-weight:800;font-size:16px;cursor:pointer;">−</button>
+        <span style="font-weight:800;font-size:16px;min-width:24px;text-align:center;">${state.callSlots}</span>
+        <button class="slots-btn" data-action="call-slots-plus" style="width:34px;height:34px;border-radius:50%;border:1.5px solid #e5e7eb;background:#fff;font-weight:800;font-size:16px;cursor:pointer;">+</button>
+      </div>
+
+      <div style="font-weight:700;color:var(--gd);margin-bottom:10px;">⏱️ เวลาที่รับได้</div>
+      <div class="deed-grid" style="margin-bottom:18px;">
+        ${[5, 10, 15, 30].map(m => `
+          <button class="deed-chip ${state.callDurationMin === m ? 'selected' : ''}" data-action="select-call-duration" data-min="${m}">${m} นาที</button>
+        `).join('')}
+      </div>
+
+      <button class="call-btn-cta" data-action="dispatch-deed-call" style="opacity:${state.selectedDeedId ? 1 : 0.5};" ${state.loading ? 'disabled' : ''}>
+        ${state.loading ? 'กำลังส่ง...' : '📣 เรียกเลย!'}
+      </button>
+
+      <div style="font-size:11.5px;color:#9ca3af;margin-top:10px;text-align:center;">* ใช้งานได้เมื่อนักเรียนเปิดแอปอยู่เท่านั้น (ยังไม่ใช่ Push Notification)</div>
+    </div>
+  </div>`;
+}
+
+function renderDeedCallDispatchPanel() {
+  const c = state.deedCall;
+  const remainMs = new Date(c.expiresAt).getTime() - Date.now();
+  const expired = remainMs <= 0;
+  const responses = state.deedCallResponses;
+
+  return `
+  <div class="screen-wrap anim-slideup">
+    <div class="card" style="text-align:center;">
+      <div style="font-size:15px;font-weight:700;color:var(--gd);">${c.icon} ${c.name}</div>
+      <div style="font-size:13px;color:#9ca3af;margin-top:4px;">${c.scopeLabel}</div>
+      <div style="font-size:13px;color:#374151;margin-top:10px;background:var(--sage-bg,#f3f6f0);border-radius:10px;padding:10px 14px;">${c.message}</div>
+
+      <div style="margin-top:20px;display:flex;flex-direction:column;align-items:center;">
+        <div id="call-countdown-ring" style="width:76px;height:76px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:conic-gradient(#f59e0b 360deg, #e5e7eb 0deg);">
+          <div style="width:62px;height:62px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#b45309;">
+            <span id="call-countdown-text">--:--</span>
+          </div>
+        </div>
+        <div style="font-size:12px;color:#9ca3af;margin-top:8px;">${expired ? 'หมดเวลาแล้ว' : 'เวลาที่เหลือ'}</div>
+      </div>
+
+      <div style="margin-top:18px;font-weight:700;color:var(--gd);">รับแล้ว ${c.filled_count}/${c.slots} คน</div>
+
+      <div style="margin-top:12px;background:#fff;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.05);text-align:left;overflow:hidden;" id="call-responses-list">
+        ${responses.length
+          ? responses.map(r => `
+            <div class="list-item">
+              <span style="font-size:18px;">✅</span>
+              <div style="flex:1;">
+                <div style="font-weight:600;font-size:13px;color:#1f2937;">${r.student_name}</div>
+                <div style="font-size:11px;color:#9ca3af;">${formatTimeHM(r.responded_at)} น.</div>
+              </div>
+            </div>`).join('')
+          : `<div style="padding:22px;text-align:center;color:#9ca3af;font-size:13px;">ยังไม่มีใครรับงาน</div>`}
+      </div>
+
+      <button data-action="cancel-deed-call" style="width:100%;margin-top:16px;padding:12px;background:#fee2e2;color:#dc2626;border:none;border-radius:10px;font-family:Kanit;font-weight:600;cursor:pointer;">✕ ยกเลิกงานนี้</button>
+    </div>
+  </div>`;
+}
+
 // ══════════════════════════════════════════════
 // ADMIN SCREENS
 // ══════════════════════════════════════════════
@@ -2105,6 +2231,13 @@ function afterRender() {
     });
   }
 
+  // เก็บข้อความที่พิมพ์ลง state ตรงๆ (ไม่ผ่าน setState/render) เพราะฟอร์มเรียกหานักเรียนมีปุ่ม/select
+  // อื่นที่ re-render ทั้งจอ ถ้าไม่เก็บไว้ ข้อความจะหายเวลากดปุ่มอื่นก่อนกด "เรียกเลย!"
+  const callMessageInput = document.getElementById('call-message');
+  if (callMessageInput) {
+    callMessageInput.addEventListener('input', () => { state.callMessage = callMessageInput.value; });
+  }
+
   const codeInput = document.getElementById('add-student-code');
   if (codeInput) {
     codeInput.addEventListener('input', async () => {
@@ -2223,6 +2356,55 @@ async function tickCodeCountdown() {
   text.textContent = `${mm}:${ss}`;
   const deg = Math.max(0, Math.min(360, (remainMs / state.pointCode.totalMs) * 360));
   ring.style.background = `conic-gradient(var(--g) ${deg}deg, #e5e7eb ${deg}deg)`;
+}
+
+// นับเวลาถอยหลังของงานเรียกหานักเรียนที่ครูกำลังดูอยู่ — เหมือน tickCodeCountdown ทุกประการ
+function startCallCountdown() {
+  stopCallCountdown();
+  tickCallCountdown();
+  state._callCountdownTimer = setInterval(tickCallCountdown, 1000);
+}
+
+function stopCallCountdown() {
+  if (state._callCountdownTimer) { clearInterval(state._callCountdownTimer); state._callCountdownTimer = null; }
+}
+
+function tickCallCountdown() {
+  if (state.screen !== 'teacher-calldeeds' || !state.deedCall) { stopCallCountdown(); return; }
+  const ring = document.getElementById('call-countdown-ring');
+  const text = document.getElementById('call-countdown-text');
+  if (!ring || !text) { stopCallCountdown(); return; }
+
+  const remainMs = new Date(state.deedCall.expiresAt).getTime() - Date.now();
+  if (remainMs <= 0) {
+    stopCallCountdown();
+    text.textContent = '00:00';
+    ring.style.background = 'conic-gradient(#e5e7eb 360deg, #e5e7eb 0deg)';
+    return;
+  }
+
+  const remainSec = Math.ceil(remainMs / 1000);
+  const mm = String(Math.floor(remainSec / 60)).padStart(2, '0');
+  const ss = String(remainSec % 60).padStart(2, '0');
+  text.textContent = `${mm}:${ss}`;
+  const deg = Math.max(0, Math.min(360, (remainMs / state.deedCall.totalMs) * 360));
+  ring.style.background = `conic-gradient(#f59e0b ${deg}deg, #e5e7eb ${deg}deg)`;
+}
+
+// สมัคร/เลิกสมัคร Realtime ฟังคนรับงานเรียกใหม่ (ฝั่งครู) — เก็บ channel ไว้ที่ state._deedCallResponsesChannel
+function subscribeDeedCallResponses(callId) {
+  unsubscribeDeedCallResponses();
+  state._deedCallResponsesChannel = subscribeToDeedCallResponses(callId, (row) => {
+    if (state.deedCall?.id !== callId) return; // event เก่าจากงานที่ยกเลิก/เปลี่ยนไปแล้ว
+    if (state.deedCallResponses.some(r => r.student_name === row.student_name && r.responded_at === row.responded_at)) return;
+    setState({
+      deedCallResponses: [...state.deedCallResponses, { student_name: row.student_name, responded_at: row.responded_at }],
+      deedCall: { ...state.deedCall, filled_count: state.deedCall.filled_count + 1 },
+    });
+  });
+}
+function unsubscribeDeedCallResponses() {
+  if (state._deedCallResponsesChannel) { unsubscribeChannel(state._deedCallResponsesChannel); state._deedCallResponsesChannel = null; }
 }
 
 // ══════════════════════════════════════════════
@@ -2385,6 +2567,93 @@ async function handleStudentScanResult(raw) {
 }
 
 // ══════════════════════════════════════════════
+// เรียกหานักเรียนทำความดี — ฝั่งนักเรียน (schema.sql §24)
+// Foreground-only: ทำงานได้เมื่อเปิดแอปค้างอยู่ ผ่าน Supabase Realtime (ไม่ใช่ Push Notification จริง)
+// ══════════════════════════════════════════════
+
+// สองโน้ตไล่เสียง (A5 สั้นๆ) เตือนแบบด่วน ต่างจากเสียงเลเวลอัพ — ไม่ต้องพึ่งไฟล์เสียงเพิ่ม
+function playDeedCallAlertSound() {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  try {
+    const start = ctx.currentTime;
+    [0, 0.16].forEach((delay) => {
+      const t = start + delay;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(880, t);
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(0.2, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.35);
+    });
+  } catch {}
+}
+
+function deedCallScopeLabel(call) {
+  if (!call.grade_level) return 'ทั้งโรงเรียน';
+  return `${gradeLabel(call.grade_level)}${call.room ? '/' + call.room : ''}`;
+}
+
+function showIncomingDeedCallAlert(call) {
+  const c = document.getElementById('deedcall-container');
+  if (!c) return;
+  c.innerHTML = `
+    <div class="deedcall-overlay" data-action="dismiss-deed-call">
+      <div class="deedcall-ring">${call.deed_icon || '💚'}</div>
+      <div class="deedcall-kicker">ครูเรียกด่วน</div>
+      <div class="deedcall-title">${call.deed_name || 'มาช่วยทำความดี'}</div>
+      <div class="deedcall-msg">${call.message}</div>
+      <div class="deedcall-from">จาก ${call.teacher_name || 'ครู'} · ขอบเขต: ${deedCallScopeLabel(call)}</div>
+      <div class="deedcall-actions">
+        <button class="deedcall-dismiss" data-action="dismiss-deed-call">ไม่สะดวก</button>
+        <button class="deedcall-accept" data-action="accept-deed-call" data-call-id="${call.id}">ไปทำเลย!</button>
+      </div>
+    </div>`;
+  playDeedCallAlertSound();
+  if (navigator.vibrate) navigator.vibrate([50, 40, 50, 40, 90]);
+}
+function hideIncomingDeedCallAlert() {
+  const c = document.getElementById('deedcall-container');
+  if (c) c.innerHTML = '';
+}
+
+// คิวงานเรียก — กันแจ้งเตือนซ้อนกันถ้ามีหลายงานเรียกเข้ามาพร้อมกัน แสดงทีละอันตามลำดับ
+function queueIncomingDeedCall(call) {
+  if (!state._handledDeedCallIds) state._handledDeedCallIds = new Set();
+  if (!state._deedCallQueue) state._deedCallQueue = [];
+  if (state._handledDeedCallIds.has(call.id)) return;
+  if (new Date(call.expires_at).getTime() <= Date.now()) return;
+  state._handledDeedCallIds.add(call.id);
+  state._deedCallQueue.push(call);
+  if (!state.incomingDeedCall) showNextIncomingDeedCall();
+}
+// แสดงงานเรียกถัดไปในคิว — แก้ #deedcall-container ตรงๆ ไม่ผ่าน setState()/render() เต็มจอ
+// เพราะนักเรียนอาจกำลังดูหน้าอื่นอยู่ (ประวัติ/Badge/อันดับ) ไม่อยากให้จอสะดุดเวลามีงานเรียกเข้ามา
+function showNextIncomingDeedCall() {
+  const next = (state._deedCallQueue || []).shift();
+  state.incomingDeedCall = next || null;
+  if (next) showIncomingDeedCallAlert(next);
+}
+
+// เมื่อมีงานเรียกใหม่ INSERT เข้ามา ดึงรายการที่ตรงขอบเขต+ยังไม่หมดเวลาใหม่ทั้งหมดอีกครั้งผ่าน RPC เดิม
+// (แทนที่จะอ่านจาก payload ตรงๆ) เพื่อให้ได้ icon/ชื่อความดี/ชื่อครูที่ join มาแล้ว ครบถ้วนเหมือนตอนโหลดครั้งแรก
+function subscribeIncomingDeedCalls() {
+  unsubscribeIncomingDeedCalls();
+  state._incomingDeedCallsChannel = subscribeToDeedCalls(async () => {
+    if (!state.student || state.role !== 'student') return;
+    const { data } = await getActiveDeedCalls(state.student.student_code);
+    (data || []).forEach(queueIncomingDeedCall);
+  });
+}
+function unsubscribeIncomingDeedCalls() {
+  if (state._incomingDeedCallsChannel) { unsubscribeChannel(state._incomingDeedCallsChannel); state._incomingDeedCallsChannel = null; }
+}
+
+// ══════════════════════════════════════════════
 // Auth actions
 // ══════════════════════════════════════════════
 
@@ -2410,6 +2679,11 @@ async function enterStudentSession(code, { silent = false } = {}) {
     badgeTiers: badgeTiers || [], settings: settings || state.settings, leaderboardScope: 'school',
   });
   if (!silent) showToast(`ยินดีต้อนรับ ${fullName(student)}! 🌿`);
+
+  subscribeIncomingDeedCalls();
+  const { data: activeCalls } = await getActiveDeedCalls(code);
+  (activeCalls || []).forEach(queueIncomingDeedCall);
+
   return { ok: true };
 }
 
@@ -2473,7 +2747,13 @@ async function restoreSession() {
 async function doLogout() {
   stopScan();
   stopCodeCountdown();
+  stopCallCountdown();
   stopStudentScan();
+  unsubscribeDeedCallResponses();
+  unsubscribeIncomingDeedCalls();
+  state._deedCallQueue = [];
+  state._handledDeedCallIds = new Set();
+  hideIncomingDeedCallAlert();
   if (state.role === 'teacher' || state.role === 'admin') await staffLogout();
   localStorage.removeItem(STUDENT_CODE_KEY);
   Object.assign(state, {
@@ -2483,6 +2763,8 @@ async function doLogout() {
     reportSummary: null, reportError: null, reportLeaderboard: null, reportGradeFilter: '', scanStep: 0, scanStudent: null, selectedDeedId: null, points: 10,
     addStudentCode: '', addStudentName: '', studentScanMode: false,
     pointCode: null, codeDurationMin: 10, codeGradeFilter: '', codeRoomFilter: '', codeHistory: [], teacherRecentLogs: [],
+    deedCall: null, deedCallResponses: [], callDurationMin: 15, callGradeFilter: '', callRoomFilter: '', callSlots: 2, callMessage: '',
+    incomingDeedCall: null,
     settings: { leaderboardEnabled: true, leaderboardTopN: 10, schoolLogoUrl: null, schoolName: 'ตาเบาวิทยา', schoolTagline: 'ระบบสะสมคะแนนความดีนักเรียน' },
     rolePermissions: { 'admin-deedtypes': true, 'admin-rewards': true, 'admin-reward-pickup': true, 'admin-suggestions': true, 'admin-reports': true },
   });
@@ -2504,11 +2786,11 @@ async function loadDataForScreen(screen) {
     const { data } = await getPointLogs({ limit: null, teacherId: state.staffUser.id });
     state.teacherRecentLogs = data || [];
   }
-  if (screen === 'teacher-scan' || screen === 'teacher-addpoints' || screen === 'teacher-createcode') {
+  if (screen === 'teacher-scan' || screen === 'teacher-addpoints' || screen === 'teacher-createcode' || screen === 'teacher-calldeeds') {
     const { data } = await getDeedTypes();
     state.deedTypes = data || [];
   }
-  if (screen === 'teacher-createcode' && !state.studentClasses.length) {
+  if ((screen === 'teacher-createcode' || screen === 'teacher-calldeeds') && !state.studentClasses.length) {
     const { data } = await getStudentClasses();
     state.studentClasses = data || [];
   }
@@ -2598,6 +2880,12 @@ document.addEventListener('change', async (e) => {
   if (e.target.id === 'code-room-filter') {
     setState({ codeRoomFilter: e.target.value });
   }
+  if (e.target.id === 'call-grade-filter') {
+    setState({ callGradeFilter: e.target.value, callRoomFilter: '' });
+  }
+  if (e.target.id === 'call-room-filter') {
+    setState({ callRoomFilter: e.target.value });
+  }
 });
 
 document.addEventListener('click', async (e) => {
@@ -2625,6 +2913,7 @@ document.addEventListener('click', async (e) => {
     case 'nav': {
       if (state.screen === 'teacher-scan') stopScan();
       if (state.screen === 'teacher-codedisplay') stopCodeCountdown();
+      if (state.screen === 'teacher-calldeeds') stopCallCountdown();
       if (state.studentScanMode) stopStudentScan();
       const screen = btn.dataset.screen;
       setState({ loading: true });
@@ -2647,6 +2936,7 @@ document.addEventListener('click', async (e) => {
       closeDrawer();
       if (state.screen === 'teacher-scan') stopScan();
       if (state.screen === 'teacher-codedisplay') stopCodeCountdown();
+      if (state.screen === 'teacher-calldeeds') stopCallCountdown();
       if (state.studentScanMode) stopStudentScan();
       const screen = btn.dataset.screen;
       setState({ loading: true });
@@ -2741,6 +3031,54 @@ document.addEventListener('click', async (e) => {
       showToast('ปิดโค้ดแล้ว');
       await loadDataForScreen('teacher-dashboard');
       setState({ screen: 'teacher-dashboard', pointCode: null });
+      break;
+    }
+
+    case 'select-call-duration':
+      setState({ callDurationMin: parseInt(btn.dataset.min) });
+      break;
+
+    case 'call-slots-minus':
+      setState({ callSlots: Math.max(1, state.callSlots - 1) });
+      break;
+
+    case 'call-slots-plus':
+      setState({ callSlots: Math.min(9, state.callSlots + 1) });
+      break;
+
+    case 'dispatch-deed-call': {
+      if (!state.selectedDeedId) { showToast('กรุณาเลือกประเภทความดีก่อน'); return; }
+      const deed = state.deedTypes.find(d => d.id === state.selectedDeedId);
+      const message = state.callMessage.trim() || 'มาช่วยกันทำความดีนะครับ 🙏';
+      const gradeLevel = state.callGradeFilter || null;
+      const room = state.callRoomFilter || null;
+      setState({ loading: true });
+      const { data, error } = await createDeedCall({
+        deedTypeId: state.selectedDeedId, message, gradeLevel, room,
+        slots: state.callSlots, minutes: state.callDurationMin,
+      });
+      if (error || !data) { setState({ loading: false }); showToast(`เกิดข้อผิดพลาด: ${error || 'เรียกไม่สำเร็จ'}`); break; }
+      const scopeLabel = gradeLevel ? `ม.${gradeLevel}${room ? '/' + room : ''}` : 'ทั้งโรงเรียน';
+      setState({
+        loading: false, selectedDeedId: null, callMessage: '',
+        deedCall: {
+          id: data.id, icon: deed?.icon || '💚', name: deed?.name || '', message: data.message,
+          scopeLabel, slots: data.slots, filled_count: data.filled_count,
+          expiresAt: data.expires_at, totalMs: state.callDurationMin * 60 * 1000,
+        },
+        deedCallResponses: [],
+      });
+      startCallCountdown();
+      subscribeDeedCallResponses(data.id);
+      break;
+    }
+
+    case 'cancel-deed-call': {
+      stopCallCountdown();
+      unsubscribeDeedCallResponses();
+      if (state.deedCall?.id) await cancelDeedCall(state.deedCall.id);
+      showToast('ยกเลิกงานเรียกแล้ว');
+      setState({ deedCall: null, deedCallResponses: [] });
       break;
     }
 
@@ -3362,6 +3700,22 @@ document.addEventListener('click', async (e) => {
     case 'close-levelup':
       closeLevelUpCelebration();
       break;
+
+    case 'dismiss-deed-call':
+      hideIncomingDeedCallAlert();
+      showNextIncomingDeedCall();
+      break;
+
+    case 'accept-deed-call': {
+      const callId = btn.dataset.callId;
+      hideIncomingDeedCallAlert();
+      const { data, error } = await respondToDeedCall(callId, state.student.student_code);
+      if (error) { showToast(`❌ ${error}`); showNextIncomingDeedCall(); break; }
+      if (data?.ok) showToast('✅ รับงานแล้ว! ครูรอคุณอยู่นะครับ');
+      else showToast(`ℹ️ ${data?.message || 'งานนี้ปิดรับแล้ว'}`);
+      showNextIncomingDeedCall();
+      break;
+    }
   }
 });
 

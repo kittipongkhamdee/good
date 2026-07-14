@@ -1207,3 +1207,181 @@ create policy "staff_photos_staff_update" on storage.objects for update
 
 create policy "staff_photos_staff_delete" on storage.objects for delete
   using (bucket_id = 'staff-photos' and auth.role() = 'authenticated');
+
+-- =============================================
+-- 24. Call for deeds — ครูเรียกหานักเรียนมาช่วยทำความดี (คล้ายเรียกไรเดอร์ส่งอาหาร)
+-- Foreground-only: ใช้ Supabase Realtime (postgres_changes) นักเรียนต้องเปิดแอปค้างไว้
+-- ถึงจะได้รับการแจ้งเตือน — ยังไม่ใช่ Web Push จริง (นั่นเป็นงานเฟสถัดไป)
+-- =============================================
+create table if not exists public.deed_calls (
+  id uuid primary key default extensions.uuid_generate_v4(),
+  teacher_id uuid not null references public.profiles(id) on delete cascade,
+  deed_type_id int references public.good_deed_types(id) on delete set null,
+  message text not null default '',
+  grade_level text,  -- null = ทั้งโรงเรียน
+  room text,         -- null = ทั้งชั้น (ต้องมี grade_level ด้วย)
+  slots int not null default 1 check (slots > 0),
+  filled_count int not null default 0,
+  status text not null default 'open' check (status in ('open','filled','expired','cancelled')),
+  expires_at timestamptz not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists idx_deed_calls_status on public.deed_calls(status);
+create index if not exists idx_deed_calls_teacher on public.deed_calls(teacher_id);
+
+create table if not exists public.deed_call_responses (
+  id uuid primary key default extensions.uuid_generate_v4(),
+  call_id uuid not null references public.deed_calls(id) on delete cascade,
+  student_id uuid not null references public.students(id) on delete cascade,
+  student_name text not null,
+  responded_at timestamptz not null default now(),
+  unique (call_id, student_id)
+);
+create index if not exists idx_deed_call_responses_call on public.deed_call_responses(call_id);
+
+alter table public.deed_calls enable row level security;
+alter table public.deed_call_responses enable row level security;
+
+-- อ่านได้ทุกคน — ไม่มีข้อมูลลับ (แค่ประเภทความดี/ข้อความ/ขอบเขต) จำเป็นสำหรับ Realtime ไปหานักเรียน (anon)
+create policy deed_calls_read on public.deed_calls for select using (true);
+create policy deed_call_responses_read on public.deed_call_responses for select using (true);
+
+-- สร้าง/ยกเลิกได้เฉพาะครูเจ้าของงานเรียก (teacher_id ผูกกับ auth.uid() เสมอ)
+create policy deed_calls_insert_staff on public.deed_calls for insert to authenticated with check (teacher_id = auth.uid());
+create policy deed_calls_update_owner on public.deed_calls for update using (teacher_id = auth.uid()) with check (teacher_id = auth.uid());
+
+-- ครูสร้างงานเรียก
+create or replace function public.create_deed_call(p_deed_type_id int, p_message text, p_grade_level text, p_room text, p_slots int, p_minutes int default 15)
+returns public.deed_calls
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_row public.deed_calls;
+begin
+  if auth.uid() is null then
+    raise exception 'ต้องเข้าสู่ระบบก่อน';
+  end if;
+  insert into public.deed_calls(teacher_id, deed_type_id, message, grade_level, room, slots, expires_at)
+  values (auth.uid(), p_deed_type_id, p_message, nullif(p_grade_level,''), nullif(p_room,''), p_slots, now() + (p_minutes || ' minutes')::interval)
+  returning * into v_row;
+  return v_row;
+end;
+$$;
+revoke execute on function public.create_deed_call(int,text,text,text,int,int) from public;
+revoke execute on function public.create_deed_call(int,text,text,text,int,int) from anon;
+grant execute on function public.create_deed_call(int,text,text,text,int,int) to authenticated;
+
+-- ครูยกเลิกงานเรียกของตัวเอง
+create or replace function public.cancel_deed_call(p_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then raise exception 'ต้องเข้าสู่ระบบก่อน'; end if;
+  update public.deed_calls set status = 'cancelled' where id = p_id and teacher_id = auth.uid();
+end;
+$$;
+revoke execute on function public.cancel_deed_call(uuid) from public;
+revoke execute on function public.cancel_deed_call(uuid) from anon;
+grant execute on function public.cancel_deed_call(uuid) to authenticated;
+
+-- นักเรียนรับงานเรียก — ไม่มี Supabase Auth session จึงเป็น SECURITY DEFINER + grant anon
+-- เหมือน redeem_point_code, ล็อกแถวด้วย FOR UPDATE กันแย่งสิทธิ์เกินจำนวน slots ตอนรับพร้อมกัน
+create or replace function public.respond_to_deed_call(p_call_id uuid, p_student_code text)
+returns table (ok boolean, message text, filled_count int, slots int)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_student_id uuid;
+  v_student_name text;
+  v_student_grade text;
+  v_student_room text;
+  v_call record;
+begin
+  -- คอลัมน์ต้องผูก alias ตารางให้ชัด (s./dc.) เพราะ "returns table" ประกาศ filled_count/slots
+  -- เป็นตัวแปร PL/pgSQL โดยปริยาย ชื่อชนกับคอลัมน์จริงในตาราง ทำให้ error "ambiguous" ถ้าเขียนลอยๆ
+  select s.id, s.student_name, s.grade_level, s.room into v_student_id, v_student_name, v_student_grade, v_student_room
+  from public.students s where s.student_code = p_student_code;
+  if v_student_id is null then
+    raise exception 'ไม่พบรหัสนักเรียนนี้';
+  end if;
+
+  select * into v_call from public.deed_calls where public.deed_calls.id = p_call_id for update;
+  if v_call.id is null then
+    raise exception 'ไม่พบงานเรียกนี้';
+  end if;
+  if v_call.status <> 'open' or v_call.expires_at <= now() then
+    return query select false, 'งานนี้ปิดรับแล้วหรือหมดเวลาแล้ว', v_call.filled_count, v_call.slots;
+    return;
+  end if;
+  if v_call.grade_level is not null and v_call.grade_level <> v_student_grade then
+    raise exception 'งานนี้ไม่ได้เรียกชั้นเรียนของคุณ';
+  end if;
+  if v_call.room is not null and v_call.room <> v_student_room then
+    raise exception 'งานนี้ไม่ได้เรียกห้องเรียนของคุณ';
+  end if;
+  if exists (select 1 from public.deed_call_responses r where r.call_id = p_call_id and r.student_id = v_student_id) then
+    return query select true, 'คุณรับงานนี้ไปแล้ว', v_call.filled_count, v_call.slots;
+    return;
+  end if;
+
+  insert into public.deed_call_responses(call_id, student_id, student_name) values (p_call_id, v_student_id, v_student_name);
+  update public.deed_calls dc set filled_count = dc.filled_count + 1,
+    status = case when dc.filled_count + 1 >= dc.slots then 'filled' else dc.status end
+    where dc.id = p_call_id;
+
+  return query select true, 'รับงานสำเร็จ', (v_call.filled_count + 1), v_call.slots;
+end;
+$$;
+revoke execute on function public.respond_to_deed_call(uuid,text) from public;
+grant execute on function public.respond_to_deed_call(uuid,text) to anon, authenticated;
+
+-- นักเรียนดึงงานเรียกที่ยังเปิดอยู่และตรงขอบเขตของตัวเอง (ใช้ตอนเปิดแอป ก่อน Realtime จะเริ่มรับ event ใหม่)
+create or replace function public.get_active_deed_calls(p_student_code text)
+returns table (
+  id uuid, deed_type_id int, deed_icon text, deed_name text, message text,
+  grade_level text, room text, slots int, filled_count int, expires_at timestamptz, created_at timestamptz,
+  teacher_name text
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_student_id uuid;
+  v_grade text;
+  v_room text;
+begin
+  -- ต้องผูก alias s. เพราะ "returns table" ประกาศ id เป็นตัวแปร PL/pgSQL โดยปริยาย ชนกับ students.id
+  select s.id, s.grade_level, s.room into v_student_id, v_grade, v_room
+  from public.students s where s.student_code = p_student_code;
+  if v_student_id is null then
+    raise exception 'ไม่พบรหัสนักเรียนนี้';
+  end if;
+
+  return query
+    select dc.id, dc.deed_type_id, gdt.icon, gdt.name, dc.message,
+           dc.grade_level, dc.room, dc.slots, dc.filled_count, dc.expires_at, dc.created_at,
+           p.full_name
+    from public.deed_calls dc
+    left join public.good_deed_types gdt on gdt.id = dc.deed_type_id
+    left join public.profiles p on p.id = dc.teacher_id
+    where dc.status = 'open' and dc.expires_at > now()
+      and (dc.grade_level is null or dc.grade_level = v_grade)
+      and (dc.room is null or dc.room = v_room)
+      and not exists (select 1 from public.deed_call_responses r where r.call_id = dc.id and r.student_id = v_student_id)
+    order by dc.created_at desc;
+end;
+$$;
+revoke execute on function public.get_active_deed_calls(text) from public;
+grant execute on function public.get_active_deed_calls(text) to anon, authenticated;
+
+-- เปิด Realtime broadcast ให้สองตารางนี้ (จำเป็นสำหรับแจ้งเตือนแบบเรียลไทม์)
+alter publication supabase_realtime add table public.deed_calls;
+alter publication supabase_realtime add table public.deed_call_responses;

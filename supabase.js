@@ -265,6 +265,67 @@ async function getPointCodeHistory({ limit = 30 } = {}) {
   return { data, error: error?.message || null };
 }
 
+// ──────────────────────────────────────────────
+// Call for deeds — ครูเรียกหานักเรียนมาช่วยทำความดี (คล้ายเรียกไรเดอร์ส่งอาหาร)
+// Foreground-only: ใช้ Supabase Realtime (postgres_changes) — ดู schema.sql §24
+// ──────────────────────────────────────────────
+
+async function createDeedCall({ deedTypeId, message, gradeLevel = null, room = null, slots = 1, minutes = 15 }) {
+  const { data, error } = await _sb.rpc('create_deed_call', {
+    p_deed_type_id: deedTypeId, p_message: message,
+    p_grade_level: gradeLevel, p_room: room, p_slots: slots, p_minutes: minutes,
+  });
+  return { data, error: error?.message || null };
+}
+
+async function cancelDeedCall(id) {
+  const { error } = await _sb.rpc('cancel_deed_call', { p_id: id });
+  return { error: error?.message || null };
+}
+
+// นักเรียนกดรับงานเรียก — ไม่มี Supabase Auth session จึงเรียก RPC (anon-callable)
+async function respondToDeedCall(callId, studentCode) {
+  const { data, error } = await _sb.rpc('respond_to_deed_call', { p_call_id: callId, p_student_code: studentCode });
+  return { data: data?.[0] || null, error: error?.message || null };
+}
+
+// นักเรียนดึงงานเรียกที่ยังเปิดอยู่และตรงขอบเขตของตัวเอง — ใช้ตอนเปิดแอปครั้งแรก
+// ก่อนที่ Realtime subscription จะเริ่มรับ event ใหม่ๆ (กันพลาดงานที่เรียกไปก่อนหน้านี้)
+async function getActiveDeedCalls(studentCode) {
+  const { data, error } = await _sb.rpc('get_active_deed_calls', { p_student_code: studentCode });
+  return { data: data || [], error: error?.message || null };
+}
+
+// ครูดูรายชื่อนักเรียนที่รับงานเรียกนี้ไปแล้ว (ใช้ตอนโหลดครั้งแรก — หลังจากนั้น Realtime จะอัปเดตต่อเอง)
+async function getDeedCallResponses(callId) {
+  const { data, error } = await _sb
+    .from('deed_call_responses')
+    .select('id, student_name, responded_at')
+    .eq('call_id', callId)
+    .order('responded_at', { ascending: true });
+  return { data: data || [], error: error?.message || null };
+}
+
+// สมัครรับฟัง Realtime: งานเรียกใหม่ที่ INSERT เข้ามา (ฝั่งนักเรียน) — คืนค่า channel ไว้ unsubscribe ทีหลัง
+function subscribeToDeedCalls(onInsert) {
+  return _sb
+    .channel('deed_calls_feed')
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'deed_calls' }, (payload) => onInsert(payload.new))
+    .subscribe();
+}
+
+// สมัครรับฟัง Realtime: คนรับงานใหม่สำหรับงานเรียกที่ระบุ (ฝั่งครู) — คืนค่า channel ไว้ unsubscribe ทีหลัง
+function subscribeToDeedCallResponses(callId, onInsert) {
+  return _sb
+    .channel(`deed_call_responses_${callId}`)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'deed_call_responses', filter: `call_id=eq.${callId}` }, (payload) => onInsert(payload.new))
+    .subscribe();
+}
+
+function unsubscribeChannel(channel) {
+  if (channel) _sb.removeChannel(channel);
+}
+
 async function getPointLogs({ limit = 20, teacherId = null, since = null } = {}) {
   let query = _sb
     .from('point_logs')

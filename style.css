@@ -236,7 +236,12 @@ select { appearance: none; -webkit-appearance: none; }
    both faces' text superimposed on some mobile browsers where backface-visibility
    isn't respected reliably, so this trades the 3D flip for a plain scale/fade-in
    that works everywhere. */
-.qr-flip-wrap { cursor: pointer; display: flex; flex-direction: column; align-items: center; }
+.qr-flip-wrap {
+  position: relative; cursor: pointer; touch-action: manipulation;
+  display: flex; flex-direction: column; align-items: center;
+  transition: transform 0.15s ease;
+}
+.qr-flip-wrap:active { transform: scale(0.96); }
 .qr-flip-face {
   width: 100%; display: flex; flex-direction: column; align-items: center;
   animation: qrFaceIn 0.3s ease;
@@ -245,8 +250,22 @@ select { appearance: none; -webkit-appearance: none; }
   from { opacity: 0; transform: scale(0.96); }
   to   { opacity: 1; transform: scale(1); }
 }
+
+/* แตะแล้วมีวงสีสันกระจายจากจุดกึ่งกลาง — ให้รู้สึกถึงการแตะทุกครั้ง ไม่ใช่แค่ตอนพลิกสำเร็จ */
+.qr-tap-pulse {
+  position: absolute; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle, oklch(0.78 0.19 145 / 0.55) 0%, oklch(0.8 0.16 85 / 0.4) 55%, transparent 75%);
+  animation: qrTapPulse 0.5s ease-out forwards;
+}
+@keyframes qrTapPulse {
+  from { transform: scale(0); opacity: 1; }
+  to   { transform: scale(1); opacity: 0; }
+}
 @media (prefers-reduced-motion: reduce) {
   .qr-flip-face { animation: none; }
+  .qr-flip-wrap { transition: none; }
+  .qr-flip-wrap:active { transform: none; }
+  .qr-tap-pulse { display: none; }
 }
 
 /* Badge grid */

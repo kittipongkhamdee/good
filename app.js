@@ -2434,6 +2434,7 @@ document.addEventListener('click', async (e) => {
       break;
 
     case 'qr-card-tap': {
+      spawnTapPulse(btn); // ให้ feedback ทุกครั้งที่แตะ ไม่ใช่แค่ตอนพลิกสำเร็จ
       const now = Date.now();
       const last = state._lastQrTapAt || 0;
       state._lastQrTapAt = now;
@@ -3090,6 +3091,20 @@ function spawnHeroLeaves() {
   if (!field) return;
   field.innerHTML = '';
   spawnLeaves(field, { count: 7, sizeMin: 11, sizeMax: 17, durMin: 6, durMax: 9, delMax: 7 });
+}
+
+// วงสีสันกระจายจากกึ่งกลาง element ที่แตะ — ลบตัวเองทิ้งเมื่อแอนิเมชันจบ (ไม่ต้องผูกกับ render())
+function spawnTapPulse(el) {
+  if (!el) return;
+  const pulse = document.createElement('span');
+  pulse.className = 'qr-tap-pulse';
+  const size = Math.max(el.offsetWidth, el.offsetHeight) * 0.9;
+  pulse.style.width = `${size}px`;
+  pulse.style.height = `${size}px`;
+  pulse.style.left = `${(el.offsetWidth - size) / 2}px`;
+  pulse.style.top = `${(el.offsetHeight - size) / 2}px`;
+  pulse.addEventListener('animationend', () => pulse.remove());
+  el.appendChild(pulse);
 }
 
 // ── Init ──

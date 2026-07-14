@@ -242,12 +242,15 @@ async function getPointCodeHistory({ limit = 30 } = {}) {
   return { data, error: error?.message || null };
 }
 
-async function getPointLogs({ limit = 20 } = {}) {
-  const { data, error } = await _sb
+async function getPointLogs({ limit = 20, teacherId = null, since = null } = {}) {
+  let query = _sb
     .from('point_logs')
     .select('id, points, note, created_at, teacher_id, cancelled_at, students(student_name, prefix, grade_level, room), good_deed_types(name, icon), profiles:profiles!point_logs_teacher_id_fkey(full_name), canceller:profiles!point_logs_cancelled_by_fkey(full_name)')
-    .order('created_at', { ascending: false })
-    .limit(limit);
+    .order('created_at', { ascending: false });
+  if (teacherId) query = query.eq('teacher_id', teacherId);
+  if (since) query = query.gte('created_at', since);
+  if (limit) query = query.limit(limit);
+  const { data, error } = await query;
   return { data, error: error?.message || null };
 }
 

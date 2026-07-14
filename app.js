@@ -58,6 +58,7 @@ const state = {
   codeGradeFilter: '',
   codeRoomFilter: '',
   codeHistory: [],       // Admin: ประวัติโค้ดที่ครูสร้างทั้งหมด (admin-codehistory)
+  teacherRecentLogs: [], // เฉพาะของครูคนที่ login อยู่ (เดือนนี้) — ใช้คำนวณสถิติ+กิจกรรมล่าสุดที่หน้าหลักครู
 };
 
 // ── Screen titles ──
@@ -1169,6 +1170,10 @@ function renderStudentProfile() {
 
 function renderTeacherDashboard() {
   const u = state.staffUser;
+  const activeLogs = state.teacherRecentLogs.filter(l => !l.cancelled_at);
+  const todayCount = activeLogs.filter(l => new Date(l.created_at).toDateString() === new Date().toDateString()).length;
+  const monthPoints = activeLogs.reduce((sum, l) => sum + l.points, 0);
+  const recent = activeLogs.slice(0, 3);
   return `
   <div class="screen-wrap anim-slideup">
     <div class="hero-banner">
@@ -1190,6 +1195,22 @@ function renderTeacherDashboard() {
       style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:16px;background:linear-gradient(90deg,#d97706,#f59e0b);color:#fff;border:none;border-radius:14px;font-family:Kanit;font-weight:700;font-size:16px;cursor:pointer;box-shadow:0 4px 20px rgba(245,158,11,0.35);">
       <span style="font-size:22px;">🎯</span> สร้างโค้ดรับคะแนน
     </button>
+
+    <div class="stat-grid-2">
+      ${statBox('📋', todayCount, 'ให้คะแนนวันนี้', 'var(--g)')}
+      ${statBox('💚', monthPoints, 'คะแนนรวมเดือนนี้', '#f59e0b')}
+    </div>
+
+    <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.055);">
+      <div style="padding:14px 16px 10px;font-weight:700;font-size:14px;color:var(--gd);">⏱️ ให้คะแนนล่าสุด</div>
+      ${recent.length
+        ? recent.map(l => listRow(studentGenderIcon(l.students), `${fullName(l.students)} · ${classOf(l.students)}`, `${l.good_deed_types?.name || ''} · ${formatDate(l.created_at)}`, `+${l.points}`)).join('')
+        : `<div style="padding:20px;text-align:center;color:#9ca3af;font-size:13px;">ยังไม่มีกิจกรรมเดือนนี้</div>`}
+      <button data-action="nav" data-screen="teacher-history"
+        style="width:100%;padding:12px;border:none;background:var(--gl);color:var(--g);font-family:Kanit;font-weight:700;font-size:13px;cursor:pointer;border-radius:0 0 16px 16px;">
+        ดูประวัติทั้งหมด →
+      </button>
+    </div>
   </div>`;
 }
 
@@ -2319,7 +2340,7 @@ async function doLogout() {
     staffUser: null, deedTypes: [], rewards: [], rewardRequests: [], rewardSuggestions: [], students: [], studentGradeFilter: '', studentRoomFilter: '', studentClasses: [], pointLogs: [], badgeTiers: [],
     reportSummary: null, reportError: null, reportLeaderboard: null, reportGradeFilter: '', scanStep: 0, scanStudent: null, selectedDeedId: null, points: 10,
     addStudentCode: '', addStudentName: '', studentScanMode: false,
-    pointCode: null, codeDurationMin: 10, codeGradeFilter: '', codeRoomFilter: '', codeHistory: [],
+    pointCode: null, codeDurationMin: 10, codeGradeFilter: '', codeRoomFilter: '', codeHistory: [], teacherRecentLogs: [],
     settings: { leaderboardEnabled: true, leaderboardTopN: 10, schoolLogoUrl: null, schoolName: 'ตาเบาวิทยา', schoolTagline: 'ระบบสะสมคะแนนความดีนักเรียน' },
     rolePermissions: { 'admin-deedtypes': true, 'admin-rewards': true, 'admin-reward-pickup': true, 'admin-suggestions': true, 'admin-reports': true },
   });
@@ -2335,6 +2356,11 @@ async function loadDataForScreen(screen) {
   if (screen === 'teacher-history') {
     const { data } = await getPointLogs({ limit: 20 });
     state.pointLogs = data || [];
+  }
+  if (screen === 'teacher-dashboard' && state.staffUser) {
+    const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+    const { data } = await getPointLogs({ limit: null, teacherId: state.staffUser.id, since: startOfMonth });
+    state.teacherRecentLogs = data || [];
   }
   if (screen === 'teacher-scan' || screen === 'teacher-addpoints' || screen === 'teacher-createcode') {
     const { data } = await getDeedTypes();

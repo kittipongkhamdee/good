@@ -3942,4 +3942,9 @@ document.addEventListener('DOMContentLoaded', () => {
   spawnLoginLeaves();
   loadGlobalSettings();
   restoreSession();
+  // ลงทะเบียน service worker เปล่าๆ ไว้เพื่อให้ Chrome/Android นับเป็น PWA ติดตั้งได้
+  // (ไม่ทำ offline caching) — ไม่ throw ถ้าเบราว์เซอร์ไม่รองรับหรือ path ผิด เผื่อรันจากเครื่องพัฒนา
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
 });

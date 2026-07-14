@@ -64,6 +64,7 @@ const state = {
   deedCall: null,          // { id, deed_type_id, icon, name, message, scopeLabel, slots, filled_count, expiresAt, totalMs } — งานที่กำลังเรียกอยู่
   deedCallResponses: [],   // [{ student_name, responded_at }]
   callDurationMin: 15,
+  callDurationCustom: false, // true = กำลังใช้ช่องกรอกเวลาเอง แทนปุ่มเวลาสำเร็จรูป
   callGradeFilter: '',
   callRoomFilter: '',
   callSlots: 2,
@@ -1637,11 +1638,17 @@ function renderTeacherCallForDeeds() {
       </div>
 
       <div style="font-weight:700;color:var(--gd);margin-bottom:10px;">⏱️ เวลาที่รับได้</div>
-      <div class="deed-grid" style="margin-bottom:18px;">
+      <div class="deed-grid" style="margin-bottom:${state.callDurationCustom ? '10px' : '18px'};">
         ${[5, 10, 15, 30].map(m => `
-          <button class="deed-chip ${state.callDurationMin === m ? 'selected' : ''}" data-action="select-call-duration" data-min="${m}">${m} นาที</button>
+          <button class="deed-chip ${!state.callDurationCustom && state.callDurationMin === m ? 'selected' : ''}" data-action="select-call-duration" data-min="${m}">${m} นาที</button>
         `).join('')}
+        <button class="deed-chip ${state.callDurationCustom ? 'selected' : ''}" data-action="select-call-duration-custom">กำหนดเอง</button>
       </div>
+      ${state.callDurationCustom ? `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:18px;">
+        <input type="number" class="form-input" id="call-duration-custom-input" min="1" max="180" step="1" value="${state.callDurationMin}" style="flex:1;">
+        <span style="font-size:13px;color:#6b7280;">นาที</span>
+      </div>` : ''}
 
       <button class="call-btn-cta" data-action="dispatch-deed-call" style="opacity:${state.selectedDeedId ? 1 : 0.5};" ${state.loading ? 'disabled' : ''}>
         ${state.loading ? 'กำลังส่ง...' : '📣 เรียกเลย!'}
@@ -2238,6 +2245,14 @@ function afterRender() {
     callMessageInput.addEventListener('input', () => { state.callMessage = callMessageInput.value; });
   }
 
+  const callDurationCustomInput = document.getElementById('call-duration-custom-input');
+  if (callDurationCustomInput) {
+    callDurationCustomInput.addEventListener('input', () => {
+      const v = parseInt(callDurationCustomInput.value);
+      if (Number.isFinite(v) && v > 0) state.callDurationMin = v;
+    });
+  }
+
   const codeInput = document.getElementById('add-student-code');
   if (codeInput) {
     codeInput.addEventListener('input', async () => {
@@ -2763,7 +2778,7 @@ async function doLogout() {
     reportSummary: null, reportError: null, reportLeaderboard: null, reportGradeFilter: '', scanStep: 0, scanStudent: null, selectedDeedId: null, points: 10,
     addStudentCode: '', addStudentName: '', studentScanMode: false,
     pointCode: null, codeDurationMin: 10, codeGradeFilter: '', codeRoomFilter: '', codeHistory: [], teacherRecentLogs: [],
-    deedCall: null, deedCallResponses: [], callDurationMin: 15, callGradeFilter: '', callRoomFilter: '', callSlots: 2, callMessage: '',
+    deedCall: null, deedCallResponses: [], callDurationMin: 15, callDurationCustom: false, callGradeFilter: '', callRoomFilter: '', callSlots: 2, callMessage: '',
     incomingDeedCall: null,
     settings: { leaderboardEnabled: true, leaderboardTopN: 10, schoolLogoUrl: null, schoolName: 'ตาเบาวิทยา', schoolTagline: 'ระบบสะสมคะแนนความดีนักเรียน' },
     rolePermissions: { 'admin-deedtypes': true, 'admin-rewards': true, 'admin-reward-pickup': true, 'admin-suggestions': true, 'admin-reports': true },
@@ -3035,7 +3050,11 @@ document.addEventListener('click', async (e) => {
     }
 
     case 'select-call-duration':
-      setState({ callDurationMin: parseInt(btn.dataset.min) });
+      setState({ callDurationMin: parseInt(btn.dataset.min), callDurationCustom: false });
+      break;
+
+    case 'select-call-duration-custom':
+      setState({ callDurationCustom: true });
       break;
 
     case 'call-slots-minus':
@@ -3052,10 +3071,11 @@ document.addEventListener('click', async (e) => {
       const message = state.callMessage.trim() || 'มาช่วยกันทำความดีนะครับ 🙏';
       const gradeLevel = state.callGradeFilter || null;
       const room = state.callRoomFilter || null;
+      const minutes = Math.min(180, Math.max(1, state.callDurationMin || 15));
       setState({ loading: true });
       const { data, error } = await createDeedCall({
         deedTypeId: state.selectedDeedId, message, gradeLevel, room,
-        slots: state.callSlots, minutes: state.callDurationMin,
+        slots: state.callSlots, minutes,
       });
       if (error || !data) { setState({ loading: false }); showToast(`เกิดข้อผิดพลาด: ${error || 'เรียกไม่สำเร็จ'}`); break; }
       const scopeLabel = gradeLevel ? `ม.${gradeLevel}${room ? '/' + room : ''}` : 'ทั้งโรงเรียน';
@@ -3064,7 +3084,7 @@ document.addEventListener('click', async (e) => {
         deedCall: {
           id: data.id, icon: deed?.icon || '💚', name: deed?.name || '', message: data.message,
           scopeLabel, slots: data.slots, filled_count: data.filled_count,
-          expiresAt: data.expires_at, totalMs: state.callDurationMin * 60 * 1000,
+          expiresAt: data.expires_at, totalMs: minutes * 60 * 1000,
         },
         deedCallResponses: [],
       });

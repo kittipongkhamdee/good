@@ -763,8 +763,30 @@ function renderLogin() {
       <button class="login-tab ${state.authView === 'staff' ? 'active' : ''}" data-action="show-auth" data-view="staff">👨‍🏫 ครู</button>
     </div>
     ${state.authView === 'staff' ? staffLoginFormHTML() : studentLoginFormHTML()}
+    ${installButtonHTML()}
     <p class="login-note">พัฒนาระบบ : นายกิตติพงษ์ คำดี</p>
   `;
+}
+
+// ── ติดตั้งแอปลงหน้าจอโฮม (PWA) ──
+// Android/Chrome: ดัก beforeinstallprompt ไว้เอง แล้วเรียก .prompt() ตอนกดปุ่ม (ติดตั้งได้จริงในคลิกเดียว)
+// iPhone/Safari: ไม่มี API ให้เรียกติดตั้งอัตโนมัติเลย ทำได้แค่โชว์วิธีกดเองผ่าน "แชร์ → เพิ่มไปยังหน้าจอโฮม"
+let deferredInstallPrompt = null;
+function isIOSDevice() {
+  return /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+function isStandaloneDisplay() {
+  return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+}
+function installButtonHTML() {
+  if (isStandaloneDisplay()) return ''; // เปิดจากแอปที่ติดตั้งแล้วอยู่ ไม่ต้องโชว์ปุ่ม
+  if (deferredInstallPrompt) {
+    return `<button type="button" class="install-app-btn" data-action="install-pwa">📲 ติดตั้งแอปลงหน้าจอโฮม</button>`;
+  }
+  if (isIOSDevice()) {
+    return `<button type="button" class="install-app-btn" data-action="show-ios-install-guide">📲 ติดตั้งแอปลงหน้าจอโฮม</button>`;
+  }
+  return '';
 }
 
 function studentLoginFormHTML() {
@@ -3753,6 +3775,28 @@ document.addEventListener('click', async (e) => {
       showNextIncomingDeedCall();
       break;
     }
+
+    case 'install-pwa': {
+      if (!deferredInstallPrompt) { showToast('ติดตั้งอัตโนมัติไม่พร้อมในขณะนี้ ลองรีเฟรชหน้าใหม่'); break; }
+      deferredInstallPrompt.prompt();
+      const choice = await deferredInstallPrompt.userChoice;
+      deferredInstallPrompt = null;
+      if (choice.outcome === 'accepted') showToast('ติดตั้งแอปสำเร็จ! 🎉');
+      render();
+      break;
+    }
+
+    case 'show-ios-install-guide':
+      showModal(`
+        <div class="modal-title">📲 เพิ่มแอปไปยังหน้าจอโฮม</div>
+        <div style="font-size:14px;color:#374151;line-height:2;padding-bottom:18px;">
+          1. แตะปุ่มแชร์ <b>⬆️</b> ที่แถบด้านล่างของ Safari<br>
+          2. เลื่อนหาเมนู <b>"เพิ่มไปยังหน้าจอโฮม"</b><br>
+          3. แตะ <b>"เพิ่ม"</b> ที่มุมขวาบน
+        </div>
+        <button class="btn-green" data-action="close-modal" style="padding:13px;">เข้าใจแล้ว</button>
+      `);
+      break;
   }
 });
 
@@ -3937,6 +3981,14 @@ function playLevelUpFanfare() {
 }
 
 // ── Init ──
+// Chrome/Android ยิง event นี้เมื่อพร้อมให้ติดตั้งเป็น PWA — ต้อง preventDefault() ไว้เพื่อกันแบนเนอร์
+// อัตโนมัติของเบราว์เซอร์ แล้วเก็บ event ไว้เรียก .prompt() เองตอนผู้ใช้กดปุ่มในแอปแทน
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  if (!state.role) render();
+});
+
 document.addEventListener('DOMContentLoaded', () => {
   render();
   spawnLoginLeaves();

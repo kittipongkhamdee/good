@@ -293,8 +293,13 @@ function staffAvatar(u, { size = 60, fontSize = 26, bg = 'rgba(255,255,255,0.18)
 // โลโก้โรงเรียน — แสดงรูปที่แอดมินอัปโหลดไว้ (หน้าตั้งค่า) ถ้ามี ไม่งั้น fallback เป็น 🌿
 function schoolLogoHTML(size) {
   const url = state.settings.schoolLogoUrl;
-  if (url) return `<img src="${url}" alt="${state.settings.schoolName}" style="width:${size}px;height:${size}px;object-fit:contain;vertical-align:middle;display:inline-block;">`;
+  if (url) return `<img src="${url}" alt="${state.settings.schoolName}" style="width:${size}px;height:${size}px;object-fit:contain;vertical-align:middle;display:inline-block;" onerror="handleLogoImgError(this, ${size})">`;
   return `<span style="font-size:${size}px;line-height:1;vertical-align:middle;">🌿</span>`;
+}
+// ถ้ารูปโลโก้ที่อัปโหลดไว้โหลดไม่สำเร็จ (เน็ตหลุด/ลิงก์เสีย) ให้ตกกลับไปใช้ 🌿 แทนที่จะปล่อยไอคอนรูปหักไว้เฉยๆ
+function handleLogoImgError(img, size) {
+  if (!img.parentNode) return; // เผื่อ error event ยิงซ้ำ หรือจอถูก re-render ไปแล้วก่อนหน้านี้
+  img.outerHTML = `<span style="font-size:${size}px;line-height:1;vertical-align:middle;">🌿</span>`;
 }
 
 function loadImageForCanvas(url) {
@@ -2739,10 +2744,16 @@ async function submitStaffLogin() {
 
 // โหลดตั้งแต่หน้า login ยังไม่ทันล็อกอิน เพื่อให้โลโก้/ค่าตั้งค่าอื่นๆ ถูกต้องตั้งแต่แรก
 // (public read — ไม่ต้องมี session) — ล็อกอินสำเร็จแล้วจะ fetch ซ้ำอีกครั้งเพื่อความชัวร์ ซึ่งไม่มีผลเสีย
-async function loadGlobalSettings() {
+// โลโก้/ชื่อโรงเรียนโหลดจากเน็ตแยกต่างหาก หลัง render() แรกที่ยังไม่มีข้อมูล (จึงเห็น 🌿 ก่อนชั่วครู่เป็นปกติ)
+// แต่ถ้าเน็ตโรงเรียนสะดุดจนคำขอแรกล้มเหลว ลองซ้ำอีกครั้งกันไม่ให้ค้างที่ค่าเริ่มต้นทั้งเซสชัน
+async function loadGlobalSettings(retry = true) {
   const { data } = await getAppSettings();
-  if (data) setState({ settings: data });
-  if (data) document.title = `${data.schoolTagline} — ${data.schoolName}`;
+  if (!data) {
+    if (retry) setTimeout(() => loadGlobalSettings(false), 1500);
+    return;
+  }
+  setState({ settings: data });
+  document.title = `${data.schoolTagline} — ${data.schoolName}`;
 }
 
 // เรียกตอนเปิดแอป — ลองคืน session เดิม: ครู/แอดมินเช็คจาก Supabase Auth session
@@ -3672,9 +3683,15 @@ document.addEventListener('click', async (e) => {
     case 'upload-school-logo': {
       const file = document.getElementById('school-logo-file')?.files[0];
       if (!file) { showToast('กรุณาเลือกไฟล์รูปก่อน'); return; }
-      let uploadFile = file;
-      try { uploadFile = await compressImageFile(file, { maxSize: 512, format: 'image/png' }); } catch {}
-      const { error } = await uploadSchoolLogo(uploadFile);
+      // WebP (มี alpha เหมือน PNG) แต่ไฟล์เล็กกว่ามาก — โลโก้แบบภาพประกอบ/ลายเส้นเดิมที่เป็น PNG 512px
+      // หนักถึง ~190KB ทำให้โหลดช้าบนเน็ตโรงเรียน ส่วนที่เป็น WebP คุณภาพเดียวกันเหลือแค่ ~45KB
+      let uploadFile = file, logoOpts = { ext: 'webp', contentType: 'image/webp' };
+      try {
+        uploadFile = await compressImageFile(file, { maxSize: 512, format: 'image/webp', quality: 0.85 });
+      } catch {
+        logoOpts = { ext: (file.name.split('.').pop() || 'png').toLowerCase(), contentType: file.type || 'image/png' };
+      }
+      const { error } = await uploadSchoolLogo(uploadFile, logoOpts);
       if (error) { showToast(`เกิดข้อผิดพลาด: ${error}`); break; }
       const { data } = await getAppSettings();
       setState({ settings: data || state.settings });

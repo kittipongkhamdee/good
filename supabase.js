@@ -196,10 +196,10 @@ async function removeStaffPhoto(staffId, photoUrl) {
 // 🌿 emoji everywhere in the UI when not set — see schema.sql §17
 // ──────────────────────────────────────────────
 
-async function uploadSchoolLogo(file) {
-  const path = 'school-logo.png';
+async function uploadSchoolLogo(file, { ext = 'webp', contentType = 'image/webp' } = {}) {
+  const path = `school-logo.${ext}`;
   const { error: upErr } = await _sb.storage.from('school-assets').upload(path, file, {
-    upsert: true, contentType: 'image/png',
+    upsert: true, contentType,
   });
   if (upErr) return { url: null, error: upErr.message };
 

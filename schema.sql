@@ -1180,3 +1180,30 @@ $$;
 revoke execute on function public.get_report_summary() from public;
 revoke execute on function public.get_report_summary() from anon;
 grant execute on function public.get_report_summary() to authenticated;
+
+-- =============================================
+-- 23. Staff profile photo — each teacher/admin uploads their own, shown on the
+-- teacher home card. Storage bucket follows the same public-read/staff-write
+-- pattern as student-photos/school-assets, but the school's PRE-EXISTING
+-- profiles table already has an UPDATE policy scoped to id = auth.uid() —
+-- that alone guarantees a teacher can only ever set their own photo_url, so
+-- no new policy is needed on public.profiles itself.
+-- =============================================
+alter table public.profiles add column if not exists photo_url text;
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('staff-photos', 'staff-photos', true, 3145728, array['image/jpeg','image/png','image/webp'])
+on conflict (id) do nothing;
+
+create policy "staff_photos_read" on storage.objects for select
+  using (bucket_id = 'staff-photos');
+
+create policy "staff_photos_staff_insert" on storage.objects for insert
+  with check (bucket_id = 'staff-photos' and auth.role() = 'authenticated');
+
+create policy "staff_photos_staff_update" on storage.objects for update
+  using (bucket_id = 'staff-photos' and auth.role() = 'authenticated')
+  with check (bucket_id = 'staff-photos' and auth.role() = 'authenticated');
+
+create policy "staff_photos_staff_delete" on storage.objects for delete
+  using (bucket_id = 'staff-photos' and auth.role() = 'authenticated');

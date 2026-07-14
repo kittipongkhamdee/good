@@ -23,7 +23,7 @@ const state = {
   leaderboard: null,
   leaderboardScope: 'school', // 'school' | 'grade' | 'room'
 
-  staffUser: null,        // { id, full_name, role, is_admin }
+  staffUser: null,        // { id, full_name, role, is_admin, photo_url }
 
   deedTypes: [],
   rewards: [],
@@ -187,6 +187,15 @@ function studentAvatar(s, { size = 60, fontSize = 26, bg = 'rgba(255,255,255,0.1
     return `<img src="${s.photo_url}" alt="" style="${common}object-fit:cover;display:block;">`;
   }
   return `<div style="${common}background:${bg};display:flex;align-items:center;justify-content:center;font-size:${fontSize}px;">${studentGenderIcon(s)}</div>`;
+}
+
+// รูปโปรไฟล์ครู/แอดมิน — แสดงรูปจริงถ้ามี (ครูอัปโหลดเอง) ไม่งั้นแสดง emoji แทน
+function staffAvatar(u, { size = 60, fontSize = 26, bg = 'rgba(255,255,255,0.18)', border = '2.5px solid rgba(255,255,255,0.45)', margin = '', shadow = '' } = {}) {
+  const common = `width:${size}px;height:${size}px;border-radius:50%;flex-shrink:0;border:${border};${margin ? `margin:${margin};` : ''}${shadow ? `box-shadow:${shadow};` : ''}`;
+  if (u?.photo_url) {
+    return `<img src="${u.photo_url}" alt="" style="${common}object-fit:cover;display:block;">`;
+  }
+  return `<div style="${common}background:${bg};display:flex;align-items:center;justify-content:center;font-size:${fontSize}px;">👨‍🏫</div>`;
 }
 
 // โลโก้โรงเรียน — แสดงรูปที่แอดมินอัปโหลดไว้ (หน้าตั้งค่า) ถ้ามี ไม่งั้น fallback เป็น 🌿
@@ -1178,7 +1187,10 @@ function renderTeacherDashboard() {
   <div class="screen-wrap anim-slideup">
     <div class="hero-banner">
       <div style="display:flex;align-items:center;gap:14px;">
-        <div style="width:60px;height:60px;border-radius:50%;background:rgba(255,255,255,0.18);display:flex;align-items:center;justify-content:center;font-size:26px;border:2.5px solid rgba(255,255,255,0.45);flex-shrink:0;">👨‍🏫</div>
+        <div style="position:relative;flex-shrink:0;">
+          ${staffAvatar(u, { size: 60, fontSize: 26 })}
+          <button data-action="open-staff-photo" style="position:absolute;bottom:-2px;right:-2px;width:20px;height:20px;border-radius:50%;background:var(--g);color:#fff;border:2px solid #fff;font-size:11px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;">📷</button>
+        </div>
         <div>
           <div style="font-size:18px;font-weight:700;">${u?.full_name || ''}</div>
           <div style="font-size:12px;opacity:0.8;margin-top:3px;">ครู</div>
@@ -2832,6 +2844,51 @@ document.addEventListener('click', async (e) => {
       showToast('ลบรูปโปรไฟล์แล้ว');
       await loadDataForScreen('admin-students');
       render();
+      break;
+    }
+
+    case 'open-staff-photo': {
+      const u = state.staffUser;
+      if (!u) break;
+      showModal(`
+        <div class="modal-title">📷 รูปโปรไฟล์ของฉัน</div>
+        <div style="text-align:center;margin-bottom:16px;">
+          <img id="photo-preview" src="${u.photo_url || ''}" alt=""
+               style="width:120px;height:120px;border-radius:50%;object-fit:cover;background:#f3f4f6;margin:0 auto;border:2px solid #e5e7eb;display:${u.photo_url ? 'block' : 'none'};">
+          <div id="photo-preview-placeholder"
+               style="width:120px;height:120px;border-radius:50%;background:#f3f4f6;align-items:center;justify-content:center;font-size:48px;margin:0 auto;display:${u.photo_url ? 'none' : 'flex'};">👨‍🏫</div>
+        </div>
+        <div class="form-group"><input type="file" accept="image/*" id="staff-photo-file"></div>
+        <button class="btn-green" data-action="save-staff-photo" style="padding:13px;margin-top:4px;">✅ บันทึกรูป</button>
+        ${u.photo_url ? `<button data-action="remove-staff-photo" data-url="${u.photo_url}" style="width:100%;padding:10px;margin-top:8px;background:#fee2e2;color:#dc2626;border:none;border-radius:10px;font-family:Kanit;cursor:pointer;">🗑️ ลบรูป</button>` : ''}
+        <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:Kanit;color:#9ca3af;cursor:pointer;">ยกเลิก</button>
+      `);
+      break;
+    }
+
+    case 'save-staff-photo': {
+      const file = document.getElementById('staff-photo-file')?.files[0];
+      if (!file) { showToast('กรุณาเลือกรูปภาพ'); return; }
+      let uploadFile = file, photoOpts = { ext: 'jpg', contentType: 'image/jpeg' };
+      try {
+        uploadFile = await compressImageFile(file);
+      } catch {
+        photoOpts = { ext: (file.name.split('.').pop() || 'jpg').toLowerCase(), contentType: file.type || 'image/jpeg' };
+      }
+      const { url, error } = await uploadStaffPhoto(state.staffUser.id, uploadFile, photoOpts);
+      closeModal();
+      if (error) { showToast(`เกิดข้อผิดพลาด: ${error}`); break; }
+      showToast('อัปโหลดรูปโปรไฟล์สำเร็จ ✅');
+      setState({ staffUser: { ...state.staffUser, photo_url: url } });
+      break;
+    }
+
+    case 'remove-staff-photo': {
+      const { error } = await removeStaffPhoto(state.staffUser.id, btn.dataset.url);
+      closeModal();
+      if (error) { showToast(`เกิดข้อผิดพลาด: ${error}`); break; }
+      showToast('ลบรูปโปรไฟล์แล้ว');
+      setState({ staffUser: { ...state.staffUser, photo_url: null } });
       break;
     }
 

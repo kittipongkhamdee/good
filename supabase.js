@@ -33,7 +33,7 @@ async function staffLogin(email, password) {
 
   const { data: profile, error: profErr } = await _sb
     .from('profiles')
-    .select('id, full_name, role, is_admin, is_active')
+    .select('id, full_name, role, is_admin, is_active, photo_url')
     .eq('id', data.user.id)
     .single();
   if (profErr) return { profile: null, error: profErr.message };
@@ -59,7 +59,7 @@ async function getCurrentStaffProfile() {
 
   const { data: profile, error: profErr } = await _sb
     .from('profiles')
-    .select('id, full_name, role, is_admin, is_active')
+    .select('id, full_name, role, is_admin, is_active, photo_url')
     .eq('id', session.user.id)
     .single();
   if (profErr || !profile || !profile.is_active) return { profile: null, error: null };
@@ -164,6 +164,29 @@ async function removeStudentPhoto(studentId, photoUrl) {
   const path = photoUrl?.split('/student-photos/')[1]?.split('?')[0];
   if (path) await _sb.storage.from('student-photos').remove([path]);
   const { error } = await _sb.from('students').update({ photo_url: null }).eq('id', studentId);
+  return { error: error?.message || null };
+}
+
+// ครูอัปโหลดรูปโปรไฟล์ตัวเอง — profiles.photo_url ถูก RLS จำกัดไว้แล้วว่าแก้ได้แค่แถวตัวเอง
+// (id = auth.uid()) เลย staffId ที่ส่งมาจะสำเร็จก็ต่อเมื่อตรงกับผู้ใช้ที่ล็อกอินอยู่เท่านั้น
+async function uploadStaffPhoto(staffId, file, { ext = 'jpg', contentType = 'image/jpeg' } = {}) {
+  const path = `${staffId}.${ext}`;
+  const { error: upErr } = await _sb.storage.from('staff-photos').upload(path, file, {
+    upsert: true, contentType,
+  });
+  if (upErr) return { url: null, error: upErr.message };
+
+  const { data } = _sb.storage.from('staff-photos').getPublicUrl(path);
+  const url = `${data.publicUrl}?t=${Date.now()}`;
+  const { error: updErr } = await _sb.from('profiles').update({ photo_url: url }).eq('id', staffId);
+  if (updErr) return { url: null, error: updErr.message };
+  return { url, error: null };
+}
+
+async function removeStaffPhoto(staffId, photoUrl) {
+  const path = photoUrl?.split('/staff-photos/')[1]?.split('?')[0];
+  if (path) await _sb.storage.from('staff-photos').remove([path]);
+  const { error } = await _sb.from('profiles').update({ photo_url: null }).eq('id', staffId);
   return { error: error?.message || null };
 }
 

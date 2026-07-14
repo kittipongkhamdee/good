@@ -2158,6 +2158,7 @@ async function handleStudentScanResult(raw) {
   ]);
   setState({ loading: false, studentScanMode: false, student: student || state.student, studentHistory: history || [] });
   showToast(`🎉 ได้รับ +${data.points} คะแนน! ${data.deed_icon || ''} ${data.deed_name || ''}`);
+  playPointGainedSound();
 }
 
 // ══════════════════════════════════════════════
@@ -2435,6 +2436,7 @@ document.addEventListener('click', async (e) => {
 
     case 'qr-card-tap': {
       spawnTapPulse(btn); // ให้ feedback ทุกครั้งที่แตะ ไม่ใช่แค่ตอนพลิกสำเร็จ
+      unlockAudio(); // ต้องเรียกแบบ sync ตรงนี้ (ใน user gesture จริง) ให้ iOS Safari ปลดล็อกเสียงไว้ก่อน
       const now = Date.now();
       const last = state._lastQrTapAt || 0;
       state._lastQrTapAt = now;
@@ -3105,6 +3107,30 @@ function spawnTapPulse(el) {
   pulse.style.top = `${(el.offsetHeight - size) / 2}px`;
   pulse.addEventListener('animationend', () => pulse.remove());
   el.appendChild(pulse);
+}
+
+// ── เสียงเอฟเฟกต์ ──
+// เสียง "ได้คะแนน" (CC0 จาก Kenney.nl — Digital Audio pack, ไม่ต้องขออนุญาต/เครดิต)
+// iOS Safari บล็อกการเล่นเสียงถ้า .play() ไม่ได้อยู่ใน call stack เดียวกับ user gesture ตรงๆ
+// เลยต้อง "unlock" ตัว <audio> element เดิมไว้ตอนแตะครั้งแรก (synchronous) แล้วค่อยเรียก .play()
+// ซ้ำได้อีกทีหลังจาก await เสร็จ (ตัว element เดิมที่เคยเล่นสำเร็จแล้วจะไม่โดนบล็อกอีก)
+const pointGainedSound = new Audio('sounds/point-gained.mp3');
+pointGainedSound.preload = 'auto';
+pointGainedSound.volume = 0.6;
+let _audioUnlocked = false;
+function unlockAudio() {
+  if (_audioUnlocked) return;
+  pointGainedSound.play().then(() => {
+    pointGainedSound.pause();
+    pointGainedSound.currentTime = 0;
+    _audioUnlocked = true;
+  }).catch(() => {});
+}
+function playPointGainedSound() {
+  try {
+    pointGainedSound.currentTime = 0;
+    pointGainedSound.play().catch(() => {});
+  } catch {}
 }
 
 // ── Init ──

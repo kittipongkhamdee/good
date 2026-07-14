@@ -1179,10 +1179,15 @@ function renderStudentProfile() {
 
 function renderTeacherDashboard() {
   const u = state.staffUser;
-  const activeLogs = state.teacherRecentLogs.filter(l => !l.cancelled_at);
-  const todayCount = activeLogs.filter(l => new Date(l.created_at).toDateString() === new Date().toDateString()).length;
-  const monthPoints = activeLogs.reduce((sum, l) => sum + l.points, 0);
-  const recent = activeLogs.slice(0, 3);
+  const allLogs = state.teacherRecentLogs.filter(l => !l.cancelled_at);
+  const now = new Date();
+  const todayCount = allLogs.filter(l => new Date(l.created_at).toDateString() === now.toDateString()).length;
+  const monthPoints = allLogs
+    .filter(l => { const d = new Date(l.created_at); return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth(); })
+    .reduce((sum, l) => sum + l.points, 0);
+  const totalPointsGiven = allLogs.reduce((sum, l) => sum + l.points, 0);
+  const totalDeedsGiven = allLogs.length;
+  const recent = allLogs.slice(0, 3);
   return `
   <div class="screen-wrap anim-slideup">
     <div class="hero-banner">
@@ -1194,6 +1199,18 @@ function renderTeacherDashboard() {
         <div>
           <div style="font-size:18px;font-weight:700;">${u?.full_name || ''}</div>
           <div style="font-size:12px;opacity:0.8;margin-top:3px;">ครู</div>
+        </div>
+      </div>
+      <div style="margin-top:18px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.18);display:flex;align-items:flex-end;justify-content:space-between;">
+        <div>
+          <div style="font-size:12px;opacity:0.75;">ให้คะแนนทั้งหมด</div>
+          <div style="font-size:44px;font-weight:700;line-height:1;margin-top:2px;" data-countup="${totalPointsGiven}">0</div>
+          <div style="font-size:13px;opacity:0.7;margin-top:2px;">คะแนน</div>
+        </div>
+        <div style="text-align:right;font-size:12px;opacity:0.75;">
+          <div>ให้ความดีแล้ว</div>
+          <div style="font-size:30px;font-weight:700;line-height:1;" data-countup="${totalDeedsGiven}">0</div>
+          <div>ครั้ง</div>
         </div>
       </div>
     </div>
@@ -2370,8 +2387,8 @@ async function loadDataForScreen(screen) {
     state.pointLogs = data || [];
   }
   if (screen === 'teacher-dashboard' && state.staffUser) {
-    const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
-    const { data } = await getPointLogs({ limit: null, teacherId: state.staffUser.id, since: startOfMonth });
+    // ไม่ใส่ since — ดึงมาทั้งหมดของครูคนนี้ เพื่อคำนวณทั้งสถิติวันนี้/เดือนนี้/รวมทั้งหมดจากชุดข้อมูลเดียว
+    const { data } = await getPointLogs({ limit: null, teacherId: state.staffUser.id });
     state.teacherRecentLogs = data || [];
   }
   if (screen === 'teacher-scan' || screen === 'teacher-addpoints' || screen === 'teacher-createcode') {

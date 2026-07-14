@@ -163,6 +163,67 @@ function getBadge(pts) {
   };
 }
 
+// จำนวนวันติดต่อกันที่ทำความดีอย่างน้อย 1 ครั้ง นับถอยจากวันนี้ — ถ้าวันนี้ยังไม่มีรายการ
+// ให้เริ่มนับจากเมื่อวานแทน (ให้เวลานักเรียนถึงเที่ยงคืนก่อนสตรีคจะขาด แทนที่จะขึ้น 0 ทันทีตอนเช้า)
+function computeStreak(history) {
+  if (!history || !history.length) return 0;
+  const days = new Set(history.map(d => new Date(d.created_at).toDateString()));
+  const cursor = new Date();
+  if (!days.has(cursor.toDateString())) cursor.setDate(cursor.getDate() - 1);
+  let streak = 0;
+  while (days.has(cursor.toDateString())) {
+    streak++;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return streak;
+}
+
+// ── เควสประจำสัปดาห์ — คำนวณสดจาก studentHistory ทุกครั้งที่ render() จึงรีเซ็ตเองทุกวันจันทร์
+// โดยไม่ต้องมีตาราง/สถานะเก็บใน DB เพิ่ม ─
+const WEEKLY_QUEST_DEFS = [
+  { id: 'count3',  icon: '🎯', type: 'count',  target: 3,  label: 'ทำความดี 3 ครั้งสัปดาห์นี้' },
+  { id: 'count5',  icon: '💪', type: 'count',  target: 5,  label: 'ทำความดี 5 ครั้งสัปดาห์นี้' },
+  { id: 'points30', icon: '💰', type: 'points', target: 30, label: 'สะสม 30 คะแนนสัปดาห์นี้' },
+];
+function startOfWeek(d) {
+  const date = new Date(d);
+  const day = date.getDay(); // 0 = อาทิตย์
+  date.setDate(date.getDate() + (day === 0 ? -6 : 1 - day)); // เริ่มสัปดาห์วันจันทร์
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+function computeWeeklyQuests(history) {
+  const start = startOfWeek(new Date());
+  const thisWeek = (history || []).filter(d => new Date(d.created_at) >= start);
+  const count = thisWeek.length;
+  const points = thisWeek.reduce((sum, d) => sum + (d.points || 0), 0);
+  return WEEKLY_QUEST_DEFS.map(q => {
+    const current = q.type === 'points' ? points : count;
+    const pct = Math.min(100, Math.round((current / q.target) * 100));
+    return { ...q, current, pct, done: current >= q.target };
+  });
+}
+function renderWeeklyQuests(quests) {
+  return `
+  <div class="card">
+    <div style="font-weight:700;color:var(--gd);margin-bottom:14px;">🗺️ เควสประจำสัปดาห์</div>
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      ${quests.map(q => `
+        <div class="quest-item ${q.done ? 'quest-done' : ''}">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+            <div class="quest-icon">${q.done ? '✅' : q.icon}</div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:13px;font-weight:600;color:#1f2937;">${q.label}</div>
+              <div style="font-size:11px;color:${q.done ? 'var(--g)' : '#9ca3af'};margin-top:1px;">${q.done ? 'สำเร็จแล้ว! 🎉' : `${q.current} / ${q.target}`}</div>
+            </div>
+          </div>
+          <div class="quest-bar-track"><div class="quest-bar-fill" data-pct="${q.pct}" style="width:0%;"></div></div>
+        </div>
+      `).join('')}
+    </div>
+  </div>`;
+}
+
 // student_name already includes the prefix (เด็กชาย/เด็กหญิง/นาย/...) baked in
 // from the source data — don't prepend s.prefix again or it doubles up.
 function fullName(s) { return (s.student_name || '').replace(/\s+/g, ' ').trim(); }
@@ -181,12 +242,28 @@ function studentGenderIcon(s) {
 }
 
 // รูปโปรไฟล์นักเรียน — แสดงรูปจริงถ้ามี (เก็บใน Supabase Storage) ไม่งั้นแสดง emoji ตามเพศแทน
-function studentAvatar(s, { size = 60, fontSize = 26, bg = 'rgba(255,255,255,0.18)', border = '2.5px solid rgba(255,255,255,0.45)', margin = '', shadow = '' } = {}) {
-  const common = `width:${size}px;height:${size}px;border-radius:50%;flex-shrink:0;border:${border};${margin ? `margin:${margin};` : ''}${shadow ? `box-shadow:${shadow};` : ''}`;
-  if (s?.photo_url) {
-    return `<img src="${s.photo_url}" alt="" style="${common}object-fit:cover;display:block;">`;
+// tierFrame: ล้อมรูปด้วยกรอบสีตาม Badge Tier ปัจจุบัน (เตี้ยสุด = ธรรมดา, กลาง = เรืองแสง, สูงสุด = กรอบหมุน) —
+// เป็นรางวัลภาพที่เปลี่ยนไปเรื่อยๆ ตามเลเวล ใช้เฉพาะจุดโชว์เด่นๆ (hero banner) ไม่ใช้กับรายการ/ลิสต์เล็กๆ
+function studentAvatar(s, { size = 60, fontSize = 26, bg = 'rgba(255,255,255,0.18)', border = '2.5px solid rgba(255,255,255,0.45)', margin = '', shadow = '', tierFrame = false } = {}) {
+  const inner = s?.photo_url
+    ? `<div style="width:${size}px;height:${size}px;"><img src="${s.photo_url}" alt="" style="width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;border:${border};${shadow ? `box-shadow:${shadow};` : ''}"></div>`
+    : `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${bg};border:${border};${shadow ? `box-shadow:${shadow};` : ''}display:flex;align-items:center;justify-content:center;font-size:${fontSize}px;">${studentGenderIcon(s)}</div>`;
+
+  if (!tierFrame || !s) {
+    return `<div style="width:${size}px;height:${size}px;flex-shrink:0;${margin ? `margin:${margin};` : ''}">${inner}</div>`;
   }
-  return `<div style="${common}background:${bg};display:flex;align-items:center;justify-content:center;font-size:${fontSize}px;">${studentGenderIcon(s)}</div>`;
+
+  const badge = getBadge(s.total_points || 0);
+  const tiers = (state.badgeTiers || []).slice().sort((a, b) => a.min_points - b.min_points);
+  const rank = tiers.findIndex(t => t.min_points === badge.minPts);
+  const isMax = !badge.nextLabel;
+  const frameClass = isMax ? 'avatar-frame-max' : (rank <= 0 ? 'avatar-frame-base' : 'avatar-frame-mid');
+  const pad = Math.max(4, Math.round(size * 0.09));
+  const frameSize = size + pad * 2;
+  return `
+    <div class="avatar-frame ${frameClass}" style="width:${frameSize}px;height:${frameSize}px;flex-shrink:0;${margin ? `margin:${margin};` : ''}--frame-glow:${badge.color || 'var(--g)'};">
+      ${inner}
+    </div>`;
 }
 
 // รูปโปรไฟล์ครู/แอดมิน — แสดงรูปจริงถ้ามี (ครูอัปโหลดเอง) ไม่งั้นแสดง emoji แทน
@@ -798,17 +875,21 @@ function renderStudentDashboard() {
   if (!s) return loadingBlock();
   const badge = getBadge(s.total_points);
   const recent = state.studentHistory.slice(0, 3);
+  const streak = computeStreak(state.studentHistory);
 
   return `
   <div class="screen-wrap anim-slideup">
     <div class="hero-banner">
       <div id="hero-leaf-field" class="leaf-field" aria-hidden="true"></div>
       <div style="position:relative;z-index:1;display:flex;align-items:center;gap:14px;">
-        ${studentAvatar(s, { size: 62, fontSize: 28 })}
+        ${studentAvatar(s, { size: 62, fontSize: 28, tierFrame: true })}
         <div>
           <div style="font-size:18px;font-weight:700;line-height:1.2;">${fullName(s)}</div>
           <div style="font-size:12px;opacity:0.8;margin-top:3px;">${classOf(s)} · รหัส ${s.student_code}</div>
-          <div style="margin-top:6px;display:inline-block;background:rgba(255,255,255,0.2);border-radius:20px;padding:2px 10px;font-size:12px;">${badge.icon} ${s.badge_level}</div>
+          <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">
+            <div style="background:rgba(255,255,255,0.2);border-radius:20px;padding:2px 10px;font-size:12px;">${badge.icon} ${s.badge_level}</div>
+            ${streak >= 2 ? `<div class="streak-chip">🔥 ${streak} วันติดต่อกัน</div>` : ''}
+          </div>
         </div>
       </div>
       <div style="position:relative;z-index:1;margin-top:18px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.18);display:flex;align-items:flex-end;justify-content:space-between;">
@@ -832,6 +913,8 @@ function renderStudentDashboard() {
       ${statBox('🎖️', unlockedBadgeCount(s.total_points), 'Badge', '#8b5cf6')}
       ${statBox('🎁', s.redeem_count, 'แลกรางวัล', '#ef4444')}
     </div>
+
+    ${renderWeeklyQuests(computeWeeklyQuests(state.studentHistory))}
 
     <div class="card">
       <div class="qr-flip-wrap" data-action="qr-card-tap">
@@ -1066,9 +1149,10 @@ function renderStudentLeaderboard() {
     <div class="podium">
       ${podium.map((s, i) => `
         <div class="podium-col">
+          ${i === 1 ? `<div class="podium-crown">👑</div>` : ''}
           <div style="font-size:26px;margin-bottom:4px;">${['🥈','🥇','🥉'][i]}</div>
           <div class="podium-name">${fullName(s)}</div>
-          <div class="podium-bar" style="height:${heights[i]}px;background:${colors[i]};color:${textClr[i]};">
+          <div class="podium-bar ${i === 1 ? 'podium-bar-first' : ''}" data-height="${heights[i]}" style="height:0;background:${colors[i]};color:${textClr[i]};">
             <div class="podium-rank">${s.rank}</div>
             <div class="podium-pts">${s.total_points.toLocaleString()}</div>
           </div>
@@ -1146,7 +1230,7 @@ function renderStudentProfile() {
   <div class="screen-wrap anim-slideup">
     <div class="hero-banner">
       <div style="text-align:center;">
-        ${studentAvatar(s, { size: 80, fontSize: 36, margin: '0 auto' })}
+        ${studentAvatar(s, { size: 80, fontSize: 36, margin: '0 auto', tierFrame: true })}
         <div style="font-size:20px;font-weight:700;margin-top:12px;">${fullName(s)}</div>
         <div style="font-size:13px;opacity:0.8;margin-top:4px;">${classOf(s)} · รหัส ${s.student_code}</div>
         <div style="margin-top:8px;display:inline-block;background:rgba(255,255,255,0.18);border-radius:20px;padding:3px 14px;font-size:12px;">${badge.icon} ${s.badge_level} · ${s.total_points.toLocaleString()} คะแนน</div>
@@ -2052,6 +2136,8 @@ function afterRender() {
   spawnTeacherHeroLeaves();
   animateCountUps();
   animateLevelBars();
+  animatePodiumBars();
+  animateQuestBars();
 }
 
 // ตัวเลขจุดเด่น (คะแนนสะสม/สถิติแดชบอร์ด) วิ่งขึ้นจาก 0 ให้ดูมีชีวิตชีวา —องค์ประกอบถูกสร้างใหม่
@@ -2084,6 +2170,24 @@ function animateLevelBars() {
     const pct = parseFloat(el.dataset.pct) || 0;
     if (reduceMotion) { el.style.width = `${pct}%`; return; }
     requestAnimationFrame(() => requestAnimationFrame(() => { el.style.width = `${pct}%`; }));
+  });
+}
+
+function animateQuestBars() {
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  document.querySelectorAll('.quest-bar-fill').forEach(el => {
+    const pct = parseFloat(el.dataset.pct) || 0;
+    if (reduceMotion) { el.style.width = `${pct}%`; return; }
+    requestAnimationFrame(() => requestAnimationFrame(() => { el.style.width = `${pct}%`; }));
+  });
+}
+
+function animatePodiumBars() {
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  document.querySelectorAll('.podium-bar').forEach(el => {
+    const h = parseFloat(el.dataset.height) || 0;
+    if (reduceMotion) { el.style.height = `${h}px`; return; }
+    requestAnimationFrame(() => requestAnimationFrame(() => { el.style.height = `${h}px`; }));
   });
 }
 
@@ -2272,6 +2376,8 @@ async function handleStudentScanResult(raw) {
   setState({ loading: false, studentScanMode: false, student: student || state.student, studentHistory: history || [] });
   showToast(`🎉 ได้รับ +${data.points} คะแนน! ${data.deed_icon || ''} ${data.deed_name || ''}`);
   playPointGainedSound();
+  spawnFloatingPoints(document.querySelector('.qr-flip-wrap'), data.points);
+  if (navigator.vibrate) navigator.vibrate([40, 30, 60]);
 
   const newBadge = getBadge(student ? student.total_points : oldPoints);
   if (newBadge.minPts > getBadge(oldPoints).minPts) {
@@ -3363,6 +3469,19 @@ function spawnTapPulse(el) {
   pulse.style.top = `${(el.offsetHeight - size) / 2}px`;
   pulse.addEventListener('animationend', () => pulse.remove());
   el.appendChild(pulse);
+}
+
+// ตัวเลข "+N" ลอยขึ้นแล้วจางหาย — แนบกับ document.body (fixed position) เพราะ el อาจถูก re-render ทับระหว่างแอนิเมชัน
+function spawnFloatingPoints(el, points) {
+  if (!el) return;
+  const rect = el.getBoundingClientRect();
+  const fp = document.createElement('div');
+  fp.className = 'float-points';
+  fp.textContent = `+${points}`;
+  fp.style.left = `${rect.left + rect.width / 2}px`;
+  fp.style.top = `${rect.top + rect.height / 2}px`;
+  fp.addEventListener('animationend', () => fp.remove());
+  document.body.appendChild(fp);
 }
 
 // ── เสียงเอฟเฟกต์ ──

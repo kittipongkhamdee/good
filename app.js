@@ -181,7 +181,6 @@ function computeStreak(history) {
 // ── เควสประจำสัปดาห์ — คำนวณสดจาก studentHistory ทุกครั้งที่ render() จึงรีเซ็ตเองทุกวันจันทร์
 // โดยไม่ต้องมีตาราง/สถานะเก็บใน DB เพิ่ม ─
 const WEEKLY_QUEST_DEFS = [
-  { id: 'count3',  icon: '🎯', type: 'count',  target: 3,  label: 'ทำความดี 3 ครั้งสัปดาห์นี้' },
   { id: 'count5',  icon: '💪', type: 'count',  target: 5,  label: 'ทำความดี 5 ครั้งสัปดาห์นี้' },
   { id: 'points30', icon: '💰', type: 'points', target: 30, label: 'สะสม 30 คะแนนสัปดาห์นี้' },
 ];

@@ -2593,6 +2593,24 @@ document.addEventListener('click', async (e) => {
     }
 
     case 'cancel-point-log': {
+      const log = state.pointLogs.find(l => l.id === btn.dataset.id);
+      if (!log) break;
+      showModal(`
+        <div class="modal-title">⚠️ ยืนยันการยกเลิก</div>
+        <div style="text-align:center;padding:6px 0 20px;color:#374151;font-size:14px;line-height:1.7;">
+          ต้องการยกเลิกคะแนน <b style="color:var(--gd);">+${log.points}</b> ของ<br>
+          <b>${fullName(log.students)}</b><br>
+          <span style="color:#9ca3af;font-size:12px;">${log.good_deed_types?.name || ''}</span><br>
+          ใช่หรือไม่?
+        </div>
+        <button class="btn-green" data-action="confirm-cancel-point-log" data-id="${log.id}" style="padding:13px;background:#dc2626;">🗑️ ยืนยันยกเลิก</button>
+        <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:Kanit;color:#9ca3af;cursor:pointer;">ไม่ยกเลิก</button>
+      `);
+      break;
+    }
+
+    case 'confirm-cancel-point-log': {
+      closeModal();
       const { error } = await cancelPointLog(btn.dataset.id, state.staffUser?.id);
       if (error) { showToast(`เกิดข้อผิดพลาด: ${error}`); break; }
       showToast('ยกเลิกรายการแล้ว');

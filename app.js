@@ -3285,10 +3285,9 @@ function spawnHeroLeaves() {
   const field = document.getElementById('hero-leaf-field');
   if (!field) return;
   field.innerHTML = '';
-  spawnLeaves(field, { count: 7, sizeMin: 11, sizeMax: 17, durMin: 6, durMax: 9, delMax: 7 });
+  spawnLeaves(field, { count: 7, sizeMin: 18, sizeMax: 26, durMin: 6, durMax: 9, delMax: 7 });
 }
 
-// การ์ดชื่อครู — ใบไม้ใหญ่กว่าของนักเรียนตามที่ขอ (สัดส่วนอื่นเหมือนกันหมด)
 function spawnTeacherHeroLeaves() {
   const field = document.getElementById('teacher-hero-leaf-field');
   if (!field) return;

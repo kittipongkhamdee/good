@@ -57,6 +57,7 @@ const state = {
   codeDurationMin: 10,
   codeGradeFilter: '',
   codeRoomFilter: '',
+  codeHistory: [],       // Admin: ประวัติโค้ดที่ครูสร้างทั้งหมด (admin-codehistory)
 };
 
 // ── Screen titles ──
@@ -82,6 +83,7 @@ const TITLES = {
   'admin-reports':     'รายงาน',
   'admin-badges':      'จัดการ Badge',
   'admin-settings':    'ตั้งค่าระบบ',
+  'admin-codehistory': 'ประวัติการสร้างโค้ด',
 };
 
 const NAV = {
@@ -117,6 +119,7 @@ const NAV = {
     { id: 'admin-suggestions', icon: '💭', label: 'ข้อเสนอแนะ' },
     { id: 'admin-reports',    icon: '📈', label: 'รายงาน' },
     { id: 'admin-badges',     icon: '🏅', label: 'Badge' },
+    { id: 'admin-codehistory', icon: '🎯', label: 'ประวัติโค้ด' },
     { id: 'admin-settings',   icon: '⚙️', label: 'ตั้งค่า' },
   ],
 };
@@ -771,6 +774,7 @@ function renderScreen(screen) {
     'admin-reports':       renderAdminReports,
     'admin-badges':        renderAdminBadges,
     'admin-settings':      renderAdminSettings,
+    'admin-codehistory':   renderAdminCodeHistory,
   };
   return (S[screen] || (() => '<div style="text-align:center;padding:40px;color:#9ca3af;">🚧 หน้านี้กำลังพัฒนา...</div>'))();
 }
@@ -1735,6 +1739,42 @@ function renderAdminBadges() {
   </div>`;
 }
 
+// แถวประวัติโค้ด — ใครสร้าง, ขอบเขต, ยังใช้งานได้อยู่ไหม, มีคนสแกนไปแล้วกี่คน
+function codeHistoryRowHTML(c) {
+  const deed = c.good_deed_types || {};
+  const creator = c.profiles?.full_name || '-';
+  const scope = c.grade_level ? `ม.${c.grade_level}${c.room ? '/' + c.room : ''}` : 'ทุกชั้นเรียน';
+  const expired = new Date(c.expires_at).getTime() <= Date.now();
+  const redeemed = c.point_code_redemptions?.[0]?.count ?? 0;
+  return `
+    <div class="list-item" style="align-items:flex-start;">
+      <span style="font-size:20px;">${deed.icon || '🎯'}</span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:700;font-size:14px;color:#1f2937;">
+          <span style="letter-spacing:1px;">${c.code}</span>
+          <span style="font-weight:400;color:#6b7280;"> · ${deed.name || '-'}</span>
+        </div>
+        <div style="font-size:12px;color:#374151;margin-top:3px;">สร้างโดย ${creator} · ${scope} · +${c.points} คะแนน</div>
+        <div style="font-size:11px;color:#9ca3af;margin-top:4px;">
+          ${formatDate(c.created_at)} · ${expired ? '⚫ หมดอายุแล้ว' : '🟢 ใช้งานอยู่'} · 👥 รับไปแล้ว ${redeemed} คน
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderAdminCodeHistory() {
+  const history = state.codeHistory;
+  return `
+  <div class="screen-wrap anim-slideup">
+    <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.055);">
+      <div style="padding:14px 16px 10px;font-weight:700;color:var(--gd);">🎯 ประวัติการสร้างโค้ดรับคะแนน</div>
+      ${history.length
+        ? history.map(codeHistoryRowHTML).join('')
+        : `<div style="padding:30px;text-align:center;color:#9ca3af;font-size:13px;">ยังไม่มีประวัติการสร้างโค้ด</div>`}
+    </div>
+  </div>`;
+}
+
 function toggleSwitchHTML(action, key, enabled) {
   return `
     <button data-action="${action}" data-key="${key}" data-enabled="${enabled}"
@@ -2259,7 +2299,7 @@ async function doLogout() {
     staffUser: null, deedTypes: [], rewards: [], rewardRequests: [], rewardSuggestions: [], students: [], studentGradeFilter: '', studentRoomFilter: '', studentClasses: [], pointLogs: [], badgeTiers: [],
     reportSummary: null, reportError: null, reportLeaderboard: null, reportGradeFilter: '', scanStep: 0, scanStudent: null, selectedDeedId: null, points: 10,
     addStudentCode: '', addStudentName: '', studentScanMode: false,
-    pointCode: null, codeDurationMin: 10, codeGradeFilter: '', codeRoomFilter: '',
+    pointCode: null, codeDurationMin: 10, codeGradeFilter: '', codeRoomFilter: '', codeHistory: [],
     settings: { leaderboardEnabled: true, leaderboardTopN: 10, schoolLogoUrl: null, schoolName: 'ตาเบาวิทยา', schoolTagline: 'ระบบสะสมคะแนนความดีนักเรียน' },
     rolePermissions: { 'admin-deedtypes': true, 'admin-rewards': true, 'admin-reward-pickup': true, 'admin-suggestions': true, 'admin-reports': true },
   });
@@ -2327,6 +2367,10 @@ async function loadDataForScreen(screen) {
   if (screen === 'admin-badges') {
     const { data } = await getBadgeTiers();
     state.badgeTiers = data || [];
+  }
+  if (screen === 'admin-codehistory') {
+    const { data } = await getPointCodeHistory({ limit: 30 });
+    state.codeHistory = data || [];
   }
   if (screen === 'admin-settings') {
     const [{ data: settings }, { data: rolePermissions }] = await Promise.all([getAppSettings(), getRolePermissions()]);

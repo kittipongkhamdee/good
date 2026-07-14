@@ -1046,3 +1046,15 @@ end;
 $$;
 revoke execute on function public.redeem_point_code(text,text) from public;
 grant execute on function public.redeem_point_code(text,text) to anon, authenticated;
+
+-- =============================================
+-- 21. Admin visibility into point-code history — §19/§20 locked point_codes/
+-- point_code_redemptions to SECURITY DEFINER RPCs only (no client SELECT at all).
+-- Adding read-only policies so the new "ประวัติการสร้างโค้ด" admin screen can list
+-- past codes (who created them, scope, redemption count) via a normal .select().
+-- =============================================
+create policy "point_codes_staff_read" on public.point_codes for select
+  using (auth.role() = 'authenticated');
+
+create policy "point_code_redemptions_staff_read" on public.point_code_redemptions for select
+  using (auth.role() = 'authenticated');

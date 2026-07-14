@@ -232,6 +232,16 @@ async function redeemPointCode(studentCode, code) {
   return { data: data?.[0] || null, error: error?.message || null };
 }
 
+// Admin: ประวัติโค้ดที่ครูสร้างทั้งหมด — ใครสร้าง, ขอบเขต, มีคนสแกนไปแล้วกี่คน
+async function getPointCodeHistory({ limit = 30 } = {}) {
+  const { data, error } = await _sb
+    .from('point_codes')
+    .select('id, code, points, grade_level, room, expires_at, created_at, good_deed_types(icon, name), profiles(full_name), point_code_redemptions(count)')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  return { data, error: error?.message || null };
+}
+
 async function getPointLogs({ limit = 20 } = {}) {
   const { data, error } = await _sb
     .from('point_logs')

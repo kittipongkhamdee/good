@@ -396,6 +396,52 @@ select { appearance: none; -webkit-appearance: none; }
   border: none; font-size: 20px; cursor: pointer; color: #9ca3af;
 }
 
+/* Level-up celebration overlay — shown when a student's redeem pushes them into a new badge tier */
+.levelup-overlay {
+  position: fixed; inset: 0; z-index: 970; cursor: pointer;
+  background: radial-gradient(circle at 50% 40%, oklch(0.4 0.15 145 / 0.97), oklch(0.12 0.05 145 / 0.99));
+  display: flex; align-items: center; justify-content: center; flex-direction: column;
+  overflow: hidden; animation: fadeIn 0.25s ease; text-align: center; padding: 24px;
+}
+.levelup-confetti-field { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.confetti-piece {
+  position: absolute; top: -8%; left: var(--x);
+  width: var(--sz); height: calc(var(--sz) * 0.42); background: var(--col);
+  border-radius: 2px; opacity: 0; will-change: transform, opacity;
+  animation: confettiFall var(--dur) ease-in var(--del) forwards;
+}
+@keyframes confettiFall {
+  0%   { transform: translate(0, 0) rotate(0deg); opacity: 0; }
+  8%   { opacity: 1; }
+  100% { transform: translate(var(--dx), var(--dy)) rotate(var(--rot)); opacity: 0; }
+}
+.levelup-badge-icon {
+  font-size: 92px; line-height: 1; filter: drop-shadow(0 0 24px rgba(255,255,255,0.55));
+  animation: levelUpPop 0.6s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes levelUpPop {
+  0%   { transform: scale(0) rotate(-20deg); opacity: 0; }
+  60%  { transform: scale(1.15) rotate(6deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+.levelup-title {
+  color: #fff; font-size: 15px; font-weight: 700; letter-spacing: 3px;
+  text-transform: uppercase; margin-top: 18px; opacity: 0.85;
+  animation: fadeIn 0.4s ease 0.2s both;
+}
+.levelup-name {
+  color: #fff; font-size: 30px; font-weight: 700; margin-top: 6px;
+  animation: fadeIn 0.4s ease 0.35s both;
+}
+.levelup-hint {
+  color: rgba(255,255,255,0.7); font-size: 13px; margin-top: 26px;
+  animation: fadeIn 0.4s ease 0.6s both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .confetti-piece { display: none; }
+  .levelup-badge-icon, .levelup-title, .levelup-name, .levelup-hint { animation: none; opacity: 1; transform: none; }
+}
+
 /* Loading */
 .loading-center { display: flex; align-items: center; justify-content: center; padding: 40px; }
 .spinner { display: inline-block; width: 32px; height: 32px; border: 3px solid var(--gl); border-top-color: var(--g); border-radius: 50%; animation: spin 0.8s linear infinite; }

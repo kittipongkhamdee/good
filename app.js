@@ -2257,6 +2257,7 @@ async function handleStudentScanResult(raw) {
   if (!code) { showToast('QR นี้ไม่ใช่โค้ดรับคะแนน ❌'); setState({ studentScanMode: false }); return; }
 
   setState({ loading: true });
+  const oldPoints = state.student.total_points;
   const { data, error } = await redeemPointCode(state.student.student_code, code);
   if (error) {
     setState({ loading: false, studentScanMode: false });
@@ -2271,6 +2272,11 @@ async function handleStudentScanResult(raw) {
   setState({ loading: false, studentScanMode: false, student: student || state.student, studentHistory: history || [] });
   showToast(`🎉 ได้รับ +${data.points} คะแนน! ${data.deed_icon || ''} ${data.deed_name || ''}`);
   playPointGainedSound();
+
+  const newBadge = getBadge(student ? student.total_points : oldPoints);
+  if (newBadge.minPts > getBadge(oldPoints).minPts) {
+    setTimeout(() => showLevelUpCelebration(newBadge), 700);
+  }
 }
 
 // ══════════════════════════════════════════════
@@ -3247,6 +3253,10 @@ document.addEventListener('click', async (e) => {
       // Same guard as close-drawer: only the backdrop itself closes the modal.
       if (btn === e.target) closeModal();
       break;
+
+    case 'close-levelup':
+      closeLevelUpCelebration();
+      break;
   }
 });
 
@@ -3277,6 +3287,52 @@ function spawnLeaves(field, { count, sizeMin, sizeMax, durMin, durMax, delMax })
 function spawnLoginLeaves() {
   spawnLeaves(document.getElementById('leaf-field'),
     { count: 12, sizeMin: 13, sizeMax: 22, durMin: 9, durMax: 14, delMax: 12 });
+}
+
+// ══════════════════════════════════════════════
+// Level-up celebration — เมื่อนักเรียนแลกโค้ดแล้วคะแนนข้าม Badge Tier ใหม่
+// ══════════════════════════════════════════════
+
+function spawnConfetti(field, count = 36) {
+  if (!field) return;
+  const COLORS = ['#22c55e', '#facc15', '#f97316', '#38bdf8', '#f472b6', '#a78bfa', '#ffffff'];
+  const dy = Math.max(window.innerHeight, 500);
+  for (let i = 0; i < count; i++) {
+    const p = document.createElement('span');
+    p.className = 'confetti-piece';
+    p.style.setProperty('--x', `${Math.round(Math.random() * 100)}%`);
+    p.style.setProperty('--sz', `${Math.round(7 + Math.random() * 7)}px`);
+    p.style.setProperty('--col', COLORS[i % COLORS.length]);
+    p.style.setProperty('--dur', `${(1.6 + Math.random() * 1.4).toFixed(2)}s`);
+    p.style.setProperty('--del', `${(Math.random() * 0.5).toFixed(2)}s`);
+    p.style.setProperty('--dx', `${Math.round(-90 + Math.random() * 180)}px`);
+    p.style.setProperty('--dy', `${Math.round(dy * 0.75 + Math.random() * dy * 0.4)}px`);
+    p.style.setProperty('--rot', `${Math.round(360 + Math.random() * 540)}deg`);
+    field.appendChild(p);
+  }
+}
+
+let _levelUpTimer = null;
+function showLevelUpCelebration(badge) {
+  const c = document.getElementById('levelup-container');
+  if (!c) return;
+  c.innerHTML = `
+    <div class="levelup-overlay" data-action="close-levelup">
+      <div class="levelup-confetti-field" id="levelup-confetti-field"></div>
+      <div class="levelup-badge-icon">${badge.icon}</div>
+      <div class="levelup-title">เลเวลอัพ!</div>
+      <div class="levelup-name">${badge.label}</div>
+      <div class="levelup-hint">แตะเพื่อปิด</div>
+    </div>`;
+  spawnConfetti(document.getElementById('levelup-confetti-field'));
+  playLevelUpFanfare();
+  if (_levelUpTimer) clearTimeout(_levelUpTimer);
+  _levelUpTimer = setTimeout(closeLevelUpCelebration, 4200);
+}
+function closeLevelUpCelebration() {
+  if (_levelUpTimer) { clearTimeout(_levelUpTimer); _levelUpTimer = null; }
+  const c = document.getElementById('levelup-container');
+  if (c) c.innerHTML = '';
 }
 
 // การ์ดนักเรียนหน้าหลัก (.hero-banner) ถูก re-render ทับทุกครั้งที่ setState() ทำงาน (นำทาง/เปิดเมนู/ฯลฯ)
@@ -3318,18 +3374,56 @@ const pointGainedSound = new Audio('sounds/point-gained.mp3');
 pointGainedSound.preload = 'auto';
 pointGainedSound.volume = 0.6;
 let _audioUnlocked = false;
+
+// Web Audio context for the synthesized level-up fanfare (no external sound file needed).
+// Must be resumed inside the same user-gesture as unlockAudio() or iOS Safari will keep it suspended.
+let _audioCtx = null;
+function getAudioCtx() {
+  if (!_audioCtx) {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (Ctx) _audioCtx = new Ctx();
+  }
+  return _audioCtx;
+}
+
 function unlockAudio() {
-  if (_audioUnlocked) return;
-  pointGainedSound.play().then(() => {
-    pointGainedSound.pause();
-    pointGainedSound.currentTime = 0;
-    _audioUnlocked = true;
-  }).catch(() => {});
+  if (!_audioUnlocked) {
+    pointGainedSound.play().then(() => {
+      pointGainedSound.pause();
+      pointGainedSound.currentTime = 0;
+      _audioUnlocked = true;
+    }).catch(() => {});
+  }
+  const ctx = getAudioCtx();
+  if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {});
 }
 function playPointGainedSound() {
   try {
     pointGainedSound.currentTime = 0;
     pointGainedSound.play().catch(() => {});
+  } catch {}
+}
+
+// สี่โน้ตไล่เสียงขึ้น (C5-E5-G5-C6) จำลองเสียงแฟนแฟร์สั้นๆ ตอนเลเวลอัพ — ไม่ต้องพึ่งไฟล์เสียงเพิ่ม
+function playLevelUpFanfare() {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  try {
+    const notes = [523.25, 659.25, 783.99, 1046.5];
+    const start = ctx.currentTime;
+    notes.forEach((freq, i) => {
+      const t = start + i * 0.11;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, t);
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(0.22, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.55);
+    });
   } catch {}
 }
 

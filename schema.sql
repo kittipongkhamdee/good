@@ -1058,3 +1058,125 @@ create policy "point_codes_staff_read" on public.point_codes for select
 
 create policy "point_code_redemptions_staff_read" on public.point_code_redemptions for select
   using (auth.role() = 'authenticated');
+
+-- =============================================
+-- 22. Cancel a mistaken point_logs entry — soft-cancel (cancelled_at/cancelled_by)
+-- instead of deleting, so the row stays as an audit trail. Restricted to the
+-- teacher who gave the points, or an Admin.
+--
+-- This also FIXES a pre-existing over-broad policy: "point_logs_staff_all" (for
+-- all, using auth.role()='authenticated') let ANY signed-in staff member
+-- UPDATE/DELETE any point_logs row. Nothing in the app actually relied on that
+-- (SELECT already had its own policy, INSERT goes through the add_point_log RPC)
+-- — it's dropped and replaced with a real ownership check.
+--
+-- Cancelled logs are excluded from student_points/get_student_summary/
+-- get_student_history/get_report_summary so they stop counting immediately,
+-- but a cancelled row is still visible to staff (point_logs_read_staff is
+-- unconditional) so cancellations remain auditable.
+-- =============================================
+alter table public.point_logs add column if not exists cancelled_at timestamptz;
+alter table public.point_logs add column if not exists cancelled_by uuid references public.profiles(id) on delete set null;
+
+drop policy if exists "point_logs_staff_all" on public.point_logs;
+create policy "point_logs_update_owner_or_admin" on public.point_logs for update
+  using (auth.role() = 'authenticated' and (teacher_id = auth.uid() or is_admin()))
+  with check (auth.role() = 'authenticated' and (teacher_id = auth.uid() or is_admin()));
+
+create or replace view public.student_points as
+with totals as (
+  select
+    s.id as student_id,
+    s.student_code,
+    s.student_name,
+    s.prefix,
+    s.grade_level,
+    s.room,
+    s.photo_url,
+    coalesce(sum(pl.points) filter (where pl.cancelled_at is null),0)::int as total_points
+  from public.students s
+  left join public.point_logs pl on pl.student_id = s.id
+  group by s.id, s.student_code, s.student_name, s.prefix, s.grade_level, s.room, s.photo_url
+)
+select
+  t.student_id, t.student_code, t.student_name, t.prefix, t.grade_level, t.room, t.total_points,
+  bt.name as badge_level,
+  bt.icon as badge_icon,
+  bt.color as badge_color,
+  t.photo_url
+from totals t
+left join lateral (
+  select name, icon, color
+  from public.badge_tiers
+  where active = true and min_points <= t.total_points
+  order by min_points desc
+  limit 1
+) bt on true;
+
+alter view public.student_points set (security_invoker = true);
+
+create or replace function public.get_student_summary(p_student_code text)
+returns table (
+  student_id uuid, student_code text, student_name text, prefix text, grade_level text, room text,
+  total_points int, badge_level text, rank bigint, redeem_count bigint, total_deeds bigint, photo_url text
+)
+language sql
+security definer
+set search_path = public
+as $$
+  with ranked as (
+    select sp.*, row_number() over (order by sp.total_points desc, sp.student_name) as rnk
+    from public.student_points sp
+  )
+  select
+    r.student_id, r.student_code, r.student_name, r.prefix, r.grade_level, r.room,
+    r.total_points, r.badge_level, r.rnk,
+    (select count(*) from public.reward_requests rr where rr.student_id = r.student_id) as redeem_count,
+    (select count(*) from public.point_logs pl where pl.student_id = r.student_id and pl.cancelled_at is null) as total_deeds,
+    r.photo_url
+  from ranked r
+  where r.student_code = p_student_code;
+$$;
+grant execute on function public.get_student_summary(text) to anon, authenticated;
+
+create or replace function public.get_student_history(p_student_code text, p_limit int default 20)
+returns table (
+  id uuid, deed_name text, deed_icon text, teacher_name text, points int, created_at timestamptz
+)
+language sql
+security definer
+set search_path = public
+as $$
+  select pl.id, gdt.name, gdt.icon, pr.full_name, pl.points, pl.created_at
+  from public.point_logs pl
+  join public.students s on s.id = pl.student_id
+  left join public.good_deed_types gdt on gdt.id = pl.deed_type_id
+  left join public.profiles pr on pr.id = pl.teacher_id
+  where s.student_code = p_student_code and pl.cancelled_at is null
+  order by pl.created_at desc
+  limit p_limit;
+$$;
+grant execute on function public.get_student_history(text,int) to anon, authenticated;
+
+create or replace function public.get_report_summary()
+returns table (student_count bigint, teacher_count bigint, total_points bigint, log_count bigint)
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then raise exception 'ต้องเข้าสู่ระบบก่อน'; end if;
+  if not (is_admin() or public.teacher_screen_enabled('admin-reports')) then
+    raise exception 'ไม่มีสิทธิ์เข้าถึงรายงาน';
+  end if;
+  return query
+    select
+      (select count(*) from public.students) as student_count,
+      (select count(*) from public.profiles) as teacher_count,
+      (select coalesce(sum(points),0) from public.point_logs where cancelled_at is null) as total_points,
+      (select count(*) from public.point_logs where cancelled_at is null) as log_count;
+end;
+$$;
+revoke execute on function public.get_report_summary() from public;
+revoke execute on function public.get_report_summary() from anon;
+grant execute on function public.get_report_summary() to authenticated;

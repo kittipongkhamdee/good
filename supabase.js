@@ -245,10 +245,19 @@ async function getPointCodeHistory({ limit = 30 } = {}) {
 async function getPointLogs({ limit = 20 } = {}) {
   const { data, error } = await _sb
     .from('point_logs')
-    .select('id, points, note, created_at, students(student_name, prefix, grade_level, room), good_deed_types(name, icon), profiles(full_name)')
+    .select('id, points, note, created_at, teacher_id, cancelled_at, students(student_name, prefix, grade_level, room), good_deed_types(name, icon), profiles:profiles!point_logs_teacher_id_fkey(full_name), canceller:profiles!point_logs_cancelled_by_fkey(full_name)')
     .order('created_at', { ascending: false })
     .limit(limit);
   return { data, error: error?.message || null };
+}
+
+// ให้คะแนนผิดคน/ผิดจำนวน — ยกเลิกแบบเก็บประวัติไว้ (ไม่ลบทิ้งจริง) เพื่อตรวจสอบย้อนหลังได้
+// RLS จำกัดไว้แค่เจ้าของรายการ (ครูที่ให้คะแนน) หรือ Admin เท่านั้นที่ยกเลิกได้
+async function cancelPointLog(id, cancelledBy) {
+  const { error } = await _sb.from('point_logs')
+    .update({ cancelled_at: new Date().toISOString(), cancelled_by: cancelledBy })
+    .eq('id', id);
+  return { error: error?.message || null };
 }
 
 // ──────────────────────────────────────────────

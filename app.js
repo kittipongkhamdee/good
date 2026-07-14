@@ -1310,6 +1310,26 @@ function renderTeacherAddPoints() {
   </div>`;
 }
 
+// ให้คะแนนผิดคน/ผิดจำนวน — ปุ่มยกเลิกโชว์เฉพาะเจ้าของรายการหรือ Admin จริง (ไม่ใช่ตอนพรีวิวเป็นครู)
+// รายการที่ยกเลิกแล้วยังคงแสดงไว้ (ขีดฆ่า + บอกว่าใครยกเลิก) เพื่อเก็บเป็นหลักฐานตรวจสอบย้อนหลัง
+function pointLogRowHTML(l) {
+  const cancelled = !!l.cancelled_at;
+  const canCancel = !cancelled && (l.teacher_id === state.staffUser?.id || (state.role === 'admin' && !state.previewAsTeacher));
+  return `
+    <div class="list-item" style="align-items:flex-start;${cancelled ? 'opacity:0.55;' : ''}">
+      <span style="font-size:20px;">${studentGenderIcon(l.students)}</span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:600;font-size:14px;color:#1f2937;${cancelled ? 'text-decoration:line-through;' : ''}">${fullName(l.students)} · ${classOf(l.students)}</div>
+        <div style="font-size:12px;color:#6b7280;margin-top:2px;">${l.good_deed_types?.name || ''} · ${formatDate(l.created_at)} · ${l.profiles?.full_name || ''}</div>
+        ${cancelled ? `<div style="font-size:11px;color:#dc2626;margin-top:3px;">🚫 ยกเลิกแล้วโดย ${l.canceller?.full_name || '-'}</div>` : ''}
+      </div>
+      <div style="flex-shrink:0;text-align:right;">
+        <div style="font-weight:700;font-size:14px;color:${cancelled ? '#9ca3af' : 'var(--g)'};${cancelled ? 'text-decoration:line-through;' : ''}">+${l.points}</div>
+        ${canCancel ? `<button data-action="cancel-point-log" data-id="${l.id}" style="margin-top:4px;padding:4px 8px;background:#fee2e2;color:#dc2626;border:none;border-radius:8px;font-family:Kanit;font-size:11px;cursor:pointer;white-space:nowrap;">ยกเลิก</button>` : ''}
+      </div>
+    </div>`;
+}
+
 function renderTeacherHistory() {
   const logs = state.pointLogs;
   return `
@@ -1317,7 +1337,7 @@ function renderTeacherHistory() {
     <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.055);">
       <div style="padding:14px 16px 10px;font-weight:700;color:var(--gd);">ประวัติการให้คะแนน</div>
       ${logs.length
-        ? logs.map(l => listRow(studentGenderIcon(l.students), `${fullName(l.students)} · ${classOf(l.students)}`, `${l.good_deed_types?.name || ''} · ${formatDate(l.created_at)} · ${l.profiles?.full_name || ''}`, `+${l.points}`)).join('')
+        ? logs.map(pointLogRowHTML).join('')
         : `<div style="padding:30px;text-align:center;color:#9ca3af;font-size:13px;">ยังไม่มีประวัติ</div>`}
     </div>
   </div>`;
@@ -2569,6 +2589,15 @@ document.addEventListener('click', async (e) => {
       showToast('บันทึกคะแนนสำเร็จ! ✅');
       await loadDataForScreen('teacher-dashboard');
       setState({ screen: 'teacher-dashboard', selectedDeedId: null, points: 10, addStudentCode: '', addStudentName: '' });
+      break;
+    }
+
+    case 'cancel-point-log': {
+      const { error } = await cancelPointLog(btn.dataset.id, state.staffUser?.id);
+      if (error) { showToast(`เกิดข้อผิดพลาด: ${error}`); break; }
+      showToast('ยกเลิกรายการแล้ว');
+      await loadDataForScreen(state.screen);
+      render();
       break;
     }
 

@@ -821,24 +821,25 @@ function renderStudentDashboard() {
 
     <div class="card">
       <div class="qr-flip-wrap" data-action="qr-card-tap">
-        <div class="qr-flip-inner ${state.studentScanMode ? 'flipped' : ''}">
-          <div class="qr-flip-face qr-flip-front">
-            <div style="font-size:14px;font-weight:700;color:var(--gd);margin-bottom:12px;text-align:center;">📲 QR Code ประจำตัวนักเรียน</div>
-            <div class="qr-display"><div class="qr-frame"><canvas id="student-qr" width="164" height="164"></canvas></div></div>
-            <div style="text-align:center;margin-top:10px;font-size:12px;color:#9ca3af;">รหัส ${s.student_code} · ${classOf(s)} · ${state.settings.schoolName}</div>
-            <div style="text-align:center;margin-top:8px;font-size:11px;color:#c7d2c2;">👆👆 แตะ 2 ครั้งเพื่อสแกนรับคะแนนจากครู</div>
+        ${state.studentScanMode ? `
+        <div class="qr-flip-face">
+          <div style="font-size:14px;font-weight:700;color:var(--gd);margin-bottom:12px;text-align:center;">📷 สแกนโค้ดรับคะแนนจากครู</div>
+          <div class="qr-scan-box" style="width:100%;">
+            <video id="student-scan-video" class="scan-video" autoplay playsinline muted></video>
+            <canvas id="student-scan-canvas" style="display:none;"></canvas>
+            <div class="qr-corner qr-tl"></div><div class="qr-corner qr-tr"></div>
+            <div class="qr-corner qr-bl"></div><div class="qr-corner qr-br"></div>
           </div>
-          <div class="qr-flip-face qr-flip-back">
-            <div style="font-size:14px;font-weight:700;color:var(--gd);margin-bottom:12px;text-align:center;">📷 สแกนโค้ดรับคะแนนจากครู</div>
-            <div class="qr-scan-box" style="width:100%;">
-              <video id="student-scan-video" class="scan-video" autoplay playsinline muted></video>
-              <canvas id="student-scan-canvas" style="display:none;"></canvas>
-              <div class="qr-corner qr-tl"></div><div class="qr-corner qr-tr"></div>
-              <div class="qr-corner qr-bl"></div><div class="qr-corner qr-br"></div>
-            </div>
-            <div style="text-align:center;margin-top:10px;font-size:11px;color:#9ca3af;">👆👆 แตะ 2 ครั้งเพื่อกลับไปที่ QR Code</div>
-          </div>
+          <div style="text-align:center;margin-top:10px;font-size:11px;color:#9ca3af;">👆👆 แตะ 2 ครั้งเพื่อกลับไปที่ QR Code</div>
         </div>
+        ` : `
+        <div class="qr-flip-face">
+          <div style="font-size:14px;font-weight:700;color:var(--gd);margin-bottom:12px;text-align:center;">📲 QR Code ประจำตัวนักเรียน</div>
+          <div class="qr-display"><div class="qr-frame"><canvas id="student-qr" width="164" height="164"></canvas></div></div>
+          <div style="text-align:center;margin-top:10px;font-size:12px;color:#9ca3af;">รหัส ${s.student_code} · ${classOf(s)} · ${state.settings.schoolName}</div>
+          <div style="text-align:center;margin-top:8px;font-size:11px;color:#c7d2c2;">👆👆 แตะ 2 ครั้งเพื่อสแกนรับคะแนนจากครู</div>
+        </div>
+        `}
       </div>
     </div>
 

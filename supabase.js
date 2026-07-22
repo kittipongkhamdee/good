@@ -106,6 +106,12 @@ async function getStudentSubjectUnits(studentCode, subjectId) {
   return { data, error: error?.message || null };
 }
 
+// สอบกลาง/ปลายภาค, เวลาเรียน, การประเมินอ่าน/คุณลักษณะ — เติมใน popup รายละเอียดวิชา
+async function getStudentSubjectDetail(studentCode, subjectId) {
+  const { data, error } = await _sb.rpc('get_student_subject_detail', { p_student_code: studentCode, p_subject_id: subjectId });
+  return { data: data?.[0] || null, error: error?.message || null };
+}
+
 // ──────────────────────────────────────────────
 // Students (staff-facing: search/list uses real students table, requires staff session)
 // ──────────────────────────────────────────────

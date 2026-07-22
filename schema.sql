@@ -1448,3 +1448,39 @@ as $$
   order by su.period, su.unit_number;
 $$;
 grant execute on function public.get_student_subject_units(text, uuid) to anon, authenticated;
+
+-- รายละเอียดวิชาแบบเต็ม (คะแนนสอบกลาง/ปลายภาค, เวลาเรียน, การประเมินอ่าน/คุณลักษณะ)
+-- ใช้เติมข้อมูลเพิ่มในการ์ดรายละเอียดวิชา ต่อจาก get_student_grades/get_student_subject_units
+create or replace function public.get_student_subject_detail(p_student_code text, p_subject_id uuid)
+returns table (
+  total_before_mid numeric,
+  mid_normal numeric,
+  total_after_mid numeric,
+  final_score numeric,
+  total_hours int,
+  present_periods numeric,
+  absent_periods numeric,
+  leave_periods numeric,
+  eval_char_result smallint,
+  eval_read_result smallint
+)
+language sql
+security definer
+set search_path = public
+as $$
+  select
+    ss.total_before_mid, ss.mid_normal, ss.total_after_mid, ss.final_score,
+    sub.total_hours,
+    coalesce((select sum(a.periods) from public.attendance a where a.student_id = s.id and a.subject_id = sub.id and a.status = 'present'), 0),
+    coalesce((select sum(a.periods) from public.attendance a where a.student_id = s.id and a.subject_id = sub.id and a.status = 'absent'), 0),
+    coalesce((select sum(a.periods) from public.attendance a where a.student_id = s.id and a.subject_id = sub.id and a.status = 'leave'), 0),
+    ec.overall_result,
+    er.result
+  from public.students s
+  join public.subjects sub on sub.id = p_subject_id and sub.grade_level = s.grade_level and sub.room = s.room
+  left join public.score_summary ss on ss.subject_id = sub.id and ss.student_id = s.id
+  left join public.eval_char ec on ec.subject_id = sub.id and ec.student_id = s.id
+  left join public.eval_read er on er.subject_id = sub.id and er.student_id = s.id
+  where s.student_code = p_student_code;
+$$;
+grant execute on function public.get_student_subject_detail(text, uuid) to anon, authenticated;

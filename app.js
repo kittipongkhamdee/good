@@ -1201,42 +1201,109 @@ function renderStudentGrades() {
   </div>`;
 }
 
-// popup รายละเอียดคะแนนย่อยรายหน่วยของวิชาหนึ่ง — units === null หมายถึงกำลังโหลดอยู่
-function subjectDetailModalHTML(row, units) {
+// เลเบลระดับผลการประเมิน (eval_char.overall_result / eval_read.result) — สเกล 0-3 ของระบบ ปพ.5
+function evalResultLabel(v) {
+  const labels = { 3: 'ดีเยี่ยม', 2: 'ดี', 1: 'ผ่าน', 0: 'ไม่ผ่าน' };
+  return (v === null || v === undefined) ? 'ยังไม่ประเมิน' : (labels[v] ?? '-');
+}
+
+function scoreCell(label, value) {
+  return `
+    <div style="background:#f8faf8;border-radius:10px;padding:8px 10px;">
+      <div style="font-size:11px;color:#9ca3af;">${label}</div>
+      <div style="font-size:15px;font-weight:700;color:var(--gd);">${value !== null && value !== undefined ? Number(value).toFixed(1) : '-'}</div>
+    </div>`;
+}
+
+// popup รายละเอียดวิชาหนึ่ง — units/detail === null หมายถึงกำลังโหลดอยู่ (โหลดพร้อมกันทั้งคู่)
+function subjectDetailModalHTML(row, units, detail) {
+  const loading = units === null;
   const specialResult = row.special_result && row.special_result.trim();
   const gradeLine = !row.has_score
     ? 'ยังไม่มีคะแนน'
     : `${specialResult || (row.grade !== null ? 'เกรด ' + Number(row.grade).toFixed(1) : '-')}` +
       `${row.total_score !== null ? ' · รวม ' + Number(row.total_score).toFixed(1) + ' คะแนน' : ''}`;
 
-  const periodLabel = { before: 'ก่อนกลางภาค', after: 'หลังกลางภาค' };
+  // ── สอบกลาง/ปลายภาค + คะแนนเก็บ ──
+  const scoresHTML = loading ? '' : `
+    <div style="margin-top:14px;">
+      <div style="font-size:12.5px;font-weight:700;color:var(--gd);margin-bottom:6px;">📝 คะแนนเก็บ/สอบ</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        ${scoreCell('เก็บคะแนนก่อนกลางภาค', detail?.total_before_mid)}
+        ${scoreCell('สอบกลางภาค', detail?.mid_normal)}
+        ${scoreCell('เก็บคะแนนหลังกลางภาค', detail?.total_after_mid)}
+        ${scoreCell('สอบปลายภาค', detail?.final_score)}
+      </div>
+    </div>`;
 
-  let body;
-  if (units === null) {
-    body = `<div style="text-align:center;padding:24px;color:#9ca3af;">กำลังโหลด...</div>`;
-  } else if (!units.length) {
-    body = `<div style="text-align:center;padding:24px;color:#9ca3af;">ยังไม่มีคะแนนย่อยรายหน่วยในระบบ</div>`;
-  } else {
+  // ── เวลาเรียน (มา+ลา นับเป็นเข้าเรียน ตามเกณฑ์เดียวกับระบบ ปพ.5) ──
+  let attendanceHTML = '';
+  if (!loading) {
+    const present = Number(detail?.present_periods || 0);
+    const absent = Number(detail?.absent_periods || 0);
+    const leave = Number(detail?.leave_periods || 0);
+    const totalHours = Number(detail?.total_hours || 0);
+    const attended = present + leave;
+    const pct = totalHours > 0 ? Math.round((attended / totalHours) * 100) : null;
+    attendanceHTML = `
+      <div style="margin-top:14px;">
+        <div style="font-size:12.5px;font-weight:700;color:var(--gd);margin-bottom:6px;">🕒 เวลาเรียน</div>
+        <div style="background:#f8faf8;border-radius:10px;padding:10px 12px;">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;">
+            <span style="font-size:13.5px;">เข้าเรียนแล้ว</span>
+            <span style="font-weight:700;color:var(--gd);">${totalHours > 0 ? `${attended} / ${totalHours} ชม. (${pct}%)` : `${attended} ชม.`}</span>
+          </div>
+          <div style="font-size:12px;color:#9ca3af;margin-top:4px;">มา ${present} ชม. · ลา ${leave} ชม. · ขาด ${absent} ชม.</div>
+        </div>
+      </div>`;
+  }
+
+  // ── การประเมินอ่าน/คิดวิเคราะห์/เขียน + คุณลักษณะอันพึงประสงค์ ──
+  const evalHTML = loading ? '' : `
+    <div style="margin-top:14px;">
+      <div style="font-size:12.5px;font-weight:700;color:var(--gd);margin-bottom:6px;">⭐ การประเมิน</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f3f4f6;font-size:13.5px;">
+        <span>การอ่าน คิดวิเคราะห์ และเขียน</span>
+        <span style="font-weight:700;color:var(--gd);">${evalResultLabel(detail?.eval_read_result)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;font-size:13.5px;">
+        <span>คุณลักษณะอันพึงประสงค์</span>
+        <span style="font-weight:700;color:var(--gd);">${evalResultLabel(detail?.eval_char_result)}</span>
+      </div>
+    </div>`;
+
+  // ── คะแนนย่อยรายหน่วย (ตามที่มีอยู่เดิม) ──
+  const periodLabel = { before: 'ก่อนกลางภาค', after: 'หลังกลางภาค' };
+  let unitsHTML;
+  if (!loading && !units.length) {
+    unitsHTML = '';
+  } else if (!loading) {
     const grouped = units.reduce((groups, u) => { (groups[u.period] = groups[u.period] || []).push(u); return groups; }, {});
     const periods = ['before', 'after', ...Object.keys(grouped).filter(p => p !== 'before' && p !== 'after')];
-    body = periods.filter(p => grouped[p] && grouped[p].length).map(period => `
+    unitsHTML = `
       <div style="margin-top:14px;">
-        <div style="font-size:12.5px;font-weight:700;color:var(--gd);margin-bottom:6px;">${periodLabel[period] || period}</div>
-        ${grouped[period].map(u => `
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f3f4f6;font-size:13.5px;">
-            <span>${u.unit_name || ('หน่วยที่ ' + u.unit_number)}${u.standard_ref ? ` <span style="color:#9ca3af;font-size:11.5px;">(${u.standard_ref})</span>` : ''}</span>
-            <span style="font-weight:700;color:var(--gd);">${Number(u.score).toFixed(1)} / ${Number(u.max_score).toFixed(1)}</span>
+        <div style="font-size:12.5px;font-weight:700;color:var(--gd);margin-bottom:6px;">📘 คะแนนย่อยรายหน่วย</div>
+        ${periods.filter(p => grouped[p] && grouped[p].length).map(period => `
+          <div style="margin-top:8px;">
+            <div style="font-size:12px;color:#6b7280;margin-bottom:4px;">${periodLabel[period] || period}</div>
+            ${grouped[period].map(u => `
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f3f4f6;font-size:13.5px;">
+                <span>${u.unit_name || ('หน่วยที่ ' + u.unit_number)}${u.standard_ref ? ` <span style="color:#9ca3af;font-size:11.5px;">(${u.standard_ref})</span>` : ''}</span>
+                <span style="font-weight:700;color:var(--gd);">${Number(u.score).toFixed(1)} / ${Number(u.max_score).toFixed(1)}</span>
+              </div>
+            `).join('')}
           </div>
         `).join('')}
-      </div>
-    `).join('');
+      </div>`;
   }
 
   return `
     <div class="modal-title">📖 ${row.subject_name}</div>
     <div style="font-size:12.5px;color:#6b7280;margin-bottom:4px;">${row.teacher_name || ''} · ${Number(row.credits).toFixed(1)} นก. · ${row.subject_code || ''}</div>
     <div style="font-size:14px;font-weight:700;color:var(--gd);margin-bottom:8px;">${gradeLine}</div>
-    <div style="max-height:50vh;overflow-y:auto;">${body}</div>
+    <div style="max-height:60vh;overflow-y:auto;">
+      ${loading ? `<div style="text-align:center;padding:24px;color:#9ca3af;">กำลังโหลด...</div>` : `${scoresHTML}${attendanceHTML}${evalHTML}${unitsHTML}`}
+    </div>
     <button data-action="close-modal" style="width:100%;padding:10px;margin-top:14px;background:transparent;border:none;font-family:Kanit;color:#9ca3af;cursor:pointer;">ปิด</button>
   `;
 }
@@ -3429,9 +3496,12 @@ document.addEventListener('click', async (e) => {
       const subjectId = btn.dataset.subjectId;
       const row = (state.studentGrades || []).find(g => g.subject_id === subjectId);
       if (!row) break;
-      showModal(subjectDetailModalHTML(row, null));
-      const { data: units } = await getStudentSubjectUnits(state.student.student_code, subjectId);
-      showModal(subjectDetailModalHTML(row, units || []));
+      showModal(subjectDetailModalHTML(row, null, null));
+      const [{ data: units }, { data: detail }] = await Promise.all([
+        getStudentSubjectUnits(state.student.student_code, subjectId),
+        getStudentSubjectDetail(state.student.student_code, subjectId),
+      ]);
+      showModal(subjectDetailModalHTML(row, units || [], detail));
       break;
     }
 

@@ -100,6 +100,12 @@ async function getStudentGrades(studentCode) {
   return { data, error: error?.message || null };
 }
 
+// คะแนนย่อยรายหน่วยของวิชาหนึ่ง — ใช้แสดงใน popup รายละเอียดวิชา
+async function getStudentSubjectUnits(studentCode, subjectId) {
+  const { data, error } = await _sb.rpc('get_student_subject_units', { p_student_code: studentCode, p_subject_id: subjectId });
+  return { data, error: error?.message || null };
+}
+
 // ──────────────────────────────────────────────
 // Students (staff-facing: search/list uses real students table, requires staff session)
 // ──────────────────────────────────────────────

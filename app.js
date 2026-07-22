@@ -1193,10 +1193,52 @@ function renderStudentGrades() {
                <div style="font-weight:700;color:var(--gd);">${specialResult || (r.grade !== null ? Number(r.grade).toFixed(1) : '-')}</div>
                <div style="font-size:11px;color:#9ca3af;">${r.total_score !== null ? Number(r.total_score).toFixed(1) + ' คะแนน' : ''}</div>
              </div>`;
-        return listRow('📖', r.subject_name, `${r.teacher_name || ''} · ${Number(r.credits).toFixed(1)} นก.`, right);
+        return `<div data-action="show-subject-detail" data-subject-id="${r.subject_id}" style="cursor:pointer;">
+          ${listRow('📖', r.subject_name, `${r.teacher_name || ''} · ${Number(r.credits).toFixed(1)} นก.`, right)}
+        </div>`;
       }).join('')}
     </div>
   </div>`;
+}
+
+// popup รายละเอียดคะแนนย่อยรายหน่วยของวิชาหนึ่ง — units === null หมายถึงกำลังโหลดอยู่
+function subjectDetailModalHTML(row, units) {
+  const specialResult = row.special_result && row.special_result.trim();
+  const gradeLine = !row.has_score
+    ? 'ยังไม่มีคะแนน'
+    : `${specialResult || (row.grade !== null ? 'เกรด ' + Number(row.grade).toFixed(1) : '-')}` +
+      `${row.total_score !== null ? ' · รวม ' + Number(row.total_score).toFixed(1) + ' คะแนน' : ''}`;
+
+  const periodLabel = { before: 'ก่อนกลางภาค', after: 'หลังกลางภาค' };
+
+  let body;
+  if (units === null) {
+    body = `<div style="text-align:center;padding:24px;color:#9ca3af;">กำลังโหลด...</div>`;
+  } else if (!units.length) {
+    body = `<div style="text-align:center;padding:24px;color:#9ca3af;">ยังไม่มีคะแนนย่อยรายหน่วยในระบบ</div>`;
+  } else {
+    const grouped = units.reduce((groups, u) => { (groups[u.period] = groups[u.period] || []).push(u); return groups; }, {});
+    const periods = ['before', 'after', ...Object.keys(grouped).filter(p => p !== 'before' && p !== 'after')];
+    body = periods.filter(p => grouped[p] && grouped[p].length).map(period => `
+      <div style="margin-top:14px;">
+        <div style="font-size:12.5px;font-weight:700;color:var(--gd);margin-bottom:6px;">${periodLabel[period] || period}</div>
+        ${grouped[period].map(u => `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f3f4f6;font-size:13.5px;">
+            <span>${u.unit_name || ('หน่วยที่ ' + u.unit_number)}${u.standard_ref ? ` <span style="color:#9ca3af;font-size:11.5px;">(${u.standard_ref})</span>` : ''}</span>
+            <span style="font-weight:700;color:var(--gd);">${Number(u.score).toFixed(1)} / ${Number(u.max_score).toFixed(1)}</span>
+          </div>
+        `).join('')}
+      </div>
+    `).join('');
+  }
+
+  return `
+    <div class="modal-title">📖 ${row.subject_name}</div>
+    <div style="font-size:12.5px;color:#6b7280;margin-bottom:4px;">${row.teacher_name || ''} · ${Number(row.credits).toFixed(1)} นก. · ${row.subject_code || ''}</div>
+    <div style="font-size:14px;font-weight:700;color:var(--gd);margin-bottom:8px;">${gradeLine}</div>
+    <div style="max-height:50vh;overflow-y:auto;">${body}</div>
+    <button data-action="close-modal" style="width:100%;padding:10px;margin-top:14px;background:transparent;border:none;font-family:Kanit;color:#9ca3af;cursor:pointer;">ปิด</button>
+  `;
 }
 
 function renderStudentLeaderboard() {
@@ -3382,6 +3424,16 @@ document.addEventListener('click', async (e) => {
     case 'select-grades-semester':
       setState({ gradesSemesterKey: btn.dataset.key });
       break;
+
+    case 'show-subject-detail': {
+      const subjectId = btn.dataset.subjectId;
+      const row = (state.studentGrades || []).find(g => g.subject_id === subjectId);
+      if (!row) break;
+      showModal(subjectDetailModalHTML(row, null));
+      const { data: units } = await getStudentSubjectUnits(state.student.student_code, subjectId);
+      showModal(subjectDetailModalHTML(row, units || []));
+      break;
+    }
 
     case 'search-students-submit': {
       state.studentSearch = document.getElementById('student-search')?.value.trim() || '';

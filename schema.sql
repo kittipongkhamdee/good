@@ -1425,3 +1425,26 @@ as $$
   order by sub.academic_year desc, sub.semester desc, sub.subject_name;
 $$;
 grant execute on function public.get_student_grades(text) to anon, authenticated;
+
+-- คะแนนย่อยรายหน่วย (score_units) ของนักเรียนคนหนึ่งในวิชาหนึ่ง — ใช้เปิด popup รายละเอียด
+-- เมื่อกดที่รายวิชาในหน้า "ผลการเรียน"
+create or replace function public.get_student_subject_units(p_student_code text, p_subject_id uuid)
+returns table (
+  period text,
+  unit_number int,
+  unit_name text,
+  standard_ref text,
+  max_score numeric,
+  score numeric
+)
+language sql
+security definer
+set search_path = public
+as $$
+  select su.period, su.unit_number, su.unit_name, su.standard_ref, su.max_score, su.score
+  from public.score_units su
+  join public.students s on s.id = su.student_id
+  where s.student_code = p_student_code and su.subject_id = p_subject_id
+  order by su.period, su.unit_number;
+$$;
+grant execute on function public.get_student_subject_units(text, uuid) to anon, authenticated;

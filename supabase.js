@@ -94,6 +94,12 @@ async function getStudentRedemptions(studentCode) {
   return { data, error: error?.message || null };
 }
 
+// ผลการเรียน — อ่านจากตาราง subjects/score_summary ของระบบ ปพ.5 (คนละแอป แต่ฐานข้อมูลเดียวกัน)
+async function getStudentGrades(studentCode) {
+  const { data, error } = await _sb.rpc('get_student_grades', { p_student_code: studentCode });
+  return { data, error: error?.message || null };
+}
+
 // ──────────────────────────────────────────────
 // Students (staff-facing: search/list uses real students table, requires staff session)
 // ──────────────────────────────────────────────

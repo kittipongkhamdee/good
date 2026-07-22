@@ -23,6 +23,9 @@ const state = {
   leaderboard: null,
   leaderboardScope: 'school', // 'school' | 'grade' | 'room'
 
+  studentGrades: null,      // ผลการเรียน — โหลดแบบ lazy ตอนเข้าหน้าจอนี้ครั้งแรก (null = ยังไม่โหลด)
+  gradesSemesterKey: null,  // "2569-1" ปีการศึกษา-ภาคเรียนที่กำลังดูอยู่
+
   staffUser: null,        // { id, full_name, role, is_admin, photo_url }
 
   deedTypes: [],
@@ -79,6 +82,7 @@ const TITLES = {
   'student-dashboard': 'หน้าหลัก',
   'student-history':   'ประวัติความดี',
   'student-badges':    'Badge ของฉัน',
+  'student-grades':    'ผลการเรียน',
   'student-leaderboard': 'อันดับนักเรียน',
   'student-rewards':   'แลกรางวัล',
   'student-profile':   'โปรไฟล์',
@@ -108,6 +112,7 @@ const NAV = {
     { id: 'student-badges',      icon: '🏆', label: 'Badge' },
     { id: 'student-leaderboard', icon: '🥇', label: 'อันดับ' },
     { id: 'student-rewards',     icon: '🎁', label: 'รางวัล' },
+    { id: 'student-grades',      icon: '📊', label: 'ผลการเรียน' },
   ],
   teacher: [
     { id: 'teacher-dashboard',  icon: '🏠', label: 'หน้าหลัก' },
@@ -824,6 +829,8 @@ function staffLoginFormHTML() {
 // Teacher/Admin have 8 nav destinations total — too many for a mobile bottom bar,
 // so only the 4 most-used stay here; the full list (including นักเรียน/ความดี/
 // รางวัล/รายงาน) is always reachable from the ☰ drawer (see openDrawer()).
+// Student now has 6 (ผลการเรียน added) — same pattern: bottom bar keeps the
+// original 5, ผลการเรียน lives in the drawer only.
 function visibleNavItems(role) {
   let items = navItemsForRole(role);
   if (role === 'student' && !state.settings.leaderboardEnabled) {
@@ -835,7 +842,9 @@ function visibleNavItems(role) {
 function bottomNavItems() {
   const role = effectiveRole();
   const items = visibleNavItems(role);
-  return (role === 'teacher' || role === 'admin') ? items.slice(0, 4) : items;
+  if (role === 'teacher' || role === 'admin') return items.slice(0, 4);
+  if (role === 'student') return items.slice(0, 5);
+  return items;
 }
 
 function renderBottomNav() {
@@ -885,6 +894,7 @@ function renderScreen(screen) {
     'student-dashboard':   renderStudentDashboard,
     'student-history':     renderStudentHistory,
     'student-badges':      renderStudentBadges,
+    'student-grades':      renderStudentGrades,
     'student-leaderboard': renderStudentLeaderboard,
     'student-rewards':     renderStudentRewards,
     'student-profile':     renderStudentProfile,
@@ -1117,6 +1127,73 @@ function renderStudentBadges() {
             ${unlocked ? '✓ ปลดล็อคแล้ว' : '🔒 ล็อคอยู่'}
           </div>
         </div>`;
+      }).join('')}
+    </div>
+  </div>`;
+}
+
+// ── ผลการเรียน — อ่านจากระบบ ปพ.5 (ฐานข้อมูลเดียวกัน แอปแยกกัน) ──
+function renderStudentGrades() {
+  const grades = state.studentGrades;
+  if (grades === null) return loadingBlock();
+
+  if (!grades.length) {
+    return `
+    <div class="screen-wrap anim-slideup">
+      <div class="card" style="text-align:center;padding:40px 20px;color:#9ca3af;">
+        <div style="font-size:40px;margin-bottom:10px;">📊</div>
+        <div style="font-size:14px;">ยังไม่มีข้อมูลผลการเรียนในระบบ</div>
+      </div>
+    </div>`;
+  }
+
+  // "ปีการศึกษา-ภาคเรียน" เรียงใหม่สุดก่อนได้ด้วย string sort ตรงๆ เพราะปีอยู่หน้าสุดเสมอ (4 หลัก)
+  const semesters = [...new Set(grades.map(g => `${g.academic_year}-${g.semester}`))].sort((a, b) => b.localeCompare(a));
+  const activeKey = (state.gradesSemesterKey && semesters.includes(state.gradesSemesterKey)) ? state.gradesSemesterKey : semesters[0];
+  const rows = grades.filter(g => `${g.academic_year}-${g.semester}` === activeKey);
+
+  // เกรดเฉลี่ย: นับเฉพาะวิชาที่ตัดเกรดแล้วและไม่มีผลพิเศษ (ร/มส/ผ/มผ ไม่ใช่เกรดตัวเลข)
+  const graded = rows.filter(r => r.has_score && r.grade !== null && !(r.special_result && r.special_result.trim()));
+  const creditSum = graded.reduce((sum, r) => sum + Number(r.credits || 0), 0);
+  const gpa = creditSum > 0 ? graded.reduce((sum, r) => sum + Number(r.grade) * Number(r.credits), 0) / creditSum : null;
+
+  const semesterTabsHTML = semesters.length > 1 ? `
+    <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;">
+      ${semesters.map(key => {
+        const [year, sem] = key.split('-');
+        return `
+        <button data-action="select-grades-semester" data-key="${key}"
+          style="flex:0 0 auto;padding:9px 14px;border-radius:10px;border:none;cursor:pointer;font-family:Kanit;font-size:12.5px;white-space:nowrap;font-weight:${key === activeKey ? 700 : 400};background:${key === activeKey ? 'var(--g)' : '#fff'};color:${key === activeKey ? '#fff' : '#6b7280'};box-shadow:0 1px 4px rgba(0,0,0,0.06);">
+          ภาคเรียนที่ ${sem}/${year}
+        </button>`;
+      }).join('')}
+    </div>` : '';
+
+  return `
+  <div class="screen-wrap anim-slideup">
+    <div class="hero-banner">
+      <div style="text-align:center;">
+        <div style="font-size:12px;opacity:0.8;">เกรดเฉลี่ยภาคเรียนนี้ (GPA)</div>
+        <div style="font-size:36px;font-weight:700;">${gpa !== null ? gpa.toFixed(2) : '—'}</div>
+        <div style="font-size:12px;opacity:0.8;margin-top:2px;">
+          ${graded.length}/${rows.length} วิชาตัดเกรดแล้ว · หน่วยกิตรวม ${creditSum.toFixed(1)}
+        </div>
+      </div>
+    </div>
+
+    ${semesterTabsHTML}
+
+    <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.055);">
+      <div style="padding:14px 16px 10px;font-weight:700;font-size:15px;color:var(--gd);">📘 รายวิชา</div>
+      ${rows.map(r => {
+        const specialResult = r.special_result && r.special_result.trim();
+        const right = !r.has_score
+          ? `<div style="font-size:12px;color:#9ca3af;">ยังไม่มีคะแนน</div>`
+          : `<div style="text-align:right;">
+               <div style="font-weight:700;color:var(--gd);">${specialResult || (r.grade !== null ? Number(r.grade).toFixed(1) : '-')}</div>
+               <div style="font-size:11px;color:#9ca3af;">${r.total_score !== null ? Number(r.total_score).toFixed(1) + ' คะแนน' : ''}</div>
+             </div>`;
+        return listRow('📖', r.subject_name, `${r.teacher_name || ''} · ${Number(r.credits).toFixed(1)} นก.`, right);
       }).join('')}
     </div>
   </div>`;
@@ -2807,6 +2884,7 @@ async function doLogout() {
   Object.assign(state, {
     screen: 'login', authView: 'student', role: null, previewAsTeacher: false, authError: '', drawerOpen: false,
     student: null, studentHistory: [], studentRedemptions: [], leaderboard: null, leaderboardScope: 'school',
+    studentGrades: null, gradesSemesterKey: null,
     staffUser: null, deedTypes: [], rewards: [], rewardRequests: [], rewardSuggestions: [], students: [], studentGradeFilter: '', studentRoomFilter: '', studentClasses: [], pointLogs: [], badgeTiers: [],
     reportSummary: null, reportError: null, reportLeaderboard: null, reportGradeFilter: '', scanStep: 0, scanStudent: null, selectedDeedId: null, points: 10,
     addStudentCode: '', addStudentName: '', studentScanMode: false,
@@ -2825,6 +2903,14 @@ async function doLogout() {
 // ══════════════════════════════════════════════
 
 async function loadDataForScreen(screen) {
+  if (screen === 'student-grades' && state.student) {
+    const { data } = await getStudentGrades(state.student.student_code);
+    state.studentGrades = data || [];
+    const keys = [...new Set((data || []).map(g => `${g.academic_year}-${g.semester}`))];
+    if (!state.gradesSemesterKey || !keys.includes(state.gradesSemesterKey)) {
+      state.gradesSemesterKey = keys[0] || null;
+    }
+  }
   if (screen === 'teacher-history') {
     const { data } = await getPointLogs({ limit: 20 });
     state.pointLogs = data || [];
@@ -3292,6 +3378,10 @@ document.addEventListener('click', async (e) => {
       setState({ leaderboard: data || [] });
       break;
     }
+
+    case 'select-grades-semester':
+      setState({ gradesSemesterKey: btn.dataset.key });
+      break;
 
     case 'search-students-submit': {
       state.studentSearch = document.getElementById('student-search')?.value.trim() || '';

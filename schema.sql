@@ -1385,3 +1385,43 @@ grant execute on function public.get_active_deed_calls(text) to anon, authentica
 -- เปิด Realtime broadcast ให้สองตารางนี้ (จำเป็นสำหรับแจ้งเตือนแบบเรียลไทม์)
 alter publication supabase_realtime add table public.deed_calls;
 alter publication supabase_realtime add table public.deed_call_responses;
+
+-- =============================================
+-- 25. Student grades (ผลการเรียน) — reads from the subjects/score_summary tables
+-- owned by the separate ปพ.5 grade-recording app (pp5-ten.vercel.app), which lives
+-- in this SAME Supabase project/database. Those tables are RLS-locked to authenticated
+-- teacher sessions only, so students (who have no Supabase Auth session — see §-login-
+-- by-student_code pattern used throughout this file) need a SECURITY DEFINER RPC to
+-- read their own rows, mirroring get_student_summary/get_student_history above.
+-- =============================================
+create or replace function public.get_student_grades(p_student_code text)
+returns table (
+  subject_id uuid,
+  subject_code text,
+  subject_name text,
+  subject_group text,
+  credits numeric,
+  teacher_name text,
+  academic_year text,
+  semester int,
+  total_score numeric,
+  grade numeric,
+  special_result text,
+  has_score boolean
+)
+language sql
+security definer
+set search_path = public
+as $$
+  select
+    sub.id, sub.subject_code, sub.subject_name, sub.subject_group, sub.credits,
+    sub.teacher_name, sub.academic_year, sub.semester,
+    ss.total_score, ss.grade, ss.special_result,
+    (ss.id is not null) as has_score
+  from public.students s
+  join public.subjects sub on sub.grade_level = s.grade_level and sub.room = s.room
+  left join public.score_summary ss on ss.subject_id = sub.id and ss.student_id = s.id
+  where s.student_code = p_student_code
+  order by sub.academic_year desc, sub.semester desc, sub.subject_name;
+$$;
+grant execute on function public.get_student_grades(text) to anon, authenticated;

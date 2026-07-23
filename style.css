@@ -405,21 +405,36 @@ select { appearance: none; -webkit-appearance: none; }
 }
 
 .mascot-pot {
-  position: absolute; left: 50%; bottom: 0; transform: translateX(-50%);
-  width: 88px; height: 42px;
-  background: linear-gradient(180deg, #d97a4c, #b6572c);
-  border-radius: 0 0 14px 14px;
-  clip-path: polygon(8% 0%, 92% 0%, 100% 100%, 0% 100%);
+  position: absolute; left: 50%; bottom: 4px; transform: translateX(-50%);
+  width: 92px; height: 44px;
+  background:
+    repeating-linear-gradient(180deg, transparent 0px 9px, rgba(0,0,0,0.09) 9px 11px),
+    linear-gradient(90deg, rgba(0,0,0,0.22) 0%, rgba(255,255,255,0.16) 18%, transparent 40%, rgba(0,0,0,0.08) 76%, rgba(0,0,0,0.26) 100%),
+    linear-gradient(180deg, #e2955f 0%, #c96a3e 55%, #9c4c2b 100%);
+  clip-path: polygon(9% 0%, 91% 0%, 100% 100%, 0% 100%);
+  box-shadow: inset 0 2px 3px rgba(255,255,255,0.25);
   z-index: 1;
 }
 .mascot-pot::before {
-  content: ''; position: absolute; top: -7px; left: -6px; right: -6px; height: 13px;
-  background: #f0a377; border-radius: 8px;
+  content: ''; position: absolute; top: -9px; left: -7px; right: -7px; height: 16px;
+  background:
+    linear-gradient(90deg, rgba(0,0,0,0.15) 0%, rgba(255,255,255,0.35) 22%, rgba(255,255,255,0.1) 50%, rgba(0,0,0,0.05) 78%, rgba(0,0,0,0.2) 100%),
+    linear-gradient(180deg, #ffbb8c 0%, #e2915c 60%, #c97847 100%);
+  border-radius: 10px;
+  box-shadow: 0 3px 3px -1px rgba(0,0,0,0.22);
+}
+.mascot-pot::after {
+  content: ''; position: absolute; left: 50%; bottom: -8px; transform: translateX(-50%);
+  width: 98px; height: 16px; border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(15,40,10,0.3) 0%, rgba(15,40,10,0) 72%);
+  z-index: -1; filter: blur(0.5px);
 }
 .mascot-soil {
-  position: absolute; left: 50%; bottom: 37px; transform: translateX(-50%);
-  width: 74px; height: 9px; background: #8a5a34; border-radius: 50%;
-  box-shadow: inset 0 -3px 4px #6b4425; z-index: 1;
+  position: absolute; left: 50%; bottom: 43px; transform: translateX(-50%);
+  width: 76px; height: 9px;
+  background: radial-gradient(ellipse at 35% 30%, #9c6a40 0%, #8a5a34 45%, #6b4425 100%);
+  border-radius: 50%;
+  box-shadow: inset 0 -3px 4px #5a3a1f; z-index: 2;
 }
 
 .mascot-scene-caption { padding: 13px 16px 15px; background: #fff; text-align: center; }

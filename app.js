@@ -1133,6 +1133,18 @@ function renderStudentBadges() {
 }
 
 // ── ผลการเรียน — อ่านจากระบบ ปพ.5 (ฐานข้อมูลเดียวกัน แอปแยกกัน) ──
+// ลำดับกลุ่มสาระการเรียนรู้ตามที่โรงเรียนกำหนด (ไม่ใช่เรียง ก-ฮ) — "ภาษาต่างประเทศ" คือชื่อ
+// กลุ่มสาระจริงในฐานข้อมูล (ครอบคลุมภาษาอังกฤษ) ไม่ใช่ "ภาษาอังกฤษ" ตรงๆ; กลุ่มที่ไม่อยู่ในลิสต์นี้
+// (รวมถึงค่าว่าง) จะถูกจัดไว้ท้ายสุดเป็น "อื่นๆ"
+const SUBJECT_GROUP_ORDER = [
+  'ภาษาไทย', 'คณิตศาสตร์', 'วิทยาศาสตร์และเทคโนโลยี', 'สังคมศึกษา ศาสนา และวัฒนธรรม',
+  'สุขศึกษาและพลศึกษา', 'ศิลปะ', 'การงานอาชีพ', 'ภาษาต่างประเทศ',
+];
+function subjectGroupRank(group) {
+  const idx = SUBJECT_GROUP_ORDER.indexOf(group);
+  return idx === -1 ? SUBJECT_GROUP_ORDER.length : idx;
+}
+
 function renderStudentGrades() {
   const grades = state.studentGrades;
   if (grades === null) return loadingBlock();
@@ -1150,7 +1162,9 @@ function renderStudentGrades() {
   // "ปีการศึกษา-ภาคเรียน" เรียงใหม่สุดก่อนได้ด้วย string sort ตรงๆ เพราะปีอยู่หน้าสุดเสมอ (4 หลัก)
   const semesters = [...new Set(grades.map(g => `${g.academic_year}-${g.semester}`))].sort((a, b) => b.localeCompare(a));
   const activeKey = (state.gradesSemesterKey && semesters.includes(state.gradesSemesterKey)) ? state.gradesSemesterKey : semesters[0];
-  const rows = grades.filter(g => `${g.academic_year}-${g.semester}` === activeKey);
+  const rows = grades
+    .filter(g => `${g.academic_year}-${g.semester}` === activeKey)
+    .sort((a, b) => subjectGroupRank(a.subject_group) - subjectGroupRank(b.subject_group) || a.subject_name.localeCompare(b.subject_name, 'th'));
 
   // "ตัดเกรดสมบูรณ์" = ครูกดสวิตช์ "ประกาศผลการเรียน" (subjects.published) แล้วเท่านั้น
   // เป็น flag ที่ครูตั้งใจกดเอง ไม่ต้องเดาจากข้อมูลคะแนนดิบ (ดูหมายเหตุใน schema.sql §25)

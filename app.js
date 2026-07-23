@@ -1152,10 +1152,9 @@ function renderStudentGrades() {
   const activeKey = (state.gradesSemesterKey && semesters.includes(state.gradesSemesterKey)) ? state.gradesSemesterKey : semesters[0];
   const rows = grades.filter(g => `${g.academic_year}-${g.semester}` === activeKey);
 
-  // "ตัดเกรดสมบูรณ์" = มีคะแนนบันทึกแล้ว และครูประเมินการอ่าน คิดวิเคราะห์ เขียนแล้ว (ขั้นตอนสุดท้ายที่ครูทำต่อวิชา)
-  // ใช้แทนการเช็คว่ากรอกคะแนนครบ 4 ช่องไหมตรงๆ เพราะระบบ ปพ.5 เซฟค่าเป็น 0 เสมอเมื่อกดบันทึก
-  // ไม่เคยเป็น null เลยแยกไม่ออกว่า "ยังไม่กรอก" กับ "กรอกแล้วได้ 0" (ดูหมายเหตุใน schema.sql §25)
-  const isFinalized = r => r.has_score && r.eval_read_result !== null && r.eval_read_result !== undefined;
+  // "ตัดเกรดสมบูรณ์" = ครูกดสวิตช์ "ประกาศผลการเรียน" (subjects.published) แล้วเท่านั้น
+  // เป็น flag ที่ครูตั้งใจกดเอง ไม่ต้องเดาจากข้อมูลคะแนนดิบ (ดูหมายเหตุใน schema.sql §25)
+  const isFinalized = r => r.has_score && r.published;
   const finalized = rows.filter(isFinalized);
   // เกรดเฉลี่ย: นับเฉพาะวิชาที่ตัดเกรดสมบูรณ์แล้วและไม่มีผลพิเศษ (ร/มส/ผ/มผ ไม่ใช่เกรดตัวเลข)
   const graded = finalized.filter(r => !(r.special_result && r.special_result.trim()));
@@ -1197,7 +1196,7 @@ function renderStudentGrades() {
           right = `<div style="font-size:12px;color:#9ca3af;">ยังไม่มีคะแนน</div>`;
         } else if (!isFinalized(r)) {
           right = `<div style="text-align:right;">
-               <div style="font-size:12px;color:#f59e0b;font-weight:700;">รอครูประเมิน</div>
+               <div style="font-size:12px;color:#f59e0b;font-weight:700;">รอครูประกาศผล</div>
                ${r.total_score !== null ? `<div style="font-size:11px;color:#9ca3af;">เก็บคะแนนแล้ว ${Number(r.total_score).toFixed(1)}</div>` : ''}
              </div>`;
         } else {

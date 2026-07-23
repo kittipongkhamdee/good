@@ -1394,12 +1394,12 @@ alter publication supabase_realtime add table public.deed_call_responses;
 -- by-student_code pattern used throughout this file) need a SECURITY DEFINER RPC to
 -- read their own rows, mirroring get_student_summary/get_student_history above.
 --
--- eval_read_result: score_summary's numeric columns can't distinguish "not entered yet"
--- from "entered as 0" — the ปพ.5 app always saves 0, never null, for untouched fields.
--- The การอ่าน คิดวิเคราะห์ เขียน evaluation is the teacher's last step per subject, so its
--- presence is used client-side as the "grading fully finished" signal instead (see
--- renderStudentGrades() in app.js). eval_char (คุณลักษณะอันพึงประสงค์) was considered too
--- but isn't filled for every subject (checked against real data), so it isn't reliable here.
+-- subjects.published: switch the ปพ.5 app added for a teacher to explicitly announce
+-- results for a subject ("ประกาศผลการเรียน") — used as the "grading fully finished"
+-- signal. (An earlier version of this RPC inferred finality from the presence of an
+-- eval_read row, since score_summary's numeric columns can't distinguish "not entered
+-- yet" from "entered as 0" — the ปพ.5 app always saves 0, never null. published is a
+-- flag the teacher sets on purpose, so it's used directly now instead of guessing.)
 -- =============================================
 create or replace function public.get_student_grades(p_student_code text)
 returns table (
@@ -1411,15 +1411,11 @@ returns table (
   teacher_name text,
   academic_year text,
   semester int,
-  total_before_mid numeric,
-  mid_normal numeric,
-  total_after_mid numeric,
-  final_score numeric,
   total_score numeric,
   grade numeric,
   special_result text,
   has_score boolean,
-  eval_read_result smallint
+  published boolean
 )
 language sql
 security definer
@@ -1428,14 +1424,12 @@ as $$
   select
     sub.id, sub.subject_code, sub.subject_name, sub.subject_group, sub.credits,
     sub.teacher_name, sub.academic_year, sub.semester,
-    ss.total_before_mid, ss.mid_normal, ss.total_after_mid, ss.final_score,
     ss.total_score, ss.grade, ss.special_result,
     (ss.id is not null) as has_score,
-    er.result as eval_read_result
+    coalesce(sub.published, false) as published
   from public.students s
   join public.subjects sub on sub.grade_level = s.grade_level and sub.room = s.room
   left join public.score_summary ss on ss.subject_id = sub.id and ss.student_id = s.id
-  left join public.eval_read er on er.subject_id = sub.id and er.student_id = s.id
   where s.student_code = p_student_code
   order by sub.academic_year desc, sub.semester desc, sub.subject_name;
 $$;

@@ -1204,12 +1204,13 @@ function renderStudentGrades() {
                <div style="font-size:11px;color:#9ca3af;">${r.total_score !== null ? Number(r.total_score).toFixed(1) + ' คะแนน' : ''}</div>
              </div>`;
         }
+        const teacherLabel = r.teacher_name ? `ครู ${r.teacher_name}` : '';
         // ปิดสวิตช์อยู่ = ยังไม่มีอะไรให้ดูเพิ่ม ตัด popup รายละเอียดออกไปด้วย ไม่ใช่แค่ซ่อนตัวเลขในแถว
         if (!r.published) {
-          return listRow('📖', r.subject_name, `${r.teacher_name || ''} · ${Number(r.credits).toFixed(1)} นก.`, right);
+          return listRow('📖', r.subject_name, `${teacherLabel} · ${Number(r.credits).toFixed(1)} นก.`, right);
         }
         return `<div data-action="show-subject-detail" data-subject-id="${r.subject_id}" style="cursor:pointer;">
-          ${listRow('📖', r.subject_name, `${r.teacher_name || ''} · ${Number(r.credits).toFixed(1)} นก.`, right)}
+          ${listRow('📖', r.subject_name, `${teacherLabel} · ${Number(r.credits).toFixed(1)} นก.`, right)}
         </div>`;
       }).join('')}
     </div>

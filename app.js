@@ -2914,19 +2914,23 @@ function playDeedCallAlertSound() {
   if (!ctx) return;
   try {
     const start = ctx.currentTime;
-    [0, 0.16].forEach((delay) => {
-      const t = start + delay;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(880, t);
-      gain.gain.setValueAtTime(0, t);
-      gain.gain.linearRampToValueAtTime(0.2, t + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
-      osc.connect(gain).connect(ctx.destination);
-      osc.start(t);
-      osc.stop(t + 0.35);
-    });
+    const repeats = 4;     // เล่นซ้ำ "ติ๊ง-ต๊อง" 4 รอบ แทนที่จะเล่นครั้งเดียวแล้วเงียบ ให้รู้สึกเร่งด่วนกว่าเดิม
+    const repeatGap = 0.7; // ห่างกันแต่ละรอบ (วินาที)
+    for (let r = 0; r < repeats; r++) {
+      [0, 0.16].forEach((delay) => {
+        const t = start + r * repeatGap + delay;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(880, t);
+        gain.gain.setValueAtTime(0, t);
+        gain.gain.linearRampToValueAtTime(0.2, t + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(t);
+        osc.stop(t + 0.35);
+      });
+    }
   } catch {}
 }
 

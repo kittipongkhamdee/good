@@ -1493,3 +1493,130 @@ as $$
   where s.student_code = p_student_code;
 $$;
 grant execute on function public.get_student_subject_detail(text, uuid) to anon, authenticated;
+
+-- =============================================
+-- 26. Web Push — เตือนนักเรียนก่อนสตรีคขาด (student_code login ไม่มี Supabase Auth
+-- session จึงต้องผ่าน RPC เหมือนแพทเทิร์นอื่นๆ ในไฟล์นี้)
+-- =============================================
+create table if not exists public.push_subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  student_id uuid not null references public.students(id) on delete cascade,
+  endpoint text not null unique,
+  p256dh text not null,
+  auth text not null,
+  created_at timestamptz not null default now()
+);
+alter table public.push_subscriptions enable row level security;
+create policy "push_subscriptions_staff_read" on public.push_subscriptions
+  for select using (auth.role() = 'authenticated');
+
+create or replace function public.save_push_subscription(
+  p_student_code text, p_endpoint text, p_p256dh text, p_auth text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_student_id uuid;
+begin
+  select s.id into v_student_id from public.students s where s.student_code = p_student_code;
+  if v_student_id is null then
+    raise exception 'ไม่พบรหัสนักเรียนนี้';
+  end if;
+
+  insert into public.push_subscriptions (student_id, endpoint, p256dh, auth)
+  values (v_student_id, p_endpoint, p_p256dh, p_auth)
+  on conflict (endpoint) do update
+    set student_id = excluded.student_id, p256dh = excluded.p256dh, auth = excluded.auth;
+end;
+$$;
+grant execute on function public.save_push_subscription(text, text, text, text) to anon, authenticated;
+
+create or replace function public.remove_push_subscription(p_endpoint text)
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  delete from public.push_subscriptions where endpoint = p_endpoint;
+$$;
+grant execute on function public.remove_push_subscription(text) to anon, authenticated;
+
+-- นักเรียนที่ "สตรีคกำลังจะขาด" — ทำความดีต่อเนื่องมาอย่างน้อย 2 วันจนถึงเมื่อวาน แต่วันนี้ยังไม่ทำ
+-- ให้ service_role เท่านั้นเรียก (ใช้จาก Edge Function ที่ตั้งเวลาไว้ ไม่เปิดให้ client เรียกตรง)
+-- นับรวม point_logs ที่ถูกยกเลิกด้วย (cancelled_at) เพื่อให้ตรงกับที่ get_student_history/
+-- computeStreak() ฝั่ง client เห็น — ยังไม่ได้กรองออกที่นั่นเหมือนกัน
+create or replace function public.get_students_at_streak_risk()
+returns table (student_id uuid, student_code text, streak_count int)
+language sql
+security definer
+set search_path = public
+as $$
+  with distinct_days as (
+    select distinct pl.student_id, (pl.created_at at time zone 'Asia/Bangkok')::date as log_date
+    from public.point_logs pl
+  ),
+  today_check as (
+    select student_id, bool_or(log_date = (now() at time zone 'Asia/Bangkok')::date) as logged_today
+    from distinct_days
+    group by student_id
+  ),
+  islands as (
+    select student_id, log_date,
+      log_date - (row_number() over (partition by student_id order by log_date))::int as grp
+    from distinct_days
+  ),
+  streaks as (
+    select student_id, min(log_date) as streak_start, max(log_date) as streak_end, count(*) as streak_len
+    from islands
+    group by student_id, grp
+  ),
+  latest_streak as (
+    select distinct on (student_id) student_id, streak_len, streak_end
+    from streaks
+    order by student_id, streak_end desc
+  )
+  select ls.student_id, s.student_code, ls.streak_len
+  from latest_streak ls
+  join public.students s on s.id = ls.student_id
+  join today_check tc on tc.student_id = ls.student_id
+  where ls.streak_end = (now() at time zone 'Asia/Bangkok')::date - 1
+    and not tc.logged_today
+    and ls.streak_len >= 2;
+$$;
+revoke execute on function public.get_students_at_streak_risk() from public, anon, authenticated;
+grant execute on function public.get_students_at_streak_risk() to service_role;
+
+-- เก็บ VAPID private key ไว้ใน Supabase Vault (เข้ารหัสในฐานข้อมูล) แทนการฝังในโค้ด/ไฟล์นี้
+-- อ่านได้เฉพาะผ่านฟังก์ชันนี้ ซึ่งจำกัดสิทธิ์ไว้ที่ service_role เท่านั้น (เรียกจาก Edge Function)
+-- ค่าจริงถูกใส่ตรงผ่าน Supabase MCP ไม่ได้ commit ไว้ในไฟล์นี้ — ดูค่าจริงได้จาก Supabase Dashboard
+-- > Database > Vault หรือรันคำสั่งเดียวกันนี้ใหม่พร้อม key คู่ใหม่ถ้าต้องหมุนคีย์
+-- select vault.create_secret('<VAPID_PRIVATE_KEY>', 'vapid_private_key', 'VAPID private key สำหรับ Web Push');
+create or replace function public.get_push_secret(p_name text)
+returns text
+language sql
+security definer
+set search_path = public, vault
+as $$
+  select decrypted_secret from vault.decrypted_secrets where name = p_name;
+$$;
+revoke execute on function public.get_push_secret(text) from public, anon, authenticated;
+grant execute on function public.get_push_secret(text) to service_role;
+
+-- Edge Function "send-streak-reminders" (ดูซอร์สแยกใน Supabase Dashboard > Edge Functions หรือ
+-- ดึงผ่าน get_edge_function MCP tool) — ยืนยันตัวตนคำขอด้วย shared secret ในเฮดเดอร์ x-cron-secret
+-- แทนการเช็ค JWT (verify_jwt=false) เพราะ endpoint นี้มีแค่ pg_cron เรียก ไม่มี user โต้ตอบตรง
+-- ค่า secret จริงไม่ได้ commit ไว้ในไฟล์นี้เช่นกัน (ต้องตรงกับค่าที่ฝังไว้ในตัว Edge Function เอง)
+select cron.schedule(
+  'send-streak-reminders-daily',
+  '0 12 * * *',  -- 12:00 UTC = 19:00 เวลาไทย (Asia/Bangkok, UTC+7)
+  $$
+  select net.http_post(
+    url := 'https://zwtulepvmlngcrbcrrki.supabase.co/functions/v1/send-streak-reminders',
+    headers := jsonb_build_object('Content-Type', 'application/json', 'x-cron-secret', '<CRON_SECRET>'),
+    body := '{}'::jsonb
+  );
+  $$
+);

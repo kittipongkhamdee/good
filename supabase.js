@@ -112,6 +112,19 @@ async function getStudentSubjectDetail(studentCode, subjectId) {
   return { data: data?.[0] || null, error: error?.message || null };
 }
 
+// Web Push — บันทึก/ลบ subscription ของอุปกรณ์นี้ ใช้เตือนสตรีคใกล้ขาด
+async function savePushSubscription(studentCode, endpoint, p256dh, authKey) {
+  const { error } = await _sb.rpc('save_push_subscription', {
+    p_student_code: studentCode, p_endpoint: endpoint, p_p256dh: p256dh, p_auth: authKey,
+  });
+  return { error: error?.message || null };
+}
+
+async function removePushSubscription(endpoint) {
+  const { error } = await _sb.rpc('remove_push_subscription', { p_endpoint: endpoint });
+  return { error: error?.message || null };
+}
+
 // ──────────────────────────────────────────────
 // Students (staff-facing: search/list uses real students table, requires staff session)
 // ──────────────────────────────────────────────

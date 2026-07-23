@@ -25,6 +25,7 @@ const state = {
 
   studentGrades: null,      // ผลการเรียน — โหลดแบบ lazy ตอนเข้าหน้าจอนี้ครั้งแรก (null = ยังไม่โหลด)
   gradesSemesterKey: null,  // "2569-1" ปีการศึกษา-ภาคเรียนที่กำลังดูอยู่
+  pushSubscribed: false,   // อุปกรณ์นี้เปิดการแจ้งเตือน (เตือนสตรีคใกล้ขาด) อยู่หรือไม่
 
   staffUser: null,        // { id, full_name, role, is_admin, photo_url }
 
@@ -1545,6 +1546,22 @@ function renderStudentProfile() {
         </div>
       `).join('')}
     </div>
+
+    <div style="background:#fff;border-radius:16px;box-shadow:0 2px 12px rgba(0,0,0,0.055);padding:16px;display:flex;align-items:center;gap:12px;">
+      <span style="font-size:24px;">🔔</span>
+      <div style="flex:1;">
+        <div style="font-size:14px;font-weight:600;color:#1f2937;">แจ้งเตือนสตรีค</div>
+        <div style="font-size:12px;color:#9ca3af;margin-top:1px;">
+          ${pushSupported() ? 'เตือนก่อนสตรีคทำความดีของคุณจะขาด' : 'เบราว์เซอร์นี้ยังไม่รองรับ (ลองติดตั้งแอปลงหน้าจอโฮมก่อน)'}
+        </div>
+      </div>
+      ${pushSupported() ? `
+        <button data-action="${state.pushSubscribed ? 'disable-push' : 'enable-push'}"
+          style="padding:8px 16px;border-radius:20px;border:none;font-family:Kanit;font-size:12.5px;font-weight:700;cursor:pointer;background:${state.pushSubscribed ? '#fee2e2' : 'var(--g)'};color:${state.pushSubscribed ? '#dc2626' : '#fff'};">
+          ${state.pushSubscribed ? 'ปิด' : 'เปิด'}
+        </button>` : ''}
+    </div>
+
     <button data-action="logout" style="width:100%;padding:14px;background:#fee2e2;color:#dc2626;border:none;border-radius:12px;font-family:Kanit;font-weight:700;font-size:14px;cursor:pointer;">
       🚪 ออกจากระบบ
     </button>
@@ -2965,6 +2982,71 @@ function unsubscribeIncomingDeedCalls() {
 // รหัสนักเรียนที่จำไว้ใน localStorage เพื่อ auto-login ครั้งถัดไป (จนกว่าจะออกจากระบบ)
 const STUDENT_CODE_KEY = 'tbw_student_code';
 
+// ══════════════════════════════════════════════
+// Web Push — เตือนสตรีคใกล้ขาด
+// ══════════════════════════════════════════════
+
+// public key เท่านั้น ปลอดภัยที่จะฝังไว้ในโค้ดฝั่ง client (private key เก็บเป็น secret ใน Edge Function เท่านั้น)
+const VAPID_PUBLIC_KEY = 'BIzY8c0Hn3gvfB5FS1QKZK6uOlBncsSuhmkf00HhcYH_eCs-z8zSyq3GbExCvfNg5Vt7kuYNE8_aYnuV2nJDLno';
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
+  return outputArray;
+}
+
+function pushSupported() {
+  return 'serviceWorker' in navigator && 'PushManager' in window && typeof Notification !== 'undefined';
+}
+
+async function checkPushSubscribed() {
+  if (!pushSupported()) return;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    setState({ pushSubscribed: !!sub });
+  } catch (e) { /* เบราว์เซอร์บางตัวโยน error ถ้า service worker ยังไม่พร้อม — ปล่อยผ่าน ถือว่ายังไม่เปิด */ }
+}
+
+async function enablePushNotifications() {
+  if (!pushSupported()) { showToast('เบราว์เซอร์นี้ไม่รองรับการแจ้งเตือน'); return; }
+  const permission = await Notification.requestPermission();
+  if (permission !== 'granted') { showToast('ไม่ได้รับอนุญาตให้แจ้งเตือน'); return; }
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+      });
+    }
+    const json = sub.toJSON();
+    const { error } = await savePushSubscription(state.student.student_code, json.endpoint, json.keys.p256dh, json.keys.auth);
+    if (error) { showToast('บันทึกการแจ้งเตือนไม่สำเร็จ'); return; }
+    setState({ pushSubscribed: true });
+    showToast('เปิดการแจ้งเตือนแล้ว 🔔');
+  } catch (e) {
+    showToast('เปิดการแจ้งเตือนไม่สำเร็จ');
+  }
+}
+
+async function disablePushNotifications() {
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (sub) {
+      await removePushSubscription(sub.endpoint);
+      await sub.unsubscribe();
+    }
+  } catch (e) { /* ปล่อยผ่าน — อย่างน้อย state ฝั่ง UI จะปิดให้แล้ว */ }
+  setState({ pushSubscribed: false });
+  showToast('ปิดการแจ้งเตือนแล้ว');
+}
+
 async function enterStudentSession(code, { silent = false } = {}) {
   const { student, error } = await studentLogin(code);
   if (error || !student) return { ok: false, error };
@@ -2988,6 +3070,7 @@ async function enterStudentSession(code, { silent = false } = {}) {
   subscribeIncomingDeedCalls();
   const { data: activeCalls } = await getActiveDeedCalls(code);
   (activeCalls || []).forEach(queueIncomingDeedCall);
+  checkPushSubscribed();
 
   return { ok: true };
 }
@@ -3581,6 +3664,14 @@ document.addEventListener('click', async (e) => {
       updateModalBody(subjectDetailModalHTML(row, units || [], detail));
       break;
     }
+
+    case 'enable-push':
+      await enablePushNotifications();
+      break;
+
+    case 'disable-push':
+      await disablePushNotifications();
+      break;
 
     case 'search-students-submit': {
       state.studentSearch = document.getElementById('student-search')?.value.trim() || '';

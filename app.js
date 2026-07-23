@@ -2672,6 +2672,18 @@ function showModal(html) {
 }
 function closeModal() { document.getElementById('modal-container').innerHTML = ''; }
 
+// ใช้แทน showModal() ตอนอัปเดตเนื้อหา modal ที่เปิดค้างอยู่แล้ว (เช่น โหลดข้อมูลเสร็จ) — ถ้าเรียก
+// showModal() ซ้ำ จะรื้อ .modal-overlay/.modal-sheet ทั้งก้อนทิ้งแล้วสร้างใหม่ ทำให้ animation
+// fadeIn/slideUp เล่นซ้ำอีกรอบ เห็นเป็นอาการกระพริบ ฟังก์ชันนี้แก้แค่เนื้อหาข้างในแทน
+function updateModalBody(html) {
+  const sheet = document.querySelector('.modal-sheet');
+  if (!sheet) { showModal(html); return; }
+  const handle = sheet.querySelector('.modal-handle');
+  sheet.innerHTML = '';
+  if (handle) sheet.appendChild(handle);
+  sheet.insertAdjacentHTML('beforeend', html);
+}
+
 // ══════════════════════════════════════════════
 // QR Scanner
 // ══════════════════════════════════════════════
@@ -3516,7 +3528,7 @@ document.addEventListener('click', async (e) => {
         getStudentSubjectUnits(state.student.student_code, subjectId),
         getStudentSubjectDetail(state.student.student_code, subjectId),
       ]);
-      showModal(subjectDetailModalHTML(row, units || [], detail));
+      updateModalBody(subjectDetailModalHTML(row, units || [], detail));
       break;
     }
 

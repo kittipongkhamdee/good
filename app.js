@@ -2911,27 +2911,30 @@ async function handleStudentScanResult(raw) {
 // Foreground-only: ทำงานได้เมื่อเปิดแอปค้างอยู่ ผ่าน Supabase Realtime (ไม่ใช่ Push Notification จริง)
 // ══════════════════════════════════════════════
 
-// สองโน้ตไล่เสียง (A5 สั้นๆ) เตือนแบบด่วน ต่างจากเสียงเลเวลอัพ — ไม่ต้องพึ่งไฟล์เสียงเพิ่ม
+// ไล่โน้ตขึ้น E5-G5-A5-C6 สั้นๆ เตือนแบบด่วน ต่างจากเสียงเลเวลอัพ (คนละชุดโน้ต) — ไม่ต้องพึ่งไฟล์เสียงเพิ่ม
 function playDeedCallAlertSound() {
   const ctx = getAudioCtx();
   if (!ctx) return;
   try {
     const start = ctx.currentTime;
-    const repeats = 4;     // เล่นซ้ำ "ติ๊ง-ต๊อง" 4 รอบ แทนที่จะเล่นครั้งเดียวแล้วเงียบ ให้รู้สึกเร่งด่วนกว่าเดิม
-    const repeatGap = 0.7; // ห่างกันแต่ละรอบ (วินาที)
+    const notes = [659.25, 783.99, 880, 1046.5]; // E5, G5, A5, C6
+    const noteGap = 0.11;
+    const repeats = 3;      // ไล่โน้ตซ้ำ 3 รอบ แทนที่จะเล่นครั้งเดียวแล้วเงียบ ให้รู้สึกเร่งด่วนกว่าเดิม
+    const repeatGap = 0.55; // ช่วงเงียบก่อนไล่โน้ตรอบถัดไป (วินาที)
     for (let r = 0; r < repeats; r++) {
-      [0, 0.16].forEach((delay) => {
-        const t = start + r * repeatGap + delay;
+      const repeatStart = start + r * (notes.length * noteGap + repeatGap);
+      notes.forEach((freq, i) => {
+        const t = repeatStart + i * noteGap;
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.type = 'triangle';
-        osc.frequency.setValueAtTime(880, t);
+        osc.frequency.setValueAtTime(freq, t);
         gain.gain.setValueAtTime(0, t);
-        gain.gain.linearRampToValueAtTime(0.2, t + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+        gain.gain.linearRampToValueAtTime(0.22, t + 0.015);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
         osc.connect(gain).connect(ctx.destination);
         osc.start(t);
-        osc.stop(t + 0.35);
+        osc.stop(t + 0.25);
       });
     }
   } catch {}

@@ -1342,7 +1342,7 @@ function subjectDetailModalHTML(row, units, detail) {
 
   return `
     <div class="modal-title">📖 ${row.subject_name}</div>
-    <div style="font-size:12.5px;color:#6b7280;margin-bottom:4px;">${row.teacher_name || ''} · ${Number(row.credits).toFixed(1)} นก. · ${row.subject_code || ''}</div>
+    <div style="font-size:12.5px;color:#6b7280;margin-bottom:4px;">${fullName(state.student)} · ${Number(row.credits).toFixed(1)} นก. · ${row.subject_code || ''}</div>
     ${gradeBadgeHTML}
     <div style="max-height:60vh;overflow-y:auto;">
       ${loading ? `<div style="text-align:center;padding:24px;color:#9ca3af;">กำลังโหลด...</div>` : `${scoresHTML}${attendanceHTML}${evalHTML}${unitsHTML}`}

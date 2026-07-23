@@ -1219,14 +1219,15 @@ function renderStudentGrades() {
              </div>`;
         }
         const teacherLabel = r.teacher_name ? `ครู ${r.teacher_name}` : '';
+        const titleWithCode = r.subject_code ? `${r.subject_code} ${r.subject_name}` : r.subject_name;
         // สีพื้นหลังแยกวิชาที่ประกาศผลแล้ว (เขียวอ่อน) กับยังไม่ประกาศผล (เทาอ่อน) ให้เห็นชัดตั้งแต่แรกเห็น
         const rowBg = r.published ? 'var(--gl)' : '#f8f9fa';
         // ปิดสวิตช์อยู่ = ยังไม่มีอะไรให้ดูเพิ่ม ตัด popup รายละเอียดออกไปด้วย ไม่ใช่แค่ซ่อนตัวเลขในแถว
         if (!r.published) {
-          return `<div style="background:${rowBg};">${listRow('📖', r.subject_name, `${teacherLabel} · ${Number(r.credits).toFixed(1)} นก.`, right)}</div>`;
+          return `<div style="background:${rowBg};">${listRow('📖', titleWithCode, teacherLabel, right)}</div>`;
         }
         return `<div data-action="show-subject-detail" data-subject-id="${r.subject_id}" style="cursor:pointer;background:${rowBg};">
-          ${listRow('📖', r.subject_name, `${teacherLabel} · ${Number(r.credits).toFixed(1)} นก.`, right)}
+          ${listRow('📖', titleWithCode, teacherLabel, right)}
         </div>`;
       }).join('')}
     </div>

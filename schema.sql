@@ -1544,7 +1544,8 @@ as $$
 $$;
 grant execute on function public.remove_push_subscription(text) to anon, authenticated;
 
--- นักเรียนที่ "สตรีคกำลังจะขาด" — ทำความดีต่อเนื่องมาอย่างน้อย 2 วันจนถึงเมื่อวาน แต่วันนี้ยังไม่ทำ
+-- นักเรียนที่ "สตรีคกำลังจะขาด" — ทำความดีต่อเนื่องมาอย่างน้อย N วัน (N ตั้งค่าได้ผ่าน
+-- app_settings.streak_reminder_min_days, default 2) จนถึงเมื่อวาน แต่วันนี้ยังไม่ทำ
 -- ให้ service_role เท่านั้นเรียก (ใช้จาก Edge Function ที่ตั้งเวลาไว้ ไม่เปิดให้ client เรียกตรง)
 -- นับรวม point_logs ที่ถูกยกเลิกด้วย (cancelled_at) เพื่อให้ตรงกับที่ get_student_history/
 -- computeStreak() ฝั่ง client เห็น — ยังไม่ได้กรองออกที่นั่นเหมือนกัน
@@ -1584,7 +1585,7 @@ as $$
   join today_check tc on tc.student_id = ls.student_id
   where ls.streak_end = (now() at time zone 'Asia/Bangkok')::date - 1
     and not tc.logged_today
-    and ls.streak_len >= 2;
+    and ls.streak_len >= coalesce((select value::int from public.app_settings where key = 'streak_reminder_min_days'), 2);
 $$;
 revoke execute on function public.get_students_at_streak_risk() from public, anon, authenticated;
 grant execute on function public.get_students_at_streak_risk() to service_role;
@@ -1605,8 +1606,11 @@ $$;
 revoke execute on function public.get_push_secret(text) from public, anon, authenticated;
 grant execute on function public.get_push_secret(text) to service_role;
 
--- เวลาที่ Admin ตั้งไว้ให้ส่งแจ้งเตือนสตรีค (ชั่วโมง 0-23 เวลาไทย) — แก้ได้จากหน้า admin-settings
-insert into public.app_settings (key, value) values ('streak_reminder_hour', '19')
+-- เวลาที่ Admin ตั้งไว้ให้ส่งแจ้งเตือนสตรีค (ชั่วโมง 0-23 เวลาไทย) และเกณฑ์ขั้นต่ำของสตรีคที่จะเตือน
+-- (วัน) — แก้ได้จากหน้า admin-settings ทั้งคู่
+insert into public.app_settings (key, value) values
+  ('streak_reminder_hour', '19'),
+  ('streak_reminder_min_days', '2')
 on conflict (key) do nothing;
 
 -- Edge Function "send-streak-reminders" (ดูซอร์สแยกใน Supabase Dashboard > Edge Functions หรือ

@@ -45,7 +45,7 @@ const state = {
   reportLeaderboard: null,
   reportGradeFilter: '',
   badgeTiers: [],
-  settings: { leaderboardEnabled: true, leaderboardTopN: 10, schoolLogoUrl: null, schoolName: 'ตาเบาวิทยา', schoolTagline: 'ระบบสะสมคะแนนความดีนักเรียน', streakReminderHour: 19 },
+  settings: { leaderboardEnabled: true, leaderboardTopN: 10, schoolLogoUrl: null, schoolName: 'ตาเบาวิทยา', schoolTagline: 'ระบบสะสมคะแนนความดีนักเรียน', streakReminderHour: 19, streakReminderMinDays: 2 },
   rolePermissions: { 'admin-deedtypes': true, 'admin-rewards': true, 'admin-reward-pickup': true, 'admin-suggestions': true, 'admin-reports': true },
 
   scanStep: 0,
@@ -2417,6 +2417,10 @@ function renderAdminSettings() {
           ${Array.from({ length: 24 }, (_, h) => `<option value="${h}" ${h === s.streakReminderHour ? 'selected' : ''}>${String(h).padStart(2, '0')}:00 น.</option>`).join('')}
         </select>
       </div>
+      <div class="form-group">
+        <label class="form-label">เตือนเมื่อสตรีคอย่างน้อยกี่วัน</label>
+        <input class="form-input" type="number" min="1" max="30" id="streak-reminder-min-days-input" value="${s.streakReminderMinDays}">
+      </div>
     </div>
 
     <div class="card">
@@ -3171,7 +3175,7 @@ async function doLogout() {
     pointCode: null, codeDurationMin: 10, codeGradeFilter: '', codeRoomFilter: '', codeHistory: [], teacherRecentLogs: [],
     deedCall: null, deedCallResponses: [], callDurationMin: 15, callDurationCustom: false, callGradeFilter: '', callRoomFilter: '', callSlots: 2, callMessage: '',
     incomingDeedCall: null,
-    settings: { leaderboardEnabled: true, leaderboardTopN: 10, schoolLogoUrl: null, schoolName: 'ตาเบาวิทยา', schoolTagline: 'ระบบสะสมคะแนนความดีนักเรียน', streakReminderHour: 19 },
+    settings: { leaderboardEnabled: true, leaderboardTopN: 10, schoolLogoUrl: null, schoolName: 'ตาเบาวิทยา', schoolTagline: 'ระบบสะสมคะแนนความดีนักเรียน', streakReminderHour: 19, streakReminderMinDays: 2 },
     rolePermissions: { 'admin-deedtypes': true, 'admin-rewards': true, 'admin-reward-pickup': true, 'admin-suggestions': true, 'admin-reports': true },
   });
   render();
@@ -4126,6 +4130,7 @@ document.addEventListener('click', async (e) => {
       const schoolName = document.getElementById('school-name-input')?.value.trim() || 'ตาเบาวิทยา';
       const schoolTagline = document.getElementById('school-tagline-input')?.value.trim() || 'ระบบสะสมคะแนนความดีนักเรียน';
       const streakReminderHour = parseInt(document.getElementById('streak-reminder-hour-input')?.value);
+      const streakReminderMinDays = parseInt(document.getElementById('streak-reminder-min-days-input')?.value);
       setState({ loading: true });
       const permKeys = ['admin-deedtypes', 'admin-rewards', 'admin-reward-pickup', 'admin-suggestions', 'admin-reports'];
       const results = await Promise.all([
@@ -4134,10 +4139,15 @@ document.addEventListener('click', async (e) => {
         updateAppSetting('school_name', schoolName),
         updateAppSetting('school_tagline', schoolTagline),
         updateAppSetting('streak_reminder_hour', Number.isNaN(streakReminderHour) ? 19 : streakReminderHour),
+        updateAppSetting('streak_reminder_min_days', Number.isNaN(streakReminderMinDays) ? 2 : Math.max(1, streakReminderMinDays)),
         ...permKeys.map(k => updateRolePermission(k, state.rolePermissions[k] !== false)),
       ]);
       const firstError = results.map(r => r.error).find(Boolean);
-      setState({ loading: false, settings: { ...state.settings, leaderboardTopN: topN, schoolName, schoolTagline, streakReminderHour: Number.isNaN(streakReminderHour) ? 19 : streakReminderHour } });
+      setState({ loading: false, settings: {
+        ...state.settings, leaderboardTopN: topN, schoolName, schoolTagline,
+        streakReminderHour: Number.isNaN(streakReminderHour) ? 19 : streakReminderHour,
+        streakReminderMinDays: Number.isNaN(streakReminderMinDays) ? 2 : Math.max(1, streakReminderMinDays),
+      } });
       document.title = `${schoolTagline} — ${schoolName}`;
       if (firstError) { showToast(`เกิดข้อผิดพลาด: ${firstError}`); break; }
       showToast('บันทึกการตั้งค่าสำเร็จ! ✅');

@@ -1026,9 +1026,15 @@ function renderLevelProgress(s) {
   const maxTier = tiers[tiers.length - 1];
   let currentIdx = 0;
   tiers.forEach((t, i) => { if (t.min_points <= pts) currentIdx = i; });
+  const currentTier = tiers[currentIdx];
   const next = tiers[currentIdx + 1] || null;
   const isMax = !next;
-  const pct = maxTier.min_points > 0 ? Math.min(100, (pts / maxTier.min_points) * 100) : 100;
+  // % ความคืบหน้า "ภายในระดับปัจจุบัน" (จากเกณฑ์ระดับนี้ถึงระดับถัดไป) แทนการเทียบกับเกณฑ์ระดับ
+  // สูงสุดตรงๆ — ถ้าเทียบกับระดับสูงสุด (เช่น 5,000) คะแนนช่วงต้นจะแทบไม่ทำให้แถบขยับเลย ทั้งที่
+  // จริงๆ คืบหน้าไปมากแล้วในระดับนั้น
+  const pct = (isMax || next.min_points <= currentTier.min_points)
+    ? 100
+    : Math.min(100, Math.max(0, ((pts - currentTier.min_points) / (next.min_points - currentTier.min_points)) * 100));
 
   return `
   <div class="card">
@@ -1046,14 +1052,12 @@ function renderLevelProgress(s) {
 
     <div style="position:relative;height:10px;background:#e5e7eb;border-radius:6px;margin:10px 2px 0;">
       <div class="level-bar-fill" data-pct="${pct}" style="position:absolute;inset:0;width:0%;background:linear-gradient(90deg,var(--gd),var(--g));border-radius:6px;transition:width 0.9s cubic-bezier(0.3,0.7,0.3,1);"></div>
-      ${tiers.slice(1).map(t => {
-        const tp = maxTier.min_points > 0 ? Math.min(100, (t.min_points / maxTier.min_points) * 100) : 100;
-        return `<div style="position:absolute;top:-2px;left:${tp}%;width:2px;height:14px;background:#fff;border-radius:1px;transform:translateX(-1px);"></div>`;
-      }).join('')}
     </div>
 
     <div style="text-align:center;margin-top:12px;font-size:13px;color:#374151;font-weight:700;">
-      ${pts.toLocaleString()} / ${maxTier.min_points.toLocaleString()} คะแนน
+      ${isMax
+        ? `${pts.toLocaleString()} คะแนน`
+        : `${(pts - currentTier.min_points).toLocaleString()} / ${(next.min_points - currentTier.min_points).toLocaleString()} คะแนนในระดับนี้`}
     </div>
     <div style="text-align:center;margin-top:3px;font-size:12px;color:${isMax ? '#f59e0b' : '#9ca3af'};">
       ${isMax

@@ -1192,18 +1192,21 @@ function renderStudentGrades() {
       ${rows.map(r => {
         const specialResult = r.special_result && r.special_result.trim();
         let right;
-        if (!r.has_score) {
+        // สวิตช์ published ควบคุมว่าจะ "โชว์/ซ่อน" คะแนนทั้งวิชา ไม่ใช่แค่สถานะ — ปิดสวิตช์แล้ว
+        // ต้องไม่โผล่ตัวเลขคะแนนออกมาเลย แม้จะมีข้อมูลอยู่ในระบบแล้วก็ตาม
+        if (!r.published) {
+          right = `<div style="font-size:12px;color:#9ca3af;">ยังไม่ประกาศผล</div>`;
+        } else if (!r.has_score) {
           right = `<div style="font-size:12px;color:#9ca3af;">ยังไม่มีคะแนน</div>`;
-        } else if (!isFinalized(r)) {
-          right = `<div style="text-align:right;">
-               <div style="font-size:12px;color:#f59e0b;font-weight:700;">รอครูประกาศผล</div>
-               ${r.total_score !== null ? `<div style="font-size:11px;color:#9ca3af;">เก็บคะแนนแล้ว ${Number(r.total_score).toFixed(1)}</div>` : ''}
-             </div>`;
         } else {
           right = `<div style="text-align:right;">
                <div style="font-weight:700;color:var(--gd);">${specialResult || (r.grade !== null ? Number(r.grade).toFixed(1) : '-')}</div>
                <div style="font-size:11px;color:#9ca3af;">${r.total_score !== null ? Number(r.total_score).toFixed(1) + ' คะแนน' : ''}</div>
              </div>`;
+        }
+        // ปิดสวิตช์อยู่ = ยังไม่มีอะไรให้ดูเพิ่ม ตัด popup รายละเอียดออกไปด้วย ไม่ใช่แค่ซ่อนตัวเลขในแถว
+        if (!r.published) {
+          return listRow('📖', r.subject_name, `${r.teacher_name || ''} · ${Number(r.credits).toFixed(1)} นก.`, right);
         }
         return `<div data-action="show-subject-detail" data-subject-id="${r.subject_id}" style="cursor:pointer;">
           ${listRow('📖', r.subject_name, `${r.teacher_name || ''} · ${Number(r.credits).toFixed(1)} นก.`, right)}
@@ -3507,7 +3510,7 @@ document.addEventListener('click', async (e) => {
     case 'show-subject-detail': {
       const subjectId = btn.dataset.subjectId;
       const row = (state.studentGrades || []).find(g => g.subject_id === subjectId);
-      if (!row) break;
+      if (!row || !row.published) break;
       showModal(subjectDetailModalHTML(row, null, null));
       const [{ data: units }, { data: detail }] = await Promise.all([
         getStudentSubjectUnits(state.student.student_code, subjectId),

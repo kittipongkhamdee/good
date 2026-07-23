@@ -1152,8 +1152,13 @@ function renderStudentGrades() {
   const activeKey = (state.gradesSemesterKey && semesters.includes(state.gradesSemesterKey)) ? state.gradesSemesterKey : semesters[0];
   const rows = grades.filter(g => `${g.academic_year}-${g.semester}` === activeKey);
 
-  // เกรดเฉลี่ย: นับเฉพาะวิชาที่ตัดเกรดแล้วและไม่มีผลพิเศษ (ร/มส/ผ/มผ ไม่ใช่เกรดตัวเลข)
-  const graded = rows.filter(r => r.has_score && r.grade !== null && !(r.special_result && r.special_result.trim()));
+  // "ตัดเกรดสมบูรณ์" = มีคะแนนบันทึกแล้ว และครูประเมินการอ่าน คิดวิเคราะห์ เขียนแล้ว (ขั้นตอนสุดท้ายที่ครูทำต่อวิชา)
+  // ใช้แทนการเช็คว่ากรอกคะแนนครบ 4 ช่องไหมตรงๆ เพราะระบบ ปพ.5 เซฟค่าเป็น 0 เสมอเมื่อกดบันทึก
+  // ไม่เคยเป็น null เลยแยกไม่ออกว่า "ยังไม่กรอก" กับ "กรอกแล้วได้ 0" (ดูหมายเหตุใน schema.sql §25)
+  const isFinalized = r => r.has_score && r.eval_read_result !== null && r.eval_read_result !== undefined;
+  const finalized = rows.filter(isFinalized);
+  // เกรดเฉลี่ย: นับเฉพาะวิชาที่ตัดเกรดสมบูรณ์แล้วและไม่มีผลพิเศษ (ร/มส/ผ/มผ ไม่ใช่เกรดตัวเลข)
+  const graded = finalized.filter(r => !(r.special_result && r.special_result.trim()));
   const creditSum = graded.reduce((sum, r) => sum + Number(r.credits || 0), 0);
   const gpa = creditSum > 0 ? graded.reduce((sum, r) => sum + Number(r.grade) * Number(r.credits), 0) / creditSum : null;
 
@@ -1176,7 +1181,7 @@ function renderStudentGrades() {
         <div style="font-size:12px;opacity:0.8;">เกรดเฉลี่ยภาคเรียนนี้ (GPA)</div>
         <div style="font-size:36px;font-weight:700;">${gpa !== null ? gpa.toFixed(2) : '—'}</div>
         <div style="font-size:12px;opacity:0.8;margin-top:2px;">
-          ${graded.length}/${rows.length} วิชาตัดเกรดแล้ว · หน่วยกิตรวม ${creditSum.toFixed(1)}
+          ${finalized.length}/${rows.length} วิชาตัดเกรดแล้ว · หน่วยกิตรวม ${creditSum.toFixed(1)}
         </div>
       </div>
     </div>
@@ -1187,12 +1192,20 @@ function renderStudentGrades() {
       <div style="padding:14px 16px 10px;font-weight:700;font-size:15px;color:var(--gd);">📘 รายวิชา</div>
       ${rows.map(r => {
         const specialResult = r.special_result && r.special_result.trim();
-        const right = !r.has_score
-          ? `<div style="font-size:12px;color:#9ca3af;">ยังไม่มีคะแนน</div>`
-          : `<div style="text-align:right;">
+        let right;
+        if (!r.has_score) {
+          right = `<div style="font-size:12px;color:#9ca3af;">ยังไม่มีคะแนน</div>`;
+        } else if (!isFinalized(r)) {
+          right = `<div style="text-align:right;">
+               <div style="font-size:12px;color:#f59e0b;font-weight:700;">รอครูประเมิน</div>
+               ${r.total_score !== null ? `<div style="font-size:11px;color:#9ca3af;">เก็บคะแนนแล้ว ${Number(r.total_score).toFixed(1)}</div>` : ''}
+             </div>`;
+        } else {
+          right = `<div style="text-align:right;">
                <div style="font-weight:700;color:var(--gd);">${specialResult || (r.grade !== null ? Number(r.grade).toFixed(1) : '-')}</div>
                <div style="font-size:11px;color:#9ca3af;">${r.total_score !== null ? Number(r.total_score).toFixed(1) + ' คะแนน' : ''}</div>
              </div>`;
+        }
         return `<div data-action="show-subject-detail" data-subject-id="${r.subject_id}" style="cursor:pointer;">
           ${listRow('📖', r.subject_name, `${r.teacher_name || ''} · ${Number(r.credits).toFixed(1)} นก.`, right)}
         </div>`;

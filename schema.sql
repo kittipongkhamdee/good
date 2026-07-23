@@ -1632,3 +1632,50 @@ select cron.schedule(
   );
   $$
 );
+
+-- =============================================
+-- 27. Web Push สำหรับ "เรียกหานักเรียนทำความดี" — เสริมจาก §24 ที่แจ้งผ่าน Realtime
+-- subscription เฉพาะนักเรียนที่เปิดแอปค้างอยู่เท่านั้น อันนี้ครอบคลุมคนที่แอปไม่ได้เปิดอยู่ด้วย
+-- โดยยิงทันทีที่มีงานเรียกใหม่ถูกสร้าง (ไม่ต้องรอ cron แบบ §26)
+-- =============================================
+
+-- นักเรียนในขอบเขตของงานเรียก (grade_level/room ตรงกัน หรือ null = ทั้งโรงเรียน/ทั้งชั้น) ที่เปิด
+-- แจ้งเตือนไว้ — ให้ service_role เท่านั้นเรียก (ใช้จาก Edge Function ที่ trigger เรียกตอนสร้างงานเรียกใหม่)
+create or replace function public.get_deed_call_push_targets(p_call_id uuid)
+returns table (endpoint text, p256dh text, auth text)
+language sql
+security definer
+set search_path = public
+as $$
+  select ps.endpoint, ps.p256dh, ps.auth
+  from public.deed_calls dc
+  join public.students s on (dc.grade_level is null or s.grade_level = dc.grade_level)
+                          and (dc.room is null or s.room = dc.room)
+  join public.push_subscriptions ps on ps.student_id = s.id
+  where dc.id = p_call_id;
+$$;
+revoke execute on function public.get_deed_call_push_targets(uuid) from public, anon, authenticated;
+grant execute on function public.get_deed_call_push_targets(uuid) to service_role;
+
+-- ยิง Edge Function "send-deed-call-push" ทันทีที่มีงานเรียกใหม่ถูกสร้าง — verify_jwt ปิดไว้เพราะมีแค่
+-- trigger นี้เรียก ใช้ shared secret เดียวกับ §26 ยืนยันตัวตนแทน
+create or replace function public.trigger_deed_call_push()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  perform net.http_post(
+    url := 'https://zwtulepvmlngcrbcrrki.supabase.co/functions/v1/send-deed-call-push',
+    headers := jsonb_build_object('Content-Type', 'application/json', 'x-cron-secret', '<CRON_SECRET>'),
+    body := jsonb_build_object('call_id', new.id)
+  );
+  return new;
+end;
+$$;
+
+drop trigger if exists deed_calls_after_insert_push on public.deed_calls;
+create trigger deed_calls_after_insert_push
+after insert on public.deed_calls
+for each row execute function public.trigger_deed_call_push();

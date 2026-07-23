@@ -45,7 +45,7 @@ const state = {
   reportLeaderboard: null,
   reportGradeFilter: '',
   badgeTiers: [],
-  settings: { leaderboardEnabled: true, leaderboardTopN: 10, schoolLogoUrl: null, schoolName: 'ตาเบาวิทยา', schoolTagline: 'ระบบสะสมคะแนนความดีนักเรียน' },
+  settings: { leaderboardEnabled: true, leaderboardTopN: 10, schoolLogoUrl: null, schoolName: 'ตาเบาวิทยา', schoolTagline: 'ระบบสะสมคะแนนความดีนักเรียน', streakReminderHour: 19 },
   rolePermissions: { 'admin-deedtypes': true, 'admin-rewards': true, 'admin-reward-pickup': true, 'admin-suggestions': true, 'admin-reports': true },
 
   scanStep: 0,
@@ -2409,6 +2409,17 @@ function renderAdminSettings() {
     </div>
 
     <div class="card">
+      <div style="font-size:15px;font-weight:700;color:var(--gd);margin-bottom:6px;">🔔 การแจ้งเตือนสตรีค</div>
+      <div style="font-size:12px;color:#9ca3af;margin-bottom:16px;">ระบบจะเตือนนักเรียนที่สตรีคใกล้ขาดในเวลานี้ทุกวัน (เฉพาะคนที่เปิดแจ้งเตือนไว้)</div>
+      <div class="form-group">
+        <label class="form-label">เวลาที่ส่งแจ้งเตือน</label>
+        <select class="form-input" id="streak-reminder-hour-input">
+          ${Array.from({ length: 24 }, (_, h) => `<option value="${h}" ${h === s.streakReminderHour ? 'selected' : ''}>${String(h).padStart(2, '0')}:00 น.</option>`).join('')}
+        </select>
+      </div>
+    </div>
+
+    <div class="card">
       <div style="font-size:15px;font-weight:700;color:var(--gd);margin-bottom:6px;">🌿 โลโก้โรงเรียน</div>
       <div style="font-size:12px;color:#9ca3af;margin-bottom:16px;">แสดงแทน 🌿 ทุกจุดในแอป (หน้า login, หัวแอป, เมนู, การ์ดแชร์ผลงาน)</div>
       <div style="display:flex;align-items:center;gap:16px;margin-bottom:14px;">
@@ -3160,7 +3171,7 @@ async function doLogout() {
     pointCode: null, codeDurationMin: 10, codeGradeFilter: '', codeRoomFilter: '', codeHistory: [], teacherRecentLogs: [],
     deedCall: null, deedCallResponses: [], callDurationMin: 15, callDurationCustom: false, callGradeFilter: '', callRoomFilter: '', callSlots: 2, callMessage: '',
     incomingDeedCall: null,
-    settings: { leaderboardEnabled: true, leaderboardTopN: 10, schoolLogoUrl: null, schoolName: 'ตาเบาวิทยา', schoolTagline: 'ระบบสะสมคะแนนความดีนักเรียน' },
+    settings: { leaderboardEnabled: true, leaderboardTopN: 10, schoolLogoUrl: null, schoolName: 'ตาเบาวิทยา', schoolTagline: 'ระบบสะสมคะแนนความดีนักเรียน', streakReminderHour: 19 },
     rolePermissions: { 'admin-deedtypes': true, 'admin-rewards': true, 'admin-reward-pickup': true, 'admin-suggestions': true, 'admin-reports': true },
   });
   render();
@@ -4114,6 +4125,7 @@ document.addEventListener('click', async (e) => {
       const topN = parseInt(document.getElementById('top-n-input')?.value) || 10;
       const schoolName = document.getElementById('school-name-input')?.value.trim() || 'ตาเบาวิทยา';
       const schoolTagline = document.getElementById('school-tagline-input')?.value.trim() || 'ระบบสะสมคะแนนความดีนักเรียน';
+      const streakReminderHour = parseInt(document.getElementById('streak-reminder-hour-input')?.value);
       setState({ loading: true });
       const permKeys = ['admin-deedtypes', 'admin-rewards', 'admin-reward-pickup', 'admin-suggestions', 'admin-reports'];
       const results = await Promise.all([
@@ -4121,10 +4133,11 @@ document.addEventListener('click', async (e) => {
         updateAppSetting('leaderboard_top_n', topN),
         updateAppSetting('school_name', schoolName),
         updateAppSetting('school_tagline', schoolTagline),
+        updateAppSetting('streak_reminder_hour', Number.isNaN(streakReminderHour) ? 19 : streakReminderHour),
         ...permKeys.map(k => updateRolePermission(k, state.rolePermissions[k] !== false)),
       ]);
       const firstError = results.map(r => r.error).find(Boolean);
-      setState({ loading: false, settings: { ...state.settings, leaderboardTopN: topN, schoolName, schoolTagline } });
+      setState({ loading: false, settings: { ...state.settings, leaderboardTopN: topN, schoolName, schoolTagline, streakReminderHour: Number.isNaN(streakReminderHour) ? 19 : streakReminderHour } });
       document.title = `${schoolTagline} — ${schoolName}`;
       if (firstError) { showToast(`เกิดข้อผิดพลาด: ${firstError}`); break; }
       showToast('บันทึกการตั้งค่าสำเร็จ! ✅');

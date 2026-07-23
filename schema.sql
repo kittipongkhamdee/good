@@ -1605,13 +1605,21 @@ $$;
 revoke execute on function public.get_push_secret(text) from public, anon, authenticated;
 grant execute on function public.get_push_secret(text) to service_role;
 
+-- เวลาที่ Admin ตั้งไว้ให้ส่งแจ้งเตือนสตรีค (ชั่วโมง 0-23 เวลาไทย) — แก้ได้จากหน้า admin-settings
+insert into public.app_settings (key, value) values ('streak_reminder_hour', '19')
+on conflict (key) do nothing;
+
 -- Edge Function "send-streak-reminders" (ดูซอร์สแยกใน Supabase Dashboard > Edge Functions หรือ
 -- ดึงผ่าน get_edge_function MCP tool) — ยืนยันตัวตนคำขอด้วย shared secret ในเฮดเดอร์ x-cron-secret
 -- แทนการเช็ค JWT (verify_jwt=false) เพราะ endpoint นี้มีแค่ pg_cron เรียก ไม่มี user โต้ตอบตรง
 -- ค่า secret จริงไม่ได้ commit ไว้ในไฟล์นี้เช่นกัน (ต้องตรงกับค่าที่ฝังไว้ในตัว Edge Function เอง)
+--
+-- cron ยิงทุกชั่วโมง แล้วให้ตัว Edge Function เองเช็คว่าชั่วโมงปัจจุบัน (เวลาไทย) ตรงกับค่าที่ตั้งไว้ใน
+-- app_settings.streak_reminder_hour หรือไม่ก่อนส่งจริง — ทำแบบนี้เพื่อให้ Admin เปลี่ยนเวลาได้จาก
+-- หน้าตั้งค่าโดยไม่ต้องมาแก้ cron schedule ใหม่ทุกครั้ง
 select cron.schedule(
-  'send-streak-reminders-daily',
-  '0 12 * * *',  -- 12:00 UTC = 19:00 เวลาไทย (Asia/Bangkok, UTC+7)
+  'send-streak-reminders-hourly',
+  '0 * * * *',
   $$
   select net.http_post(
     url := 'https://zwtulepvmlngcrbcrrki.supabase.co/functions/v1/send-streak-reminders',

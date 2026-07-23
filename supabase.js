@@ -582,6 +582,7 @@ async function getAppSettings() {
       schoolLogoUrl: settings.school_logo_url || null,
       schoolName: settings.school_name || 'ตาเบาวิทยา',
       schoolTagline: settings.school_tagline || 'ระบบสะสมคะแนนความดีนักเรียน',
+      streakReminderHour: Number.isNaN(parseInt(settings.streak_reminder_hour)) ? 19 : parseInt(settings.streak_reminder_hour),
     },
     error: null,
   };

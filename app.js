@@ -186,6 +186,26 @@ function getBadge(pts) {
   };
 }
 
+// เกณฑ์ระดับ + ตำแหน่งปัจจุบันของนักเรียนในเส้นทางความดี ใช้ร่วมกันทั้งการ์ดหลอดพลังในหน้าแดชบอร์ด
+// (renderLevelProgress) และหน้า Badge แบบมาสคอตวิวัฒนาการ (renderStudentBadges)
+function computeTierProgress(badgeTiers, pts) {
+  const tiers = (badgeTiers && badgeTiers.length)
+    ? [...badgeTiers].sort((a, b) => a.min_points - b.min_points)
+    : [{ icon: '🌿', name: 'ผู้เริ่มต้น', min_points: 0, color: '#6b7280' }];
+  let currentIdx = 0;
+  tiers.forEach((t, i) => { if (t.min_points <= pts) currentIdx = i; });
+  const currentTier = tiers[currentIdx];
+  const next = tiers[currentIdx + 1] || null;
+  const isMax = !next;
+  // % ความคืบหน้า "ภายในระดับปัจจุบัน" (จากเกณฑ์ระดับนี้ถึงระดับถัดไป) แทนการเทียบกับเกณฑ์ระดับ
+  // สูงสุดตรงๆ — ถ้าเทียบกับระดับสูงสุด (เช่น 5,000) คะแนนช่วงต้นจะแทบไม่ทำให้แถบขยับเลย ทั้งที่
+  // จริงๆ คืบหน้าไปมากแล้วในระดับนั้น
+  const pct = (isMax || next.min_points <= currentTier.min_points)
+    ? 100
+    : Math.min(100, Math.max(0, ((pts - currentTier.min_points) / (next.min_points - currentTier.min_points)) * 100));
+  return { tiers, currentIdx, currentTier, next, isMax, pct };
+}
+
 // จำนวนวันติดต่อกันที่ทำความดีอย่างน้อย 1 ครั้ง นับถอยจากวันนี้ — ถ้าวันนี้ยังไม่มีรายการ
 // ให้เริ่มนับจากเมื่อวานแทน (ให้เวลานักเรียนถึงเที่ยงคืนก่อนสตรีคจะขาด แทนที่จะขึ้น 0 ทันทีตอนเช้า)
 function computeStreak(history) {
@@ -1023,22 +1043,9 @@ function unlockedBadgeCount(pts) {
 // หลอดพลังความดี — แสดงตำแหน่งเลเวลปัจจุบันเทียบกับเลเวลสูงสุด (เส้นสเกล 0..เลเวลสูงสุด
 // เพื่อให้เห็นระยะทางจริง ไม่ใช่แค่ % ไปเลเวลถัดไป) ให้นักเรียนเห็นภาพรวมทั้งเส้นทาง
 function renderLevelProgress(s) {
-  const tiers = (state.badgeTiers && state.badgeTiers.length)
-    ? [...state.badgeTiers].sort((a, b) => a.min_points - b.min_points)
-    : [{ icon: '🌿', name: 'ผู้เริ่มต้น', min_points: 0, color: '#6b7280' }];
+  const { tiers, currentIdx, currentTier, next, isMax, pct } = computeTierProgress(state.badgeTiers, s.total_points);
   const pts = s.total_points;
   const maxTier = tiers[tiers.length - 1];
-  let currentIdx = 0;
-  tiers.forEach((t, i) => { if (t.min_points <= pts) currentIdx = i; });
-  const currentTier = tiers[currentIdx];
-  const next = tiers[currentIdx + 1] || null;
-  const isMax = !next;
-  // % ความคืบหน้า "ภายในระดับปัจจุบัน" (จากเกณฑ์ระดับนี้ถึงระดับถัดไป) แทนการเทียบกับเกณฑ์ระดับ
-  // สูงสุดตรงๆ — ถ้าเทียบกับระดับสูงสุด (เช่น 5,000) คะแนนช่วงต้นจะแทบไม่ทำให้แถบขยับเลย ทั้งที่
-  // จริงๆ คืบหน้าไปมากแล้วในระดับนั้น
-  const pct = (isMax || next.min_points <= currentTier.min_points)
-    ? 100
-    : Math.min(100, Math.max(0, ((pts - currentTier.min_points) / (next.min_points - currentTier.min_points)) * 100));
 
   return `
   <div class="card">
@@ -1100,42 +1107,86 @@ function renderStudentHistory() {
 function renderStudentBadges() {
   const s = state.student;
   const pts = s.total_points;
-  const badge = getBadge(pts);
-  const tiers = [...state.badgeTiers].sort((a, b) => a.min_points - b.min_points);
-  const progressPct = badge.nextPts ? Math.round(((pts - badge.minPts) / (badge.nextPts - badge.minPts)) * 100) : 100;
+  const { tiers, currentIdx, currentTier, next, isMax, pct } = computeTierProgress(state.badgeTiers, pts);
+  const n = tiers.length;
+
+  // ตำแหน่งเส้นเชื่อมบนเส้นทางการเติบโต — โหนดแต่ละอันอยู่กึ่งกลางช่อง flex ของตัวเอง (กว้าง 100/n%)
+  // จุดศูนย์กลางโหนดแรก/สุดท้ายจึงอยู่ห่างขอบ (0.5/n)*100% เสมอ ไม่ว่าจะมีกี่ระดับ
+  const edgePct = n > 1 ? (0.5 / n) * 100 : 50;
+  const spanPct = 100 - edgePct * 2;
+  const travelFraction = n > 1 ? (isMax ? 1 : (currentIdx + pct / 100) / (n - 1)) : 0;
+  const fillPct = spanPct * travelFraction;
+
+  const tagText = isMax ? `🎉 ระดับสูงสุดแล้ว!` : `${currentTier.icon} กำลังเติบโต...`;
+  const subText = isMax
+    ? `คุณสะสมความดีได้ ${pts.toLocaleString()} คะแนน ระดับสูงสุดในระบบแล้ว!`
+    : `สะสมครบ ${next.min_points.toLocaleString()} คะแนน จะเติบโตเป็น ${next.icon} ${next.name}`;
 
   return `
   <div class="screen-wrap anim-slideup">
     <div class="hero-banner">
-      <div style="text-align:center;">
-        <div class="anim-pulse" style="font-size:52px;">${badge.icon}</div>
-        <div style="font-size:20px;font-weight:700;margin-top:10px;">${s.badge_level}</div>
-        <div style="font-size:13px;opacity:0.8;margin-top:4px;">${pts.toLocaleString()} คะแนน · เลเวลปัจจุบัน</div>
-        <div class="progress-track" style="margin-top:14px;">
-          <div class="progress-fill" style="width:${progressPct}%;"></div>
+      <div style="display:flex;align-items:center;gap:12px;position:relative;z-index:1;">
+        <div style="font-size:34px;filter:drop-shadow(0 2px 6px rgba(0,0,0,0.25));">${currentTier.icon}</div>
+        <div>
+          <div style="font-size:11px;opacity:0.8;letter-spacing:0.03em;">เลเวลปัจจุบัน</div>
+          <div style="font-size:18px;font-weight:700;margin-top:1px;">${currentTier.name}</div>
         </div>
-        <div style="display:flex;justify-content:space-between;font-size:11px;opacity:0.7;margin-top:4px;">
-          <span>${badge.minPts}</span>
-          <span>${badge.nextLabel ? `อีก ${badge.nextPts - pts} → ${badge.nextLabel}` : 'ระดับสูงสุดแล้ว'}</span>
-          <span>${badge.nextPts || ''}</span>
+        <div style="margin-left:auto;text-align:right;">
+          <div style="font-size:24px;font-weight:800;line-height:1;">${pts.toLocaleString()}</div>
+          ${isMax ? '' : `<div style="font-size:10.5px;opacity:0.8;">/ ${next.min_points.toLocaleString()} คะแนน</div>`}
         </div>
       </div>
+      <div class="progress-track" style="margin-top:14px;position:relative;z-index:1;">
+        <div class="progress-fill" style="width:${pct}%;"></div>
+      </div>
+      <div style="font-size:11px;opacity:0.85;margin-top:7px;position:relative;z-index:1;">
+        ${isMax ? `🎉 สุดยอด! คุณถึงระดับสูงสุดแล้ว` : `${next.icon} อีก ${(next.min_points - pts).toLocaleString()} คะแนน ถึง ${next.name}`}
+      </div>
     </div>
-    <div class="badge-grid">
-      ${tiers.map((b, i) => {
-        const unlocked = pts >= b.min_points;
-        const next = tiers[i + 1];
-        const range = next ? `${b.min_points.toLocaleString()} – ${(next.min_points - 1).toLocaleString()} คะแนน` : `${b.min_points.toLocaleString()}+ คะแนน`;
-        return `
-        <div class="badge-card ${unlocked ? 'unlocked' : ''}" style="${unlocked ? `border-color:${b.color}30;box-shadow:0 2px 12px ${b.color}28;` : 'opacity:0.55;'}">
-          <div class="badge-card-icon" style="${unlocked ? '' : 'filter:grayscale(1);'}">${b.icon}</div>
-          <div class="badge-card-name" style="color:${unlocked ? b.color : '#9ca3af'};">${b.name}</div>
-          <div class="badge-card-range">${range}</div>
-          <div class="badge-status ${unlocked ? 'unlocked' : ''}" style="${unlocked ? `background:${b.color}18;color:${b.color};` : ''}">
-            ${unlocked ? '✓ ปลดล็อคแล้ว' : '🔒 ล็อคอยู่'}
-          </div>
-        </div>`;
-      }).join('')}
+
+    <div class="mascot-caption">🌳 ต้นไม้ความดีของฉัน</div>
+
+    <div class="mascot-scene-wrap">
+      <div class="mascot-scene">
+        <div class="mascot-tag">${tagText}</div>
+        <div class="mascot-sun"></div>
+        <div class="mascot-cloud" style="width:40px;height:14px;top:20px;left:170px;"></div>
+        <div class="mascot-cloud" style="width:26px;height:10px;top:36px;left:200px;"></div>
+        <div class="mascot-leaf" style="left:20%;animation-delay:0.2s;">🍃</div>
+        <div class="mascot-leaf" style="left:72%;animation-delay:1.8s;">🍃</div>
+        <div class="mascot-leaf" style="left:46%;animation-delay:3.3s;">🌿</div>
+        <div class="mascot-pot-glow"></div>
+        <div class="mascot-pulse-ring"></div>
+        <div class="mascot-pulse-ring r2"></div>
+        <div class="mascot-icon">${currentTier.icon}</div>
+        <div class="mascot-soil"></div>
+        <div class="mascot-pot"></div>
+      </div>
+      <div class="mascot-scene-caption">
+        <div class="msc-name">${currentTier.name}</div>
+        <div class="msc-sub">${subText}</div>
+      </div>
+    </div>
+
+    <div class="gpath-wrap">
+      <div class="gpath-title">เส้นทางการเติบโต</div>
+      <div class="gpath-row">
+        <div class="gpath-line-bg" style="left:${edgePct}%;width:${spanPct}%;"></div>
+        <div class="gpath-line-fill" style="left:${edgePct}%;width:${fillPct}%;"></div>
+        ${tiers.map((t, i) => {
+          const state_ = i < currentIdx ? 'done' : i === currentIdx ? 'now' : 'future';
+          return `
+          <div class="gnode ${state_}">
+            ${state_ === 'now' ? `<div class="gnode-now-tag">ตอนนี้</div>` : ''}
+            <div class="gnode-badge">${t.icon}${
+              state_ === 'done' ? `<div class="gnode-check">✓</div>`
+              : state_ === 'future' ? `<div class="gnode-lock">🔒</div>` : ''
+            }</div>
+            <div class="gnode-label">${t.name}</div>
+            <div class="gnode-pts">${t.min_points.toLocaleString()} คะแนน</div>
+          </div>`;
+        }).join('')}
+      </div>
     </div>
   </div>`;
 }

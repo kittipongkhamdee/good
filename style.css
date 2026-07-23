@@ -477,6 +477,7 @@ select { appearance: none; -webkit-appearance: none; }
   display: flex; align-items: flex-end; animation: fadeIn 0.2s ease;
 }
 .modal-sheet {
+  position: relative;
   background: #fff; border-radius: 24px 24px 0 0; padding: 24px 20px;
   width: 100%; max-width: 480px; margin: 0 auto;
   animation: slideUp 0.3s ease; max-height: 90vh; overflow-y: auto;

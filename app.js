@@ -76,6 +76,7 @@ const state = {
 
   // เรียกหานักเรียนทำความดี — ฝั่งนักเรียน
   incomingDeedCall: null,  // งานเรียกที่กำลังแสดงเป็น alert เต็มจอ (แสดงผ่าน #deedcall-container ตรงๆ ไม่ผ่าน render())
+  openDeedCalls: [],       // งานเรียกที่ยังเปิดรับอยู่ทั้งหมด (รวมที่กด "ไม่สะดวก" ไปแล้ว) โชว์เป็นการ์ดในหน้าหลัก ให้กดรับย้อนหลังได้
 };
 
 // ── Screen titles ──
@@ -959,6 +960,8 @@ function renderStudentDashboard() {
         </div>
       </div>
     </div>
+
+    ${renderOpenDeedCalls()}
 
     ${renderLevelProgress(s)}
 
@@ -2934,6 +2937,33 @@ function playDeedCallAlertSound() {
   } catch {}
 }
 
+// การ์ดในหน้าหลัก โชว์งานเรียกที่ยังเปิดรับอยู่ทั้งหมด (รวมงานที่กด "ไม่สะดวก" ไปแล้วตอน popup เด้ง)
+// ให้กดรับย้อนหลังได้ทุกเมื่อ ไม่ต้องรอ popup เด้งมาเท่านั้น
+function renderOpenDeedCalls() {
+  const calls = state.openDeedCalls || [];
+  if (!calls.length) return '';
+  return `
+  <div class="card" style="border:1.5px solid #fbbf24;background:#fffbeb;">
+    <div style="font-size:14px;font-weight:700;color:#b45309;margin-bottom:10px;">📣 งานเรียกที่ยังเปิดรับอยู่</div>
+    ${calls.map(call => `
+      <div style="background:#fff;border-radius:12px;padding:12px 14px;margin-bottom:8px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:20px;">${call.deed_icon || '💚'}</span>
+          <div style="flex:1;min-width:0;">
+            <div style="font-weight:700;font-size:13.5px;color:#1f2937;">${call.deed_name || 'ทำความดี'}</div>
+            <div style="font-size:11.5px;color:#9ca3af;">ครู${call.teacher_name || ''} · เหลือ ${Math.max(0, call.slots - call.filled_count)} ที่</div>
+          </div>
+        </div>
+        ${call.message ? `<div style="font-size:12.5px;color:#374151;margin-top:6px;">${call.message}</div>` : ''}
+        <button data-action="accept-deed-call" data-call-id="${call.id}"
+          style="width:100%;margin-top:10px;padding:9px;background:var(--g);color:#fff;border:none;border-radius:8px;font-family:Kanit;font-weight:700;font-size:13px;cursor:pointer;">
+          ไปช่วยเลย!
+        </button>
+      </div>
+    `).join('')}
+  </div>`;
+}
+
 function deedCallScopeLabel(call) {
   if (!call.grade_level) return 'ทั้งโรงเรียน';
   return `${gradeLabel(call.grade_level)}${call.room ? '/' + call.room : ''}`;
@@ -2987,6 +3017,7 @@ function showNextIncomingDeedCall() {
 async function refreshActiveDeedCalls() {
   if (!state.student || state.role !== 'student') return;
   const { data } = await getActiveDeedCalls(state.student.student_code);
+  state.openDeedCalls = data || []; // ไม่เรียก render() ตรงนี้ตั้งใจ — จะได้ไม่ไปรบกวนจอที่กำลังดูอยู่
   (data || []).forEach(queueIncomingDeedCall);
 }
 
@@ -3074,12 +3105,13 @@ async function enterStudentSession(code, { silent = false } = {}) {
   const { student, error } = await studentLogin(code);
   if (error || !student) return { ok: false, error };
 
-  const [{ data: history }, { data: leaderboard }, { data: rewards }, { data: badgeTiers }, { data: settings }] = await Promise.all([
+  const [{ data: history }, { data: leaderboard }, { data: rewards }, { data: badgeTiers }, { data: settings }, { data: activeCalls }] = await Promise.all([
     getStudentHistory(code, 30),
     getLeaderboard({ limit: 10 }),
     getRewards(),
     getBadgeTiers(),
     getAppSettings(),
+    getActiveDeedCalls(code),
   ]);
 
   localStorage.setItem(STUDENT_CODE_KEY, code);
@@ -3087,11 +3119,11 @@ async function enterStudentSession(code, { silent = false } = {}) {
     loading: false, role: 'student', screen: 'student-dashboard',
     student, studentHistory: history || [], leaderboard: leaderboard || [], rewards: rewards || [],
     badgeTiers: badgeTiers || [], settings: settings || state.settings, leaderboardScope: 'school',
+    openDeedCalls: activeCalls || [],
   });
   if (!silent) showToast(`ยินดีต้อนรับ ${fullName(student)}! 🌿`);
 
   subscribeIncomingDeedCalls();
-  const { data: activeCalls } = await getActiveDeedCalls(code);
   (activeCalls || []).forEach(queueIncomingDeedCall);
   checkPushSubscribed();
 
@@ -3182,7 +3214,7 @@ async function doLogout() {
     addStudentCode: '', addStudentName: '', studentScanMode: false,
     pointCode: null, codeDurationMin: 10, codeGradeFilter: '', codeRoomFilter: '', codeHistory: [], teacherRecentLogs: [],
     deedCall: null, deedCallResponses: [], callDurationMin: 15, callDurationCustom: false, callGradeFilter: '', callRoomFilter: '', callSlots: 2, callMessage: '',
-    incomingDeedCall: null,
+    incomingDeedCall: null, openDeedCalls: [],
     settings: { leaderboardEnabled: true, leaderboardTopN: 10, schoolLogoUrl: null, schoolName: 'ตาเบาวิทยา', schoolTagline: 'ระบบสะสมคะแนนความดีนักเรียน', streakReminderHour: 19, streakReminderMinDays: 2 },
     rolePermissions: { 'admin-deedtypes': true, 'admin-rewards': true, 'admin-reward-pickup': true, 'admin-suggestions': true, 'admin-reports': true },
   });
@@ -4181,9 +4213,12 @@ document.addEventListener('click', async (e) => {
       hideIncomingDeedCallAlert();
       const { data, error } = await respondToDeedCall(callId, state.student.student_code);
       if (error) { showToast(`❌ ${error}`); showNextIncomingDeedCall(); break; }
+      // ไม่ว่าจะรับสำเร็จหรืองานปิดรับไปแล้ว ก็ไม่ใช่ตัวเลือกที่ยัง "รอกดรับ" อีกต่อไป เอาออกจากการ์ดในหน้าหลัก
+      state.openDeedCalls = (state.openDeedCalls || []).filter(c => c.id !== callId);
       if (data?.ok) showToast('✅ รับงานแล้ว! ครูรอคุณอยู่นะครับ');
       else showToast(`ℹ️ ${data?.message || 'งานนี้ปิดรับแล้ว'}`);
       showNextIncomingDeedCall();
+      render();
       break;
     }
 

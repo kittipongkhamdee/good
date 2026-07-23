@@ -1230,14 +1230,42 @@ function scoreCell(label, value) {
     </div>`;
 }
 
+// สีตามระดับเกรด — ไล่โทนแดง→เขียวคล้ายระบบ ปพ.5 ต้นทาง ให้เห็นภาพรวมไวขึ้นตั้งแต่แรกเห็น
+function gradeColor(grade) {
+  const n = Number(grade);
+  if (n >= 4) return '#15803d';
+  if (n >= 3.5) return '#16a34a';
+  if (n >= 3) return '#0891b2';
+  if (n >= 2.5) return '#0284c7';
+  if (n >= 1.5) return '#d97706';
+  if (n >= 1) return '#ea580c';
+  return '#dc2626';
+}
+
 // popup รายละเอียดวิชาหนึ่ง — units/detail === null หมายถึงกำลังโหลดอยู่ (โหลดพร้อมกันทั้งคู่)
 function subjectDetailModalHTML(row, units, detail) {
   const loading = units === null;
   const specialResult = row.special_result && row.special_result.trim();
-  const gradeLine = !row.has_score
-    ? 'ยังไม่มีคะแนน'
-    : `${specialResult || (row.grade !== null ? 'เกรด ' + Number(row.grade).toFixed(1) : '-')}` +
-      `${row.total_score !== null ? ' · รวม ' + Number(row.total_score).toFixed(1) + ' คะแนน' : ''}`;
+
+  let gradeBadgeHTML;
+  if (!row.has_score) {
+    gradeBadgeHTML = `<div style="font-size:14px;font-weight:700;color:var(--gd);margin-bottom:14px;">ยังไม่มีคะแนน</div>`;
+  } else {
+    const badgeColor = specialResult ? '#d97706' : gradeColor(row.grade);
+    const badgeText = specialResult || (row.grade !== null ? Number(row.grade).toFixed(1) : '-');
+    gradeBadgeHTML = `
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
+        <div style="background:${badgeColor}1c;color:${badgeColor};border-radius:14px;padding:8px 18px;text-align:center;min-width:60px;">
+          <div style="font-size:28px;font-weight:800;line-height:1.1;">${badgeText}</div>
+          <div style="font-size:10px;opacity:0.8;margin-top:2px;letter-spacing:0.3px;">${specialResult ? 'ผลการเรียน' : 'เกรด'}</div>
+        </div>
+        ${row.total_score !== null ? `
+          <div>
+            <div style="font-size:11.5px;color:#9ca3af;">คะแนนรวม</div>
+            <div style="font-size:19px;font-weight:700;color:var(--gd);">${Number(row.total_score).toFixed(1)}</div>
+          </div>` : ''}
+      </div>`;
+  }
 
   // ── สอบกลาง/ปลายภาค + คะแนนเก็บ ──
   const scoresHTML = loading ? '' : `
@@ -1315,7 +1343,7 @@ function subjectDetailModalHTML(row, units, detail) {
   return `
     <div class="modal-title">📖 ${row.subject_name}</div>
     <div style="font-size:12.5px;color:#6b7280;margin-bottom:4px;">${row.teacher_name || ''} · ${Number(row.credits).toFixed(1)} นก. · ${row.subject_code || ''}</div>
-    <div style="font-size:14px;font-weight:700;color:var(--gd);margin-bottom:8px;">${gradeLine}</div>
+    ${gradeBadgeHTML}
     <div style="max-height:60vh;overflow-y:auto;">
       ${loading ? `<div style="text-align:center;padding:24px;color:#9ca3af;">กำลังโหลด...</div>` : `${scoresHTML}${attendanceHTML}${evalHTML}${unitsHTML}`}
     </div>

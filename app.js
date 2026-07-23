@@ -2972,13 +2972,23 @@ function deedCallScopeLabel(call) {
 function showIncomingDeedCallAlert(call) {
   const c = document.getElementById('deedcall-container');
   if (!c) return;
+  const remaining = Math.max(0, call.slots - call.filled_count);
   c.innerHTML = `
     <div class="deedcall-overlay" data-action="dismiss-deed-call">
-      <div class="deedcall-ring">${call.deed_icon || '💚'}</div>
-      <div class="deedcall-kicker">ครูเรียกด่วน</div>
+      <div class="deedcall-beacon">
+        <div class="deedcall-beacon-ring"></div>
+        <div class="deedcall-beacon-ring"></div>
+        <div class="deedcall-beacon-ring"></div>
+        <div class="deedcall-ring">${call.deed_icon || '💚'}</div>
+      </div>
+      <div class="deedcall-kicker">⚡ ครูเรียกด่วน</div>
       <div class="deedcall-title">${call.deed_name || 'มาช่วยทำความดี'}</div>
-      <div class="deedcall-msg">${call.message}</div>
-      <div class="deedcall-from">จาก ${call.teacher_name || 'ครู'} · ขอบเขต: ${deedCallScopeLabel(call)}</div>
+      ${call.message ? `<div class="deedcall-msg-box"><div class="deedcall-msg">${call.message}</div></div>` : ''}
+      <div class="deedcall-meta">
+        <span class="deedcall-chip">👨‍🏫 ${call.teacher_name || 'ครู'}</span>
+        <span class="deedcall-chip">🎯 ${deedCallScopeLabel(call)}</span>
+        <span class="deedcall-chip">🙋 เหลือ ${remaining} ที่</span>
+      </div>
       <div class="deedcall-actions">
         <button class="deedcall-dismiss" data-action="dismiss-deed-call">ไม่สะดวก</button>
         <button class="deedcall-accept" data-action="accept-deed-call" data-call-id="${call.id}">ไปทำเลย!</button>

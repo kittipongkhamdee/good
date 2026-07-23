@@ -23,10 +23,16 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const url = (event.notification.data && event.notification.data.url) || './index.html';
+  const tag = event.notification.tag;
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
       for (const client of clientList) {
-        if ('focus' in client) return client.focus();
+        if ('focus' in client) {
+          // แท็บที่เปิดค้างไว้อาจไม่ได้รับ Realtime event สดๆ แล้ว (เบราว์เซอร์พักการเชื่อมต่อตอน
+          // อยู่เบื้องหลัง) แค่ focus() เฉยๆ ไม่ทำให้หน้าเช็คงานเรียกใหม่ให้เอง ต้องบอกทางนี้ด้วย
+          client.postMessage({ type: 'notification-click', tag });
+          return client.focus();
+        }
       }
       if (self.clients.openWindow) return self.clients.openWindow(url);
     })

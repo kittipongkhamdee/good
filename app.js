@@ -2976,15 +2976,19 @@ function showNextIncomingDeedCall() {
   if (next) showIncomingDeedCallAlert(next);
 }
 
-// เมื่อมีงานเรียกใหม่ INSERT เข้ามา ดึงรายการที่ตรงขอบเขต+ยังไม่หมดเวลาใหม่ทั้งหมดอีกครั้งผ่าน RPC เดิม
-// (แทนที่จะอ่านจาก payload ตรงๆ) เพื่อให้ได้ icon/ชื่อความดี/ชื่อครูที่ join มาแล้ว ครบถ้วนเหมือนตอนโหลดครั้งแรก
+// ดึงรายการงานเรียกที่ตรงขอบเขต+ยังไม่หมดเวลาทั้งหมดผ่าน RPC (แทนที่จะอ่านจาก payload ตรงๆ)
+// เพื่อให้ได้ icon/ชื่อความดี/ชื่อครูที่ join มาแล้ว ครบถ้วนเหมือนตอนโหลดครั้งแรก — ใช้ทั้งตอนมี
+// Realtime event เข้ามาสดๆ และตอนกดเปิดจาก push notification (แท็บเก่าอาจพลาด event ไปเพราะ
+// เบราว์เซอร์พักการเชื่อมต่อ Realtime ตอนอยู่เบื้องหลัง)
+async function refreshActiveDeedCalls() {
+  if (!state.student || state.role !== 'student') return;
+  const { data } = await getActiveDeedCalls(state.student.student_code);
+  (data || []).forEach(queueIncomingDeedCall);
+}
+
 function subscribeIncomingDeedCalls() {
   unsubscribeIncomingDeedCalls();
-  state._incomingDeedCallsChannel = subscribeToDeedCalls(async () => {
-    if (!state.student || state.role !== 'student') return;
-    const { data } = await getActiveDeedCalls(state.student.student_code);
-    (data || []).forEach(queueIncomingDeedCall);
-  });
+  state._incomingDeedCallsChannel = subscribeToDeedCalls(refreshActiveDeedCalls);
 }
 function unsubscribeIncomingDeedCalls() {
   if (state._incomingDeedCallsChannel) { unsubscribeChannel(state._incomingDeedCallsChannel); state._incomingDeedCallsChannel = null; }
@@ -4401,5 +4405,12 @@ document.addEventListener('DOMContentLoaded', () => {
   // (ไม่ทำ offline caching) — ไม่ throw ถ้าเบราว์เซอร์ไม่รองรับหรือ path ผิด เผื่อรันจากเครื่องพัฒนา
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
+    // แท็บที่เปิดค้างไว้ตอนกดแจ้งเตือน อาจพลาด Realtime event ไปเพราะเบราว์เซอร์พักการเชื่อมต่อ
+    // ตอนอยู่เบื้องหลัง — sw.js จะ postMessage บอกมาให้เช็คงานเรียกใหม่อีกครั้งตอน focus() กลับมา
+    navigator.serviceWorker.addEventListener('message', (event) => {
+      if (event.data?.type === 'notification-click' && event.data.tag === 'deed-call') {
+        refreshActiveDeedCalls();
+      }
+    });
   }
 });

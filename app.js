@@ -83,7 +83,7 @@ const state = {
 const TITLES = {
   'student-dashboard': 'หน้าหลัก',
   'student-history':   'ประวัติความดี',
-  'student-badges':    'Badge ของฉัน',
+  'student-badges':    'เลเวลของฉัน',
   'student-grades':    'ผลการเรียน',
   'student-leaderboard': 'อันดับนักเรียน',
   'student-rewards':   'แลกรางวัล',
@@ -111,7 +111,7 @@ const NAV = {
   student: [
     { id: 'student-dashboard',   icon: '🏠', label: 'หน้าหลัก' },
     { id: 'student-history',     icon: '📋', label: 'ประวัติ' },
-    { id: 'student-badges',      icon: '🏆', label: 'Badge' },
+    { id: 'student-badges',      icon: '🌳', label: 'เลเวล' },
     { id: 'student-leaderboard', icon: '🥇', label: 'อันดับ' },
     { id: 'student-rewards',     icon: '🎁', label: 'รางวัล' },
     { id: 'student-grades',      icon: '📊', label: 'ผลการเรียน' },
@@ -987,7 +987,7 @@ function renderStudentDashboard() {
 
     <div class="stat-grid-3">
       ${statBox('🥇', s.rank, 'อันดับที่', '#f59e0b', '#')}
-      ${statBox('🎖️', unlockedBadgeCount(s.total_points), 'Badge', '#8b5cf6')}
+      ${statBox('🎖️', unlockedBadgeCount(s.total_points), 'เลเวล', '#8b5cf6')}
       ${statBox('🎁', s.redeem_count, 'แลกรางวัล', '#ef4444')}
     </div>
 

@@ -94,6 +94,7 @@ select { appearance: none; -webkit-appearance: none; }
 .install-app-btn:hover { background: var(--gl); }
 
 /* ── App shell: header + bottom nav ── */
+/* กว้างเต็มจอบนแท็บเล็ต — ค่า 480px ด้านล่างคือเพดานสำหรับมือถือเท่านั้น */
 #app-a { display: none; max-width: 480px; margin: 0 auto; min-height: 100vh; position: relative; background: var(--bg); }
 #header-a {
   position: fixed; top: 0; left: 50%; transform: translateX(-50%);
@@ -101,6 +102,9 @@ select { appearance: none; -webkit-appearance: none; }
   border-bottom: 1px solid var(--border); z-index: 90;
   display: flex; align-items: center; padding: 0 16px; height: 56px;
   box-shadow: 0 1px 8px rgba(0,0,0,0.06);
+}
+@media (min-width: 640px) {
+  #app-a, #header-a, .bottom-nav, .modal-sheet { max-width: 100%; }
 }
 .header-logo { width: 36px; height: 36px; background: var(--gl); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 16px; margin: 0 10px; flex-shrink: 0; }
 .header-title { font-size: 16px; font-weight: 700; color: var(--text); flex: 1; }

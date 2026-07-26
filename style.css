@@ -385,9 +385,15 @@ select { appearance: none; -webkit-appearance: none; }
 
 .mascot-icon {
   position: absolute; left: 50%; bottom: 13%; transform: translateX(-50%);
-  font-size: 15cqw; line-height: 1; filter: drop-shadow(0 8px 8px rgba(15,50,20,0.4));
+  height: auto; filter: drop-shadow(0 6px 6px rgba(15,50,20,0.45));
   animation: mascotSway 3.2s ease-in-out infinite; z-index: 2;
+  transform-origin: bottom center;
 }
+.mascot-icon[data-stage="1"] { width: 15cqw; }
+.mascot-icon[data-stage="2"] { width: 18cqw; }
+.mascot-icon[data-stage="3"] { width: 22cqw; }
+.mascot-icon[data-stage="4"] { width: 27cqw; }
+.mascot-icon[data-stage="5"] { width: 34cqw; }
 @keyframes mascotSway { 0%, 100% { transform: translateX(-50%) rotate(-3deg); } 50% { transform: translateX(-50%) rotate(3deg); } }
 
 .mascot-tag {

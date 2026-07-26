@@ -1122,6 +1122,11 @@ function renderStudentBadges() {
     ? `คุณสะสมความดีได้ ${pts.toLocaleString()} คะแนน ระดับสูงสุดในระบบแล้ว!`
     : `สะสมครบ ${next.min_points.toLocaleString()} คะแนน จะเติบโตเป็น ${next.icon} ${next.name}`;
   const farmBgUrl = state.settings.levelFarmBgUrl || 'images/level-farm-bg.webp';
+  // รูปต้นไม้สมจริงมีแค่ 5 สเตจตายตัว (level-plant-1..5.webp) แต่จำนวนเลเวลจริงปรับได้จาก
+  // Admin — ไม่ผูกกับไอคอนเลเวลตรงๆ ตามที่ตกลงกันไว้ จึงเทียบตำแหน่งเลเวลปัจจุบันเป็นสัดส่วน
+  // แล้วปัดไปหาสเตจที่ใกล้ที่สุดแทน
+  const PLANT_STAGES = 5;
+  const plantStage = n > 1 ? Math.round((currentIdx / (n - 1)) * (PLANT_STAGES - 1)) + 1 : PLANT_STAGES;
 
   return `
   <div class="screen-wrap anim-slideup">
@@ -1154,7 +1159,7 @@ function renderStudentBadges() {
         <div class="mascot-leaf" style="left:72%;animation-delay:1.8s;">🍃</div>
         <div class="mascot-leaf" style="left:46%;animation-delay:3.3s;">🌿</div>
         <div class="mascot-pulse-ring"></div>
-        <div class="mascot-icon">${currentTier.icon}</div>
+        <img class="mascot-icon" data-stage="${plantStage}" src="images/level-plant-${plantStage}.webp" alt="${currentTier.name}">
       </div>
       <div class="mascot-scene-caption">
         <div class="msc-name">${currentTier.name}</div>

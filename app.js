@@ -1498,7 +1498,10 @@ function renderStudentLeaderboard() {
       ${podium.map((s, i) => `
         <div class="podium-col">
           ${i === 1 ? `<div class="podium-crown">👑</div>` : ''}
-          <div style="font-size:26px;margin-bottom:4px;">${['🥈','🥇','🥉'][i]}</div>
+          <div style="position:relative;display:inline-block;margin-bottom:6px;">
+            ${studentAvatar(s, { size: i === 1 ? 60 : 48, fontSize: i === 1 ? 26 : 21, bg: '#f3f4f6', border: '3px solid #fff', shadow: '0 3px 10px rgba(0,0,0,0.18)' })}
+            <span style="position:absolute;bottom:-3px;right:-5px;font-size:19px;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.35));">${['🥈','🥇','🥉'][i]}</span>
+          </div>
           <div class="podium-name">${fullName(s)}</div>
           <div class="podium-bar ${i === 1 ? 'podium-bar-first' : ''}" data-height="${heights[i]}" style="height:0;background:${colors[i]};color:${textClr[i]};">
             <div class="podium-rank">${s.rank}</div>

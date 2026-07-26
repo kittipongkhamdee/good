@@ -426,6 +426,7 @@ alter view public.student_points set (security_invoker = true);
 
 -- =============================================
 -- 10. Leaderboard: ห้อง/ชั้น scope filters + Top N pulled from app_settings
+-- (photo_url เพิ่มเข้ามาทีหลังใน §30 — ใช้แสดงรูปโปรไฟล์บนแท่นรางวัล)
 -- =============================================
 drop function if exists public.get_leaderboard(int);
 
@@ -436,7 +437,8 @@ returns table (
   prefix text,
   grade_level text,
   room text,
-  total_points int
+  total_points int,
+  photo_url text
 )
 language plpgsql
 security definer
@@ -454,7 +456,7 @@ begin
   return query
     select
       row_number() over (order by sp.total_points desc, sp.student_name) as rank,
-      sp.student_name, sp.prefix, sp.grade_level, sp.room, sp.total_points
+      sp.student_name, sp.prefix, sp.grade_level, sp.room, sp.total_points, sp.photo_url
     from public.student_points sp
     where (p_grade_level is null or sp.grade_level = p_grade_level)
       and (p_room is null or sp.room = p_room)
@@ -1736,3 +1738,8 @@ as $$
 $$;
 
 grant execute on function public.set_student_own_photo(uuid, text) to anon, authenticated;
+
+-- =============================================
+-- 30. เพิ่ม photo_url ในผลลัพธ์ของ get_leaderboard (§10) — ใช้แสดงรูปโปรไฟล์นักเรียนบน
+-- แท่นรางวัล (podium) หน้า "อันดับนักเรียน" แทน emoji เฉยๆ ดู definition ล่าสุดที่ §10 ด้านบน
+-- =============================================

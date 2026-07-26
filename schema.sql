@@ -126,6 +126,7 @@ create policy "reward_requests_staff_all" on public.reward_requests
 -- =============================================
 
 -- Student "login": lookup by student_code only, no password. Returns limited public fields.
+-- (photo_url เพิ่มเข้ามาทีหลังใน §29 — ตอนนี้นักเรียนตั้งรูปโปรไฟล์ตัวเองได้ เลยต้องส่งกลับด้วย)
 create or replace function public.get_student_summary(p_student_code text)
 returns table (
   student_id uuid,
@@ -138,7 +139,8 @@ returns table (
   badge_level text,
   rank bigint,
   redeem_count bigint,
-  total_deeds bigint
+  total_deeds bigint,
+  photo_url text
 )
 language sql
 security definer
@@ -154,7 +156,8 @@ as $$
     r.student_id, r.student_code, r.student_name, r.prefix, r.grade_level, r.room,
     r.total_points, r.badge_level, r.rnk,
     (select count(*) from public.reward_requests rr where rr.student_id = r.student_id) as redeem_count,
-    (select count(*) from public.point_logs pl where pl.student_id = r.student_id) as total_deeds
+    (select count(*) from public.point_logs pl where pl.student_id = r.student_id) as total_deeds,
+    r.photo_url
   from ranked r
   where r.student_code = p_student_code;
 $$;
@@ -503,9 +506,9 @@ grant execute on function public.teacher_screen_enabled(text) to authenticated;
 
 -- =============================================
 -- 12. Student profile pictures — stored in Supabase Storage
--- (bucket "student-photos", public read, staff-only write). Students log in
--- by student_code only (no Supabase Auth session), so they can't upload
--- their own photo — a teacher/admin manages it from "จัดการนักเรียน".
+-- (bucket "student-photos", public read; originally staff-only write, a
+-- teacher/admin managing it from "จัดการนักเรียน" — students later allowed
+-- to upload their own too, see §29).
 -- =============================================
 alter table public.students add column if not exists photo_url text;
 
@@ -1688,3 +1691,48 @@ for each row execute function public.trigger_deed_call_push();
 -- =============================================
 insert into public.app_settings (key, value) values ('level_farm_bg_url', null)
 on conflict (key) do nothing;
+
+-- =============================================
+-- 29. นักเรียนเปลี่ยนรูปโปรไฟล์ของตัวเองได้ — เดิม §12 อนุญาตแค่ staff (authenticated)
+-- เท่านั้น เพราะนักเรียนไม่มี Supabase Auth session (ล็อกอินด้วย student_code
+-- อย่างเดียว) แต่รูปแบบความน่าเชื่อถือนี้เหมือนกับฟีเจอร์อื่นๆ ที่นักเรียนทำเองได้อยู่แล้ว
+-- (แลกโค้ด/ตอบรับงานเรียก/ส่งข้อเสนอแนะ — รู้ student_code ก็ทำแทนกันได้อยู่แล้วทั้งนั้น)
+-- จึงเปิดให้ anon เขียนบัคเก็ตนี้ได้ด้วย แต่จำกัดไว้ว่า path (ชื่อไฟล์ก่อนนามสกุล) ต้อง
+-- ตรงกับ students.id ที่มีอยู่จริงเท่านั้น กันไม่ให้เขียนไฟล์มั่วๆ ลงบัคเก็ตได้
+-- =============================================
+create policy "student_photos_self_insert" on storage.objects for insert
+  with check (
+    bucket_id = 'student-photos'
+    and exists (select 1 from public.students st where st.id::text = split_part(storage.objects.name, '.', 1))
+  );
+
+create policy "student_photos_self_update" on storage.objects for update
+  using (
+    bucket_id = 'student-photos'
+    and exists (select 1 from public.students st where st.id::text = split_part(storage.objects.name, '.', 1))
+  )
+  with check (
+    bucket_id = 'student-photos'
+    and exists (select 1 from public.students st where st.id::text = split_part(storage.objects.name, '.', 1))
+  );
+
+create policy "student_photos_self_delete" on storage.objects for delete
+  using (
+    bucket_id = 'student-photos'
+    and exists (select 1 from public.students st where st.id::text = split_part(storage.objects.name, '.', 1))
+  );
+
+-- students_update (§4 ตอนสร้างตาราง) ต้องการ auth.role() = 'authenticated' เท่านั้น
+-- (นักเรียนเป็น anon) แทนที่จะเปิด anon UPDATE ทั้งตาราง students ตรงๆ (เสี่ยงเกินไป
+-- มีคอลัมน์อื่นอีกเยอะ) ใช้ SECURITY DEFINER RPC แคบๆ ที่แก้ได้แค่คอลัมน์ photo_url
+-- คอลัมน์เดียวแทน — รูปแบบเดียวกับ RPC อื่นๆ ที่นักเรียนเรียกเองได้ (แลกโค้ด/ตอบรับงานเรียก ฯลฯ)
+create or replace function public.set_student_own_photo(p_student_id uuid, p_photo_url text)
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  update public.students set photo_url = p_photo_url where id = p_student_id;
+$$;
+
+grant execute on function public.set_student_own_photo(uuid, text) to anon, authenticated;

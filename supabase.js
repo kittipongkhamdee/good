@@ -198,6 +198,30 @@ async function removeStudentPhoto(studentId, photoUrl) {
   return { error: error?.message || null };
 }
 
+// นักเรียนเปลี่ยนรูปโปรไฟล์ของตัวเอง — เหมือน uploadStudentPhoto/removeStudentPhoto ด้านบน
+// ทุกอย่าง ต่างกันแค่ต้องอัปเดต photo_url ผ่าน RPC set_student_own_photo แทนการ update ตาราง
+// ตรงๆ เพราะนักเรียนเป็น anon (ไม่มี Supabase Auth session) ถูก RLS ของตาราง students บล็อก
+async function uploadStudentOwnPhoto(studentId, file, { ext = 'jpg', contentType = 'image/jpeg' } = {}) {
+  const path = `${studentId}.${ext}`;
+  const { error: upErr } = await _sb.storage.from('student-photos').upload(path, file, {
+    upsert: true, contentType,
+  });
+  if (upErr) return { url: null, error: upErr.message };
+
+  const { data } = _sb.storage.from('student-photos').getPublicUrl(path);
+  const url = `${data.publicUrl}?t=${Date.now()}`;
+  const { error: rpcErr } = await _sb.rpc('set_student_own_photo', { p_student_id: studentId, p_photo_url: url });
+  if (rpcErr) return { url: null, error: rpcErr.message };
+  return { url, error: null };
+}
+
+async function removeStudentOwnPhoto(studentId, photoUrl) {
+  const path = photoUrl?.split('/student-photos/')[1]?.split('?')[0];
+  if (path) await _sb.storage.from('student-photos').remove([path]);
+  const { error } = await _sb.rpc('set_student_own_photo', { p_student_id: studentId, p_photo_url: null });
+  return { error: error?.message || null };
+}
+
 // ครูอัปโหลดรูปโปรไฟล์ตัวเอง — profiles.photo_url ถูก RLS จำกัดไว้แล้วว่าแก้ได้แค่แถวตัวเอง
 // (id = auth.uid()) เลย staffId ที่ส่งมาจะสำเร็จก็ต่อเมื่อตรงกับผู้ใช้ที่ล็อกอินอยู่เท่านั้น
 async function uploadStaffPhoto(staffId, file, { ext = 'jpg', contentType = 'image/jpeg' } = {}) {

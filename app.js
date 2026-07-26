@@ -1578,7 +1578,10 @@ function renderStudentProfile() {
   <div class="screen-wrap anim-slideup">
     <div class="hero-banner">
       <div style="text-align:center;">
-        ${studentAvatar(s, { size: 80, fontSize: 36, margin: '0 auto', tierFrame: true })}
+        <div data-action="open-student-own-photo" style="position:relative;display:inline-block;cursor:pointer;">
+          ${studentAvatar(s, { size: 80, fontSize: 36, tierFrame: true })}
+          <span style="position:absolute;bottom:-2px;right:-2px;width:26px;height:26px;border-radius:50%;background:#fff;color:var(--gd);display:flex;align-items:center;justify-content:center;font-size:13px;box-shadow:0 2px 6px rgba(0,0,0,0.25);">📷</span>
+        </div>
         <div style="font-size:20px;font-weight:700;margin-top:12px;">${fullName(s)}</div>
         <div style="font-size:13px;opacity:0.8;margin-top:4px;">${classOf(s)} · รหัส ${s.student_code}</div>
         <div style="margin-top:8px;display:inline-block;background:rgba(255,255,255,0.18);border-radius:20px;padding:3px 14px;font-size:12px;">${badge.icon} ${s.badge_level} · ${s.total_points.toLocaleString()} คะแนน</div>
@@ -3920,6 +3923,51 @@ document.addEventListener('click', async (e) => {
       if (error) { showToast(`เกิดข้อผิดพลาด: ${error}`); break; }
       showToast('ลบรูปโปรไฟล์แล้ว');
       setState({ staffUser: { ...state.staffUser, photo_url: null } });
+      break;
+    }
+
+    case 'open-student-own-photo': {
+      const s = state.student;
+      if (!s) break;
+      showModal(`
+        <div class="modal-title">📷 รูปโปรไฟล์ของฉัน</div>
+        <div style="text-align:center;margin-bottom:16px;">
+          <img id="photo-preview" src="${s.photo_url || ''}" alt=""
+               style="width:120px;height:120px;border-radius:50%;object-fit:cover;background:#f3f4f6;margin:0 auto;border:2px solid #e5e7eb;display:${s.photo_url ? 'block' : 'none'};">
+          <div id="photo-preview-placeholder"
+               style="width:120px;height:120px;border-radius:50%;background:#f3f4f6;align-items:center;justify-content:center;font-size:48px;margin:0 auto;display:${s.photo_url ? 'none' : 'flex'};">${studentGenderIcon(s)}</div>
+        </div>
+        <div class="form-group"><input type="file" accept="image/*" id="student-own-photo-file"></div>
+        <button class="btn-green" data-action="save-student-own-photo" style="padding:13px;margin-top:4px;">✅ บันทึกรูป</button>
+        ${s.photo_url ? `<button data-action="remove-student-own-photo" data-url="${s.photo_url}" style="width:100%;padding:10px;margin-top:8px;background:#fee2e2;color:#dc2626;border:none;border-radius:10px;font-family:Kanit;cursor:pointer;">🗑️ ลบรูป</button>` : ''}
+        <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:Kanit;color:#9ca3af;cursor:pointer;">ยกเลิก</button>
+      `);
+      break;
+    }
+
+    case 'save-student-own-photo': {
+      const file = document.getElementById('student-own-photo-file')?.files[0];
+      if (!file) { showToast('กรุณาเลือกรูปภาพ'); return; }
+      let uploadFile = file, photoOpts = { ext: 'jpg', contentType: 'image/jpeg' };
+      try {
+        uploadFile = await compressImageFile(file);
+      } catch {
+        photoOpts = { ext: (file.name.split('.').pop() || 'jpg').toLowerCase(), contentType: file.type || 'image/jpeg' };
+      }
+      const { url, error } = await uploadStudentOwnPhoto(state.student.student_id, uploadFile, photoOpts);
+      closeModal();
+      if (error) { showToast(`เกิดข้อผิดพลาด: ${error}`); break; }
+      showToast('อัปโหลดรูปโปรไฟล์สำเร็จ ✅');
+      setState({ student: { ...state.student, photo_url: url } });
+      break;
+    }
+
+    case 'remove-student-own-photo': {
+      const { error } = await removeStudentOwnPhoto(state.student.student_id, btn.dataset.url);
+      closeModal();
+      if (error) { showToast(`เกิดข้อผิดพลาด: ${error}`); break; }
+      showToast('ลบรูปโปรไฟล์แล้ว');
+      setState({ student: { ...state.student, photo_url: null } });
       break;
     }
 

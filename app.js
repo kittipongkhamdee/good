@@ -472,10 +472,47 @@ async function drawShareCard(canvas, student, badge) {
   ctx.beginPath();
   ctx.arc(haloCx, haloCy, haloR, 0, Math.PI * 2);
   ctx.stroke();
-  ctx.font = `${Math.round(haloR * 1.05)}px Kanit`;
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#fff';
-  ctx.fillText(badge.icon, haloCx, haloCy + haloR * 0.35);
+
+  // รูปโปรไฟล์นักเรียนถ้ามี (ครอปเป็นวงกลม แบบเดียวกับ podium/โปรไฟล์) — ไอคอนเลเวลย้าย
+  // ไปเป็นป้ายเล็กมุมขวาล่างแทน; ถ้าไม่มีรูปหรือโหลดไม่สำเร็จ ตกกลับไปโชว์ไอคอนเลเวลใหญ่เหมือนเดิม
+  let photoDrawn = false;
+  if (student.photo_url) {
+    try {
+      const photoImg = await loadImageForCanvas(student.photo_url);
+      const avatarR = haloR * 0.82;
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(haloCx, haloCy, avatarR, 0, Math.PI * 2);
+      ctx.clip();
+      const side = Math.min(photoImg.width, photoImg.height);
+      const sx = (photoImg.width - side) / 2, sy = (photoImg.height - side) / 2;
+      ctx.drawImage(photoImg, sx, sy, side, side, haloCx - avatarR, haloCy - avatarR, avatarR * 2, avatarR * 2);
+      ctx.restore();
+      ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(haloCx, haloCy, avatarR, 0, Math.PI * 2);
+      ctx.stroke();
+      photoDrawn = true;
+    } catch { /* CORS/network hiccup — fall back to plain tier icon below */ }
+  }
+
+  if (photoDrawn) {
+    const badgeR = haloR * 0.34;
+    const badgeCx = haloCx + haloR * 0.62, badgeCy = haloCy + haloR * 0.62;
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(badgeCx, badgeCy, badgeR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.font = `${Math.round(badgeR * 1.15)}px Kanit`;
+    ctx.textAlign = 'center';
+    ctx.fillText(badge.icon, badgeCx, badgeCy + badgeR * 0.38);
+  } else {
+    ctx.font = `${Math.round(haloR * 1.05)}px Kanit`;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#fff';
+    ctx.fillText(badge.icon, haloCx, haloCy + haloR * 0.35);
+  }
 
   // student name — the headline of the card, right below the badge
   const name = fullName(student);

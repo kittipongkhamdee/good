@@ -1779,8 +1779,11 @@ create policy "leave_requests_staff_select" on public.leave_requests for select
 create policy "leave_requests_staff_delete" on public.leave_requests for delete
   using (auth.role() = 'authenticated');
 
+-- signature ล่าสุด (รับรูปยืนยัน + พิกัด GPS ด้วย) ดูส่วนที่เพิ่มเข้ามาที่ §32 ด้านล่าง
 create or replace function public.submit_leave_request(
-  p_student_code text, p_leave_type text, p_start_date date, p_end_date date, p_reason text default null
+  p_student_code text, p_leave_type text, p_start_date date, p_end_date date, p_reason text default null,
+  p_photo_url text default null, p_gps_lat double precision default null, p_gps_lng double precision default null,
+  p_gps_accuracy double precision default null
 )
 returns uuid
 language plpgsql
@@ -1801,26 +1804,68 @@ begin
   if p_end_date < p_start_date then
     raise exception 'วันที่สิ้นสุดต้องไม่ก่อนวันที่เริ่ม';
   end if;
+  if p_photo_url is null then
+    raise exception 'กรุณาถ่ายรูปคู่ผู้ปกครองเพื่อยืนยัน';
+  end if;
+  if p_gps_lat is null or p_gps_lng is null then
+    raise exception 'กรุณาเปิดตำแหน่งที่ตั้งก่อนส่งแจ้งขอลา';
+  end if;
 
-  insert into public.leave_requests (student_id, grade_level, room, leave_type, start_date, end_date, reason)
-  values (v_student.id, v_student.grade_level, v_student.room, p_leave_type, p_start_date, p_end_date, p_reason)
+  insert into public.leave_requests
+    (student_id, grade_level, room, leave_type, start_date, end_date, reason, photo_url, gps_lat, gps_lng, gps_accuracy)
+  values
+    (v_student.id, v_student.grade_level, v_student.room, p_leave_type, p_start_date, p_end_date, p_reason, p_photo_url, p_gps_lat, p_gps_lng, p_gps_accuracy)
   returning id into v_id;
 
   return v_id;
 end;
 $$;
-grant execute on function public.submit_leave_request(text, text, date, date, text) to anon, authenticated;
+grant execute on function public.submit_leave_request(text, text, date, date, text, text, double precision, double precision, double precision) to anon, authenticated;
 
 create or replace function public.get_student_leave_requests(p_student_code text)
-returns table (id uuid, leave_type text, start_date date, end_date date, reason text, created_at timestamptz)
+returns table (
+  id uuid, leave_type text, start_date date, end_date date, reason text,
+  photo_url text, gps_lat double precision, gps_lng double precision, created_at timestamptz
+)
 language sql
 security definer
 set search_path = public
 as $$
-  select lr.id, lr.leave_type, lr.start_date, lr.end_date, lr.reason, lr.created_at
+  select lr.id, lr.leave_type, lr.start_date, lr.end_date, lr.reason,
+    lr.photo_url, lr.gps_lat, lr.gps_lng, lr.created_at
   from public.leave_requests lr
   join public.students s on s.id = lr.student_id
   where s.student_code = p_student_code
   order by lr.created_at desc;
 $$;
 grant execute on function public.get_student_leave_requests(text) to anon, authenticated;
+
+-- =============================================
+-- 32. เพิ่มรูปถ่ายยืนยัน (ถ่ายสดตอนแจ้งขอลา ไม่ใช่อัปโหลดจากคลังภาพ) + พิกัด GPS ตอนแจ้ง
+-- ลงในตาราง leave_requests (§31) — ครูเห็นรูป+ตำแหน่งใน popup ตอนเช็คชื่อ เผื่อต้องไป
+-- เยี่ยม/ช่วยเหลือ รูปเก็บในบัคเก็ตใหม่ "leave-attachments" (public read, เขียนได้เฉพาะ
+-- path ที่ขึ้นต้นด้วย student id จริงเท่านั้น — เหมือน pattern เดิมของ student-photos)
+--
+-- เหตุผลที่ไม่เช็ค EXIF วันที่ในภาพ: ข้อมูลนี้ปลอมง่ายและเบราว์เซอร์มักตัดทิ้งอยู่แล้วเวลา
+-- ถ่ายผ่านเว็บ ใช้วิธีเปิดกล้องสด (getUserMedia) ให้ถ่ายสดในหน้าฟอร์มแทน แล้วอาศัย
+-- created_at ที่เซิร์ฟเวอร์บันทึกเอง (ปลอมไม่ได้) เป็นหลักฐานเวลาแทน — submit_leave_request
+-- (แก้ signature ที่ §31 ด้านบนแล้ว) บังคับว่าต้องมีทั้งรูปและพิกัด ไม่งั้น raise exception
+-- =============================================
+alter table public.leave_requests
+  add column photo_url text,
+  add column gps_lat double precision,
+  add column gps_lng double precision,
+  add column gps_accuracy double precision;
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('leave-attachments', 'leave-attachments', true, 3145728, array['image/jpeg','image/png','image/webp'])
+on conflict (id) do nothing;
+
+create policy "leave_attachments_read" on storage.objects for select
+  using (bucket_id = 'leave-attachments');
+
+create policy "leave_attachments_self_insert" on storage.objects for insert
+  with check (
+    bucket_id = 'leave-attachments'
+    and exists (select 1 from public.students st where st.id::text = split_part(storage.objects.name, '/', 1))
+  );

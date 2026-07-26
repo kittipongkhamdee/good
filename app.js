@@ -26,6 +26,10 @@ const state = {
   studentGrades: null,      // ผลการเรียน — โหลดแบบ lazy ตอนเข้าหน้าจอนี้ครั้งแรก (null = ยังไม่โหลด)
   gradesSemesterKey: null,  // "2569-1" ปีการศึกษา-ภาคเรียนที่กำลังดูอยู่
   studentLeaveRequests: null, // ประวัติแจ้งขอลา — โหลดแบบ lazy เหมือนกัน
+  leavePhotoBlob: null,      // รูปถ่ายคู่ผู้ปกครองที่ถ่ายสดไว้ (ยังไม่อัปโหลดจนกว่าจะกดส่งฟอร์ม)
+  leavePhotoPreviewUrl: null, // object URL ของ leavePhotoBlob ไว้พรีวิวในฟอร์ม
+  leaveGps: null,            // { lat, lng, accuracy } หลังขอตำแหน่งสำเร็จ
+  leaveGpsStatus: 'idle',    // 'idle' | 'requesting' | 'granted' | 'denied' | 'error' | 'unsupported'
   pushSubscribed: false,   // อุปกรณ์นี้เปิดการแจ้งเตือน (เตือนสตรีคใกล้ขาด) อยู่หรือไม่
 
   staffUser: null,        // { id, full_name, role, is_admin, photo_url }
@@ -1472,9 +1476,24 @@ function subjectDetailModalHTML(row, units, detail) {
 // แต่ฐานข้อมูลเดียวกัน) ครูจะเห็น popup เตือนตอนเลือกห้องเช็คชื่อถ้ามีนักเรียนแจ้งลาในวันนั้น
 const LEAVE_TYPE_LABEL = { sick: '🤒 ลาป่วย', personal: '📝 ลากิจ' };
 
+// สถานะปุ่ม "ขอตำแหน่งปัจจุบัน" — ข้อความ/สี ตาม state.leaveGpsStatus
+function leaveGpsStatusHTML() {
+  const s = state.leaveGpsStatus;
+  const g = state.leaveGps;
+  if (s === 'granted' && g) {
+    return { color: 'var(--g)', text: `✅ ได้ตำแหน่งแล้ว (แม่นยำ ~${Math.round(g.accuracy)} ม.)` };
+  }
+  if (s === 'requesting') return { color: '#6b7280', text: '📡 กำลังขอตำแหน่ง...' };
+  if (s === 'denied') return { color: '#dc2626', text: '❌ ไม่ได้รับอนุญาต — กรุณาเปิดสิทธิ์ตำแหน่งที่ตั้งในเบราว์เซอร์/มือถือ แล้วลองใหม่' };
+  if (s === 'unsupported') return { color: '#dc2626', text: '❌ อุปกรณ์นี้ไม่รองรับการระบุตำแหน่ง' };
+  if (s === 'error') return { color: '#dc2626', text: '❌ หาตำแหน่งไม่สำเร็จ ลองใหม่อีกครั้ง' };
+  return { color: '#6b7280', text: 'ยังไม่ได้ขอตำแหน่ง — กดปุ่มด้านล่างเพื่อขอตำแหน่งปัจจุบัน' };
+}
+
 function renderStudentLeave() {
   const list = state.studentLeaveRequests;
   const today = new Date().toISOString().slice(0, 10);
+  const gpsInfo = leaveGpsStatusHTML();
 
   return `
   <div class="screen-wrap anim-slideup">
@@ -1508,6 +1527,24 @@ function renderStudentLeave() {
         <label class="form-label">เหตุผล (ถ้ามี)</label>
         <textarea class="form-input" id="leave-reason-input" rows="3" placeholder="เช่น ป่วยเป็นไข้หวัด, ไปธุระที่บ้าน"></textarea>
       </div>
+
+      <div class="form-group">
+        <label class="form-label">รูปถ่ายคู่ผู้ปกครอง (ถ่ายสดตอนนี้ ใช้ยืนยันว่าผู้ปกครองรับทราบ)</label>
+        ${state.leavePhotoPreviewUrl ? `<img src="${state.leavePhotoPreviewUrl}" style="width:100%;max-width:240px;border-radius:12px;display:block;margin-bottom:10px;box-shadow:0 2px 8px rgba(0,0,0,0.12);">` : ''}
+        <button type="button" data-action="open-leave-camera" style="width:100%;padding:12px;background:${state.leavePhotoPreviewUrl ? '#f3f4f6' : 'var(--gl)'};color:${state.leavePhotoPreviewUrl ? '#374151' : 'var(--g)'};border:none;border-radius:10px;font-family:Kanit;font-weight:700;cursor:pointer;">
+          📷 ${state.leavePhotoPreviewUrl ? 'ถ่ายใหม่อีกครั้ง' : 'เปิดกล้องถ่ายรูป'}
+        </button>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">ตำแหน่งที่ตั้งปัจจุบัน</label>
+        <div style="font-size:12.5px;color:${gpsInfo.color};padding:11px 12px;background:#f9fafb;border-radius:10px;line-height:1.5;">${gpsInfo.text}</div>
+        ${state.leaveGpsStatus !== 'granted' ? `
+          <button type="button" data-action="request-leave-gps" style="width:100%;padding:11px;margin-top:8px;background:var(--gl);color:var(--g);border:none;border-radius:10px;font-family:Kanit;font-weight:700;cursor:pointer;">
+            📍 ${state.leaveGpsStatus === 'requesting' ? 'กำลังขอตำแหน่ง...' : 'ขอตำแหน่งปัจจุบัน'}
+          </button>` : ''}
+      </div>
+
       <button class="btn-green" data-action="submit-leave-request" style="padding:14px;">📤 ส่งแจ้งขอลา</button>
     </div>
 
@@ -1529,6 +1566,79 @@ function renderStudentLeave() {
         : `<div style="padding:20px;text-align:center;color:#9ca3af;font-size:13px;">ยังไม่มีประวัติการแจ้งขอลา</div>`)}
     </div>
   </div>`;
+}
+
+// ── กล้องถ่ายรูปยืนยัน (แจ้งขอลา) — เปิดกล้องสดผ่าน getUserMedia แล้วถ่ายเป็น Blob ทันที
+// แทนปุ่ม <input type=file> ที่ยังเลือกไฟล์เก่าจากคลังภาพได้ ให้แน่ใจว่าเป็นรูปที่ถ่าย ณ
+// ตอนแจ้งขอลาจริงๆ (ดูเหตุผลเรื่อง EXIF ที่ schema.sql §32)
+let _leaveCameraStream = null;
+
+function stopLeaveCameraStream() {
+  if (_leaveCameraStream) {
+    _leaveCameraStream.getTracks().forEach(t => t.stop());
+    _leaveCameraStream = null;
+  }
+}
+
+async function openLeaveCameraModal() {
+  showModal(`
+    <div class="modal-title">📷 ถ่ายรูปคู่ผู้ปกครอง</div>
+    <div style="text-align:center;padding:40px 0;color:#9ca3af;">กำลังเปิดกล้อง...</div>
+  `);
+  try {
+    _leaveCameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+  } catch (e) {
+    updateModalBody(`
+      <div class="modal-title">📷 ถ่ายรูปคู่ผู้ปกครอง</div>
+      <div style="text-align:center;padding:16px 0 20px;color:#dc2626;font-size:14px;line-height:1.6;">
+        ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตให้เว็บไซต์นี้ใช้กล้องในเบราว์เซอร์<br>
+        <span style="color:#9ca3af;font-size:12px;">${e.message || e.name || ''}</span>
+      </div>
+      <button data-action="close-modal" style="width:100%;padding:10px;background:transparent;border:none;font-family:Kanit;color:#9ca3af;cursor:pointer;">ปิด</button>
+    `);
+    return;
+  }
+  updateModalBody(`
+    <div class="modal-title">📷 ถ่ายรูปคู่ผู้ปกครอง</div>
+    <video id="leave-camera-video" autoplay playsinline muted style="width:100%;border-radius:12px;background:#000;max-height:340px;object-fit:cover;display:block;"></video>
+    <button class="btn-green" data-action="capture-leave-photo" style="padding:14px;margin-top:12px;">📸 ถ่ายภาพ</button>
+    <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:Kanit;color:#9ca3af;cursor:pointer;">ยกเลิก</button>
+  `);
+  const video = document.getElementById('leave-camera-video');
+  if (video) video.srcObject = _leaveCameraStream;
+}
+
+function captureLeavePhoto() {
+  const video = document.getElementById('leave-camera-video');
+  if (!video || !video.videoWidth) return;
+  const canvas = document.createElement('canvas');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+  canvas.toBlob(blob => {
+    if (!blob) return;
+    stopLeaveCameraStream();
+    if (state.leavePhotoPreviewUrl) URL.revokeObjectURL(state.leavePhotoPreviewUrl);
+    setState({ leavePhotoBlob: blob, leavePhotoPreviewUrl: URL.createObjectURL(blob) });
+    closeModal();
+  }, 'image/jpeg', 0.85);
+}
+
+// ── ตำแหน่ง GPS ตอนแจ้งขอลา — บังคับเปิดจากเบราว์เซอร์ไม่ได้ (ข้อจำกัดด้านความปลอดภัย
+// ของเบราว์เซอร์เอง) ทำได้แค่ขอสิทธิ์แล้วรอผู้ใช้กดอนุญาตเอง
+function requestLeaveGps() {
+  if (!navigator.geolocation) { setState({ leaveGpsStatus: 'unsupported' }); return; }
+  setState({ leaveGpsStatus: 'requesting' });
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      setState({
+        leaveGps: { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy },
+        leaveGpsStatus: 'granted',
+      });
+    },
+    (err) => { setState({ leaveGpsStatus: err.code === 1 ? 'denied' : 'error' }); },
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
+  );
 }
 
 function renderStudentLeaderboard() {
@@ -3394,6 +3504,7 @@ async function doLogout() {
     screen: 'login', authView: 'student', role: null, previewAsTeacher: false, authError: '', drawerOpen: false,
     student: null, studentHistory: [], studentRedemptions: [], leaderboard: null, leaderboardScope: 'school',
     studentGrades: null, gradesSemesterKey: null, studentLeaveRequests: null,
+    leavePhotoBlob: null, leavePhotoPreviewUrl: null, leaveGps: null, leaveGpsStatus: 'idle',
     staffUser: null, deedTypes: [], rewards: [], rewardRequests: [], rewardSuggestions: [], students: [], studentGradeFilter: '', studentRoomFilter: '', studentClasses: [], pointLogs: [], badgeTiers: [],
     reportSummary: null, reportError: null, reportLeaderboard: null, reportGradeFilter: '', scanStep: 0, scanStudent: null, selectedDeedId: null, points: 10,
     addStudentCode: '', addStudentName: '', studentScanMode: false,
@@ -4263,6 +4374,18 @@ document.addEventListener('click', async (e) => {
       break;
     }
 
+    case 'open-leave-camera':
+      openLeaveCameraModal();
+      break;
+
+    case 'capture-leave-photo':
+      captureLeavePhoto();
+      break;
+
+    case 'request-leave-gps':
+      requestLeaveGps();
+      break;
+
     case 'submit-leave-request': {
       const leaveType = document.getElementById('leave-type-input')?.value;
       const startDate = document.getElementById('leave-start-input')?.value;
@@ -4270,14 +4393,30 @@ document.addEventListener('click', async (e) => {
       const reason = document.getElementById('leave-reason-input')?.value.trim();
       if (!startDate || !endDate) { showToast('กรุณาเลือกวันที่ลา'); return; }
       if (endDate < startDate) { showToast('วันที่สิ้นสุดต้องไม่ก่อนวันที่เริ่ม'); return; }
+      if (!state.leavePhotoBlob) { showToast('กรุณาถ่ายรูปคู่ผู้ปกครองเพื่อยืนยัน'); return; }
+      if (!state.leaveGps) { showToast('กรุณาขอตำแหน่งปัจจุบันก่อนส่ง'); return; }
       btn.disabled = true;
       btn.textContent = 'กำลังส่ง...';
-      const { error } = await submitLeaveRequest(state.student.student_code, leaveType, startDate, endDate, reason);
+      const { url: photoUrl, error: uploadError } = await uploadLeaveAttachment(state.student.student_id, state.leavePhotoBlob);
+      if (uploadError) {
+        btn.disabled = false;
+        btn.textContent = '📤 ส่งแจ้งขอลา';
+        showToast(`อัปโหลดรูปไม่สำเร็จ: ${uploadError}`);
+        break;
+      }
+      const { error } = await submitLeaveRequest(
+        state.student.student_code, leaveType, startDate, endDate, reason,
+        photoUrl, state.leaveGps.lat, state.leaveGps.lng, state.leaveGps.accuracy
+      );
       btn.disabled = false;
       btn.textContent = '📤 ส่งแจ้งขอลา';
       if (error) { showToast(`เกิดข้อผิดพลาด: ${error}`); break; }
       const { data } = await getStudentLeaveRequests(state.student.student_code);
-      setState({ studentLeaveRequests: data || [] });
+      if (state.leavePhotoPreviewUrl) URL.revokeObjectURL(state.leavePhotoPreviewUrl);
+      setState({
+        studentLeaveRequests: data || [],
+        leavePhotoBlob: null, leavePhotoPreviewUrl: null, leaveGps: null, leaveGpsStatus: 'idle',
+      });
       showToast('ส่งแจ้งขอลาแล้ว ครูจะเห็นตอนเช็คชื่อ ✅');
       break;
     }
@@ -4477,7 +4616,7 @@ document.addEventListener('click', async (e) => {
 
     case 'close-modal':
       // Same guard as close-drawer: only the backdrop itself closes the modal.
-      if (btn === e.target) closeModal();
+      if (btn === e.target) { stopLeaveCameraStream(); closeModal(); }
       break;
 
     case 'close-levelup':

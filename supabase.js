@@ -102,12 +102,24 @@ async function getStudentGrades(studentCode) {
 
 // แจ้งขอลา — เขียนผ่าน RPC เพราะนักเรียนเป็น anon (ไม่มี Supabase Auth session) แชร์
 // ตารางเดียวกับระบบเช็คชื่อกิจกรรม (pp5/activity.html คนละ repo แต่ฐานข้อมูลเดียวกัน)
-async function submitLeaveRequest(studentCode, leaveType, startDate, endDate, reason) {
+async function submitLeaveRequest(studentCode, leaveType, startDate, endDate, reason, photoUrl, gpsLat, gpsLng, gpsAccuracy) {
   const { data, error } = await _sb.rpc('submit_leave_request', {
     p_student_code: studentCode, p_leave_type: leaveType,
     p_start_date: startDate, p_end_date: endDate, p_reason: reason || null,
+    p_photo_url: photoUrl || null, p_gps_lat: gpsLat ?? null, p_gps_lng: gpsLng ?? null, p_gps_accuracy: gpsAccuracy ?? null,
   });
   return { data, error: error?.message || null };
+}
+
+// รูปถ่ายยืนยันตอนแจ้งขอลา — ถ่ายสดจากกล้อง (ไม่ใช่อัปโหลดจากคลังภาพ) เก็บในบัคเก็ต
+// "leave-attachments" แยกจาก student-photos เพราะเป็นรูปคู่ผู้ปกครอง ไม่ใช่รูปโปรไฟล์
+// เดี่ยวๆ ของนักเรียน — ตั้งชื่อไฟล์กันชนกันด้วย timestamp (นักเรียนแจ้งลาได้หลายครั้ง)
+async function uploadLeaveAttachment(studentId, file, { ext = 'jpg', contentType = 'image/jpeg' } = {}) {
+  const path = `${studentId}/${Date.now()}.${ext}`;
+  const { error: upErr } = await _sb.storage.from('leave-attachments').upload(path, file, { contentType });
+  if (upErr) return { url: null, error: upErr.message };
+  const { data } = _sb.storage.from('leave-attachments').getPublicUrl(path);
+  return { url: data.publicUrl, error: null };
 }
 
 async function getStudentLeaveRequests(studentCode) {

@@ -1679,3 +1679,12 @@ drop trigger if exists deed_calls_after_insert_push on public.deed_calls;
 create trigger deed_calls_after_insert_push
 after insert on public.deed_calls
 for each row execute function public.trigger_deed_call_push();
+
+-- =============================================
+-- 28. พื้นหลังฉากฟาร์ม หน้า "เลเวลของฉัน" — แอดมินอัปโหลดเปลี่ยนได้ทีหลังจากหน้าตั้งค่า
+-- เก็บ URL ไว้ใน app_settings เหมือน school_logo_url (§17) ใช้บัคเก็ต "school-assets"
+-- เดิมร่วมกัน (public read, staff-only write อยู่แล้ว) ไม่ต้องสร้างบัคเก็ต/policy ใหม่
+-- ถ้ายังไม่ได้อัปโหลด แอปจะ fallback ไปใช้ไฟล์ภาพเริ่มต้นที่ฝังมากับแอป (images/level-farm-bg.webp)
+-- =============================================
+insert into public.app_settings (key, value) values ('level_farm_bg_url', null)
+on conflict (key) do nothing;

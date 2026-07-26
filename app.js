@@ -45,7 +45,7 @@ const state = {
   reportLeaderboard: null,
   reportGradeFilter: '',
   badgeTiers: [],
-  settings: { leaderboardEnabled: true, leaderboardTopN: 10, schoolLogoUrl: null, schoolName: 'ตาเบาวิทยา', schoolTagline: 'ระบบสะสมคะแนนความดีนักเรียน', streakReminderHour: 19, streakReminderMinDays: 2 },
+  settings: { leaderboardEnabled: true, leaderboardTopN: 10, schoolLogoUrl: null, levelFarmBgUrl: null, schoolName: 'ตาเบาวิทยา', schoolTagline: 'ระบบสะสมคะแนนความดีนักเรียน', streakReminderHour: 19, streakReminderMinDays: 2 },
   rolePermissions: { 'admin-deedtypes': true, 'admin-rewards': true, 'admin-reward-pickup': true, 'admin-suggestions': true, 'admin-reports': true },
 
   scanStep: 0,
@@ -1121,6 +1121,7 @@ function renderStudentBadges() {
   const subText = isMax
     ? `คุณสะสมความดีได้ ${pts.toLocaleString()} คะแนน ระดับสูงสุดในระบบแล้ว!`
     : `สะสมครบ ${next.min_points.toLocaleString()} คะแนน จะเติบโตเป็น ${next.icon} ${next.name}`;
+  const farmBgUrl = state.settings.levelFarmBgUrl || 'images/level-farm-bg.webp';
 
   return `
   <div class="screen-wrap anim-slideup">
@@ -1147,20 +1148,13 @@ function renderStudentBadges() {
     <div class="mascot-caption">🌳 ต้นไม้ความดีของฉัน</div>
 
     <div class="mascot-scene-wrap">
-      <div class="mascot-scene">
+      <div class="mascot-scene" style="background-image:url('${farmBgUrl}');">
         <div class="mascot-tag">${tagText}</div>
-        <div class="mascot-sun"></div>
-        <div class="mascot-cloud" style="width:40px;height:14px;top:20px;left:170px;"></div>
-        <div class="mascot-cloud" style="width:26px;height:10px;top:36px;left:200px;"></div>
         <div class="mascot-leaf" style="left:20%;animation-delay:0.2s;">🍃</div>
         <div class="mascot-leaf" style="left:72%;animation-delay:1.8s;">🍃</div>
         <div class="mascot-leaf" style="left:46%;animation-delay:3.3s;">🌿</div>
-        <div class="mascot-pot-glow"></div>
         <div class="mascot-pulse-ring"></div>
-        <div class="mascot-pulse-ring r2"></div>
         <div class="mascot-icon">${currentTier.icon}</div>
-        <div class="mascot-soil"></div>
-        <div class="mascot-pot"></div>
       </div>
       <div class="mascot-scene-caption">
         <div class="msc-name">${currentTier.name}</div>
@@ -2492,6 +2486,18 @@ function renderAdminSettings() {
     </div>
 
     <div class="card">
+      <div style="font-size:15px;font-weight:700;color:var(--gd);margin-bottom:6px;">🚜 พื้นหลังฉากฟาร์ม (หน้าเลเวล)</div>
+      <div style="font-size:12px;color:#9ca3af;margin-bottom:16px;">ภาพพื้นหลังในหน้า "เลเวลของฉัน" ของนักเรียน — เปลี่ยนได้เองโดยไม่ต้องแก้โค้ด</div>
+      <div style="border-radius:12px;overflow:hidden;margin-bottom:14px;aspect-ratio:1200/896;background:var(--gl);">
+        <img src="${s.levelFarmBgUrl || 'images/level-farm-bg.webp'}" alt="" style="width:100%;height:100%;object-fit:cover;display:block;">
+      </div>
+      <div style="font-size:12px;color:#9ca3af;margin-bottom:14px;">${s.levelFarmBgUrl ? 'กำลังใช้ภาพที่อัปโหลดไว้' : 'ยังไม่ได้อัปโหลด — ใช้ภาพเริ่มต้นของระบบ'}</div>
+      <div class="form-group"><input type="file" accept="image/*" id="level-farm-bg-file"></div>
+      <button class="btn-green" data-action="upload-level-farm-bg" style="padding:13px;">📤 อัปโหลดภาพพื้นหลัง</button>
+      ${s.levelFarmBgUrl ? `<button data-action="remove-level-farm-bg" style="width:100%;padding:10px;margin-top:8px;background:#fee2e2;color:#dc2626;border:none;border-radius:10px;font-family:Kanit;cursor:pointer;">🗑️ ลบภาพ (กลับไปใช้ภาพเริ่มต้น)</button>` : ''}
+    </div>
+
+    <div class="card">
       <div style="font-size:15px;font-weight:700;color:var(--gd);margin-bottom:6px;">👨‍🏫 สิทธิ์การเข้าถึงของครู</div>
       <div style="font-size:12px;color:#9ca3af;margin-bottom:16px;">กำหนดว่าครูทุกคนเห็น/จัดการเมนูใดได้บ้าง (บังคับจริงที่ฐานข้อมูล)</div>
 
@@ -3279,7 +3285,7 @@ async function doLogout() {
     pointCode: null, codeDurationMin: 10, codeGradeFilter: '', codeRoomFilter: '', codeHistory: [], teacherRecentLogs: [],
     deedCall: null, deedCallResponses: [], callDurationMin: 15, callDurationCustom: false, callGradeFilter: '', callRoomFilter: '', callSlots: 2, callMessage: '',
     incomingDeedCall: null, openDeedCalls: [],
-    settings: { leaderboardEnabled: true, leaderboardTopN: 10, schoolLogoUrl: null, schoolName: 'ตาเบาวิทยา', schoolTagline: 'ระบบสะสมคะแนนความดีนักเรียน', streakReminderHour: 19, streakReminderMinDays: 2 },
+    settings: { leaderboardEnabled: true, leaderboardTopN: 10, schoolLogoUrl: null, levelFarmBgUrl: null, schoolName: 'ตาเบาวิทยา', schoolTagline: 'ระบบสะสมคะแนนความดีนักเรียน', streakReminderHour: 19, streakReminderMinDays: 2 },
     rolePermissions: { 'admin-deedtypes': true, 'admin-rewards': true, 'admin-reward-pickup': true, 'admin-suggestions': true, 'admin-reports': true },
   });
   render();
@@ -4226,6 +4232,34 @@ document.addEventListener('click', async (e) => {
       const { data } = await getAppSettings();
       setState({ settings: data || state.settings });
       showToast('ลบโลโก้แล้ว กลับไปใช้ 🌿');
+      break;
+    }
+
+    case 'upload-level-farm-bg': {
+      const file = document.getElementById('level-farm-bg-file')?.files[0];
+      if (!file) { showToast('กรุณาเลือกไฟล์รูปก่อน'); return; }
+      // ภาพฉากฟาร์มเป็นภาพพื้นหลังกว้างเต็มการ์ด รายละเอียดเยอะ บีบอัดเป็น WebP ที่ความกว้าง
+      // 1200px ก็เพียงพอสำหรับแสดงในการ์ดแล้ว แต่ไฟล์เล็กกว่าภาพต้นฉบับที่มักหนักหลาย MB มาก
+      let uploadFile = file, bgOpts = { ext: 'webp', contentType: 'image/webp' };
+      try {
+        uploadFile = await compressImageFile(file, { maxSize: 1200, format: 'image/webp', quality: 0.82 });
+      } catch {
+        bgOpts = { ext: (file.name.split('.').pop() || 'jpg').toLowerCase(), contentType: file.type || 'image/jpeg' };
+      }
+      const { error } = await uploadLevelFarmBg(uploadFile, bgOpts);
+      if (error) { showToast(`เกิดข้อผิดพลาด: ${error}`); break; }
+      const { data } = await getAppSettings();
+      setState({ settings: data || state.settings });
+      showToast('อัปโหลดภาพพื้นหลังสำเร็จ ✅');
+      break;
+    }
+
+    case 'remove-level-farm-bg': {
+      const { error } = await removeLevelFarmBg(state.settings.levelFarmBgUrl);
+      if (error) { showToast(`เกิดข้อผิดพลาด: ${error}`); break; }
+      const { data } = await getAppSettings();
+      setState({ settings: data || state.settings });
+      showToast('ลบภาพแล้ว กลับไปใช้ภาพเริ่มต้น');
       break;
     }
 

@@ -249,6 +249,33 @@ async function removeSchoolLogo(logoUrl) {
 }
 
 // ──────────────────────────────────────────────
+// พื้นหลังฉากฟาร์ม หน้า "เลเวลของฉัน" — เก็บแบบเดียวกับโลโก้โรงเรียนด้านบน (บัคเก็ต
+// "school-assets" เดิม, URL เก็บใน app_settings.level_farm_bg_url) ถ้ายังไม่ได้
+// อัปโหลด แอปจะ fallback ไปใช้ images/level-farm-bg.webp ที่ฝังมากับแอปแทน
+// ──────────────────────────────────────────────
+
+async function uploadLevelFarmBg(file, { ext = 'webp', contentType = 'image/webp' } = {}) {
+  const path = `level-farm-bg.${ext}`;
+  const { error: upErr } = await _sb.storage.from('school-assets').upload(path, file, {
+    upsert: true, contentType,
+  });
+  if (upErr) return { url: null, error: upErr.message };
+
+  const { data } = _sb.storage.from('school-assets').getPublicUrl(path);
+  const url = `${data.publicUrl}?t=${Date.now()}`;
+  const { error: updErr } = await _sb.from('app_settings').update({ value: url }).eq('key', 'level_farm_bg_url');
+  if (updErr) return { url: null, error: updErr.message };
+  return { url, error: null };
+}
+
+async function removeLevelFarmBg(bgUrl) {
+  const path = bgUrl?.split('/school-assets/')[1]?.split('?')[0];
+  if (path) await _sb.storage.from('school-assets').remove([path]);
+  const { error } = await _sb.from('app_settings').update({ value: null }).eq('key', 'level_farm_bg_url');
+  return { error: error?.message || null };
+}
+
+// ──────────────────────────────────────────────
 // Points — teacher awards points (requires real Supabase Auth session)
 // ──────────────────────────────────────────────
 
@@ -580,6 +607,7 @@ async function getAppSettings() {
       leaderboardEnabled: settings.leaderboard_enabled !== 'false',
       leaderboardTopN: parseInt(settings.leaderboard_top_n) || 10,
       schoolLogoUrl: settings.school_logo_url || null,
+      levelFarmBgUrl: settings.level_farm_bg_url || null,
       schoolName: settings.school_name || 'ตาเบาวิทยา',
       schoolTagline: settings.school_tagline || 'ระบบสะสมคะแนนความดีนักเรียน',
       streakReminderHour: Number.isNaN(parseInt(settings.streak_reminder_hour)) ? 19 : parseInt(settings.streak_reminder_hour),

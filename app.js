@@ -25,6 +25,7 @@ const state = {
 
   studentGrades: null,      // ผลการเรียน — โหลดแบบ lazy ตอนเข้าหน้าจอนี้ครั้งแรก (null = ยังไม่โหลด)
   gradesSemesterKey: null,  // "2569-1" ปีการศึกษา-ภาคเรียนที่กำลังดูอยู่
+  studentLeaveRequests: null, // ประวัติแจ้งขอลา — โหลดแบบ lazy เหมือนกัน
   pushSubscribed: false,   // อุปกรณ์นี้เปิดการแจ้งเตือน (เตือนสตรีคใกล้ขาด) อยู่หรือไม่
 
   staffUser: null,        // { id, full_name, role, is_admin, photo_url }
@@ -85,6 +86,7 @@ const TITLES = {
   'student-history':   'ประวัติความดี',
   'student-badges':    'เลเวลของฉัน',
   'student-grades':    'ผลการเรียน',
+  'student-leave':     'แจ้งขอลา',
   'student-leaderboard': 'อันดับนักเรียน',
   'student-rewards':   'แลกรางวัล',
   'student-profile':   'โปรไฟล์',
@@ -115,6 +117,7 @@ const NAV = {
     { id: 'student-leaderboard', icon: '🥇', label: 'อันดับ' },
     { id: 'student-rewards',     icon: '🎁', label: 'รางวัล' },
     { id: 'student-grades',      icon: '📊', label: 'ผลการเรียน' },
+    { id: 'student-leave',       icon: '🤒', label: 'แจ้งขอลา' },
   ],
   teacher: [
     { id: 'teacher-dashboard',  icon: '🏠', label: 'หน้าหลัก' },
@@ -954,6 +957,7 @@ function renderScreen(screen) {
     'student-history':     renderStudentHistory,
     'student-badges':      renderStudentBadges,
     'student-grades':      renderStudentGrades,
+    'student-leave':       renderStudentLeave,
     'student-leaderboard': renderStudentLeaderboard,
     'student-rewards':     renderStudentRewards,
     'student-profile':     renderStudentProfile,
@@ -1462,6 +1466,69 @@ function subjectDetailModalHTML(row, units, detail) {
       ${loading ? `<div style="text-align:center;padding:24px;color:#9ca3af;">กำลังโหลด...</div>` : `${scoresHTML}${attendanceHTML}${evalHTML}${unitsHTML}`}
     </div>
   `;
+}
+
+// ── แจ้งขอลา — เขียนลงตารางเดียวกับระบบเช็คชื่อกิจกรรม (pp5/activity.html คนละแอป
+// แต่ฐานข้อมูลเดียวกัน) ครูจะเห็น popup เตือนตอนเลือกห้องเช็คชื่อถ้ามีนักเรียนแจ้งลาในวันนั้น
+const LEAVE_TYPE_LABEL = { sick: '🤒 ลาป่วย', personal: '📝 ลากิจ' };
+
+function renderStudentLeave() {
+  const list = state.studentLeaveRequests;
+  const today = new Date().toISOString().slice(0, 10);
+
+  return `
+  <div class="screen-wrap anim-slideup">
+    <div class="hero-banner">
+      <div style="text-align:center;">
+        <div style="font-size:34px;">🤒</div>
+        <div style="font-size:18px;font-weight:700;margin-top:8px;">แจ้งขอลา</div>
+        <div style="font-size:12.5px;opacity:0.85;margin-top:4px;">ครูประจำวิชาจะเห็นการแจ้งนี้ตอนเช็คชื่อ</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="form-group">
+        <label class="form-label">ประเภทการลา</label>
+        <select class="form-input" id="leave-type-input">
+          <option value="sick">🤒 ลาป่วย</option>
+          <option value="personal">📝 ลากิจ</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <div class="form-group" style="flex:1;">
+          <label class="form-label">วันที่เริ่มลา</label>
+          <input class="form-input" type="date" id="leave-start-input" value="${today}">
+        </div>
+        <div class="form-group" style="flex:1;">
+          <label class="form-label">ถึงวันที่</label>
+          <input class="form-input" type="date" id="leave-end-input" value="${today}">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">เหตุผล (ถ้ามี)</label>
+        <textarea class="form-input" id="leave-reason-input" rows="3" placeholder="เช่น ป่วยเป็นไข้หวัด, ไปธุระที่บ้าน"></textarea>
+      </div>
+      <button class="btn-green" data-action="submit-leave-request" style="padding:14px;">📤 ส่งแจ้งขอลา</button>
+    </div>
+
+    <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.055);">
+      <div style="padding:14px 16px 10px;font-weight:700;font-size:15px;color:var(--gd);">📋 ประวัติการแจ้งขอลา</div>
+      ${list === null ? loadingBlock() : (list.length
+        ? list.map(r => `
+          <div class="list-item">
+            <span style="font-size:20px;">${r.leave_type === 'sick' ? '🤒' : '📝'}</span>
+            <div style="flex:1;">
+              <div style="font-weight:600;font-size:14px;color:#1f2937;">${LEAVE_TYPE_LABEL[r.leave_type] || r.leave_type}</div>
+              <div style="font-size:12px;color:#9ca3af;margin-top:1px;">
+                ${r.start_date === r.end_date ? formatDate(r.start_date) : `${formatDate(r.start_date)} – ${formatDate(r.end_date)}`}
+                ${r.reason ? ` · ${r.reason}` : ''}
+              </div>
+            </div>
+          </div>
+        `).join('')
+        : `<div style="padding:20px;text-align:center;color:#9ca3af;font-size:13px;">ยังไม่มีประวัติการแจ้งขอลา</div>`)}
+    </div>
+  </div>`;
 }
 
 function renderStudentLeaderboard() {
@@ -3326,7 +3393,7 @@ async function doLogout() {
   Object.assign(state, {
     screen: 'login', authView: 'student', role: null, previewAsTeacher: false, authError: '', drawerOpen: false,
     student: null, studentHistory: [], studentRedemptions: [], leaderboard: null, leaderboardScope: 'school',
-    studentGrades: null, gradesSemesterKey: null,
+    studentGrades: null, gradesSemesterKey: null, studentLeaveRequests: null,
     staffUser: null, deedTypes: [], rewards: [], rewardRequests: [], rewardSuggestions: [], students: [], studentGradeFilter: '', studentRoomFilter: '', studentClasses: [], pointLogs: [], badgeTiers: [],
     reportSummary: null, reportError: null, reportLeaderboard: null, reportGradeFilter: '', scanStep: 0, scanStudent: null, selectedDeedId: null, points: 10,
     addStudentCode: '', addStudentName: '', studentScanMode: false,
@@ -3352,6 +3419,10 @@ async function loadDataForScreen(screen) {
     if (!state.gradesSemesterKey || !keys.includes(state.gradesSemesterKey)) {
       state.gradesSemesterKey = keys[0] || null;
     }
+  }
+  if (screen === 'student-leave' && state.student) {
+    const { data } = await getStudentLeaveRequests(state.student.student_code);
+    state.studentLeaveRequests = data || [];
   }
   if (screen === 'teacher-history') {
     const { data } = await getPointLogs({ limit: 20 });
@@ -4189,6 +4260,25 @@ document.addEventListener('click', async (e) => {
       btn.disabled = false;
       btn.textContent = '📤 ส่งข้อเสนอแนะ';
       showToast('ส่งข้อเสนอแนะแล้ว ขอบคุณครับ 🙏');
+      break;
+    }
+
+    case 'submit-leave-request': {
+      const leaveType = document.getElementById('leave-type-input')?.value;
+      const startDate = document.getElementById('leave-start-input')?.value;
+      const endDate = document.getElementById('leave-end-input')?.value;
+      const reason = document.getElementById('leave-reason-input')?.value.trim();
+      if (!startDate || !endDate) { showToast('กรุณาเลือกวันที่ลา'); return; }
+      if (endDate < startDate) { showToast('วันที่สิ้นสุดต้องไม่ก่อนวันที่เริ่ม'); return; }
+      btn.disabled = true;
+      btn.textContent = 'กำลังส่ง...';
+      const { error } = await submitLeaveRequest(state.student.student_code, leaveType, startDate, endDate, reason);
+      btn.disabled = false;
+      btn.textContent = '📤 ส่งแจ้งขอลา';
+      if (error) { showToast(`เกิดข้อผิดพลาด: ${error}`); break; }
+      const { data } = await getStudentLeaveRequests(state.student.student_code);
+      setState({ studentLeaveRequests: data || [] });
+      showToast('ส่งแจ้งขอลาแล้ว ครูจะเห็นตอนเช็คชื่อ ✅');
       break;
     }
 

@@ -100,6 +100,21 @@ async function getStudentGrades(studentCode) {
   return { data, error: error?.message || null };
 }
 
+// แจ้งขอลา — เขียนผ่าน RPC เพราะนักเรียนเป็น anon (ไม่มี Supabase Auth session) แชร์
+// ตารางเดียวกับระบบเช็คชื่อกิจกรรม (pp5/activity.html คนละ repo แต่ฐานข้อมูลเดียวกัน)
+async function submitLeaveRequest(studentCode, leaveType, startDate, endDate, reason) {
+  const { data, error } = await _sb.rpc('submit_leave_request', {
+    p_student_code: studentCode, p_leave_type: leaveType,
+    p_start_date: startDate, p_end_date: endDate, p_reason: reason || null,
+  });
+  return { data, error: error?.message || null };
+}
+
+async function getStudentLeaveRequests(studentCode) {
+  const { data, error } = await _sb.rpc('get_student_leave_requests', { p_student_code: studentCode });
+  return { data, error: error?.message || null };
+}
+
 // คะแนนย่อยรายหน่วยของวิชาหนึ่ง — ใช้แสดงใน popup รายละเอียดวิชา
 async function getStudentSubjectUnits(studentCode, subjectId) {
   const { data, error } = await _sb.rpc('get_student_subject_units', { p_student_code: studentCode, p_subject_id: subjectId });

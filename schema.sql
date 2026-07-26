@@ -1743,3 +1743,84 @@ grant execute on function public.set_student_own_photo(uuid, text) to anon, auth
 -- 30. เพิ่ม photo_url ในผลลัพธ์ของ get_leaderboard (§10) — ใช้แสดงรูปโปรไฟล์นักเรียนบน
 -- แท่นรางวัล (podium) หน้า "อันดับนักเรียน" แทน emoji เฉยๆ ดู definition ล่าสุดที่ §10 ด้านบน
 -- =============================================
+
+-- =============================================
+-- 31. แจ้งขอลา — นักเรียนแจ้งจากแอป "good" (เมนู "แจ้งขอลา") ครูเห็น popup เตือนตอนเลือก
+-- ห้องเช็คชื่อในระบบ "ระบบเช็คชื่อกิจกรรม" (โปรเจกต์ pp5/activity.html — คนละ repo แต่ใช้
+-- ฐานข้อมูล Supabase เดียวกัน)
+--
+-- นักเรียนเป็น anon (ไม่มี Supabase Auth session) เขียนผ่าน RPC submit_leave_request
+-- เท่านั้น (SECURITY DEFINER) — ครู/staff ฝั่ง activity.html ใช้ Supabase Auth จริง
+-- (authenticated) เลยอ่านตรงๆ ผ่าน RLS ได้เลย ไม่ต้องผ่าน RPC ตามแบบที่โค้ดเดิมของ
+-- activity.html ทำอยู่แล้วกับตารางอื่นๆ ทั้งหมด (sb.from(...).select(...))
+--
+-- grade_level/room denormalize ไว้ในตารางนี้ตรงๆ (คัดลอกจาก students ตอน insert ผ่าน RPC)
+-- เพื่อให้ activity.html query ตรงๆ ด้วย .eq('grade_level',..).eq('room',..) ได้ง่ายๆ
+-- ไม่ต้องพึ่ง PostgREST relationship embedding ทุกจุด
+-- =============================================
+create table public.leave_requests (
+  id uuid primary key default gen_random_uuid(),
+  student_id uuid not null references public.students(id) on delete cascade,
+  grade_level text not null,
+  room text not null,
+  leave_type text not null check (leave_type in ('sick', 'personal')),
+  start_date date not null,
+  end_date date not null,
+  reason text,
+  created_at timestamptz not null default now()
+);
+
+alter table public.leave_requests enable row level security;
+
+-- ครู/staff (authenticated) อ่านได้ทั้งหมด — ตรงกับ pattern เดิมของตารางอื่นในระบบนี้
+create policy "leave_requests_staff_select" on public.leave_requests for select
+  using (auth.role() = 'authenticated');
+
+create policy "leave_requests_staff_delete" on public.leave_requests for delete
+  using (auth.role() = 'authenticated');
+
+create or replace function public.submit_leave_request(
+  p_student_code text, p_leave_type text, p_start_date date, p_end_date date, p_reason text default null
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_student record;
+  v_id uuid;
+begin
+  select id, grade_level, room into v_student from public.students where student_code = p_student_code;
+  if v_student.id is null then
+    raise exception 'ไม่พบรหัสนักเรียนนี้';
+  end if;
+  if p_leave_type not in ('sick', 'personal') then
+    raise exception 'ประเภทการลาไม่ถูกต้อง';
+  end if;
+  if p_end_date < p_start_date then
+    raise exception 'วันที่สิ้นสุดต้องไม่ก่อนวันที่เริ่ม';
+  end if;
+
+  insert into public.leave_requests (student_id, grade_level, room, leave_type, start_date, end_date, reason)
+  values (v_student.id, v_student.grade_level, v_student.room, p_leave_type, p_start_date, p_end_date, p_reason)
+  returning id into v_id;
+
+  return v_id;
+end;
+$$;
+grant execute on function public.submit_leave_request(text, text, date, date, text) to anon, authenticated;
+
+create or replace function public.get_student_leave_requests(p_student_code text)
+returns table (id uuid, leave_type text, start_date date, end_date date, reason text, created_at timestamptz)
+language sql
+security definer
+set search_path = public
+as $$
+  select lr.id, lr.leave_type, lr.start_date, lr.end_date, lr.reason, lr.created_at
+  from public.leave_requests lr
+  join public.students s on s.id = lr.student_id
+  where s.student_code = p_student_code
+  order by lr.created_at desc;
+$$;
+grant execute on function public.get_student_leave_requests(text) to anon, authenticated;

@@ -1555,11 +1555,11 @@ function renderStudentLeave() {
           <div class="list-item">
             <span style="font-size:20px;">${r.leave_type === 'sick' ? '🤒' : '📝'}</span>
             <div style="flex:1;">
-              <div style="font-weight:600;font-size:14px;color:#1f2937;">${LEAVE_TYPE_LABEL[r.leave_type] || r.leave_type}</div>
-              <div style="font-size:12px;color:#9ca3af;margin-top:1px;">
+              <div style="font-size:12px;color:#9ca3af;">${LEAVE_TYPE_LABEL[r.leave_type] || r.leave_type}</div>
+              <div style="font-weight:700;font-size:15px;color:var(--gd);margin-top:2px;">
                 ${r.start_date === r.end_date ? formatDate(r.start_date) : `${formatDate(r.start_date)} – ${formatDate(r.end_date)}`}
-                ${r.reason ? ` · ${r.reason}` : ''}
               </div>
+              ${r.reason ? `<div style="font-size:12.5px;color:#6b7280;margin-top:3px;">📝 ${r.reason}</div>` : ''}
             </div>
           </div>
         `).join('')

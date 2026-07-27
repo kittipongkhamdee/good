@@ -53,7 +53,7 @@ const state = {
   reportLeaderboard: null,
   reportGradeFilter: '',
   badgeTiers: [],
-  settings: { leaderboardEnabled: true, leaderboardTopN: 10, schoolLogoUrl: null, levelFarmBgUrl: null, schoolName: 'ตาเบาวิทยา', schoolTagline: 'ระบบสะสมคะแนนความดีนักเรียน', streakReminderHour: 19, streakReminderMinDays: 2 },
+  settings: { leaderboardEnabled: true, leaderboardTopN: 10, schoolLogoUrl: null, levelFarmBgUrl: null, schoolName: 'ตาเบาวิทยา', schoolTagline: 'ระบบสะสมคะแนนความดีนักเรียน', streakReminderHour: 19, streakReminderMinDays: 2, gradesEnabled: true, leaveEnabled: true },
   rolePermissions: { 'admin-deedtypes': true, 'admin-rewards': true, 'admin-reward-pickup': true, 'admin-suggestions': true, 'admin-reports': true },
 
   scanStep: 0,
@@ -905,6 +905,12 @@ function visibleNavItems(role) {
   if (role === 'student' && !state.settings.leaderboardEnabled) {
     items = items.filter(it => it.id !== 'student-leaderboard');
   }
+  if (role === 'student' && !state.settings.gradesEnabled) {
+    items = items.filter(it => it.id !== 'student-grades');
+  }
+  if (role === 'student' && !state.settings.leaveEnabled) {
+    items = items.filter(it => it.id !== 'student-leave');
+  }
   return items;
 }
 
@@ -1252,6 +1258,16 @@ function subjectGroupRank(group) {
 }
 
 function renderStudentGrades() {
+  if (!state.settings.gradesEnabled) {
+    return `
+    <div class="screen-wrap anim-slideup">
+      <div class="card" style="text-align:center;padding:40px 20px;color:#9ca3af;">
+        <div style="font-size:40px;margin-bottom:10px;">🔒</div>
+        <div style="font-size:14px;">ผู้ดูแลระบบปิดการแสดงผลการเรียนชั่วคราว</div>
+      </div>
+    </div>`;
+  }
+
   const grades = state.studentGrades;
   if (grades === null) return loadingBlock();
 
@@ -1500,6 +1516,16 @@ function leaveGpsStatusHTML() {
 }
 
 function renderStudentLeave() {
+  if (!state.settings.leaveEnabled) {
+    return `
+    <div class="screen-wrap anim-slideup">
+      <div class="card" style="text-align:center;padding:40px 20px;color:#9ca3af;">
+        <div style="font-size:40px;margin-bottom:10px;">🔒</div>
+        <div style="font-size:14px;">ผู้ดูแลระบบปิดการแจ้งขอลาชั่วคราว</div>
+      </div>
+    </div>`;
+  }
+
   const list = state.studentLeaveRequests;
   const today = new Date().toISOString().slice(0, 10);
   const leaveType = state.leaveType || 'sick';
@@ -2710,6 +2736,26 @@ function renderAdminSettings() {
     </div>
 
     <div class="card">
+      <div style="font-size:15px;font-weight:700;color:var(--gd);margin-bottom:20px;">🧩 เมนูสำหรับนักเรียน</div>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid oklch(0.96 0.02 145);margin-bottom:16px;">
+        <div>
+          <div style="font-weight:600;font-size:14px;color:#1f2937;">📊 ผลการเรียน</div>
+          <div style="font-size:12px;color:#9ca3af;margin-top:2px;">ปิดเพื่อซ่อนเมนู "ผลการเรียน" จากนักเรียนทั้งหมด</div>
+        </div>
+        ${toggleSwitchHTML('toggle-grades-enabled', '', s.gradesEnabled)}
+      </div>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;">
+        <div>
+          <div style="font-weight:600;font-size:14px;color:#1f2937;">🤒 แจ้งขอลา</div>
+          <div style="font-size:12px;color:#9ca3af;margin-top:2px;">ปิดเพื่อซ่อนเมนู "แจ้งขอลา" จากนักเรียนทั้งหมด</div>
+        </div>
+        ${toggleSwitchHTML('toggle-leave-enabled', '', s.leaveEnabled)}
+      </div>
+    </div>
+
+    <div class="card">
       <div style="font-size:15px;font-weight:700;color:var(--gd);margin-bottom:6px;">🔔 การแจ้งเตือนสตรีค</div>
       <div style="font-size:12px;color:#9ca3af;margin-bottom:16px;">ระบบจะเตือนนักเรียนที่สตรีคใกล้ขาดในเวลานี้ทุกวัน (เฉพาะคนที่เปิดแจ้งเตือนไว้)</div>
       <div class="form-group">
@@ -3540,7 +3586,7 @@ async function doLogout() {
     pointCode: null, codeDurationMin: 10, codeGradeFilter: '', codeRoomFilter: '', codeHistory: [], teacherRecentLogs: [],
     deedCall: null, deedCallResponses: [], callDurationMin: 15, callDurationCustom: false, callGradeFilter: '', callRoomFilter: '', callSlots: 2, callMessage: '',
     incomingDeedCall: null, openDeedCalls: [],
-    settings: { leaderboardEnabled: true, leaderboardTopN: 10, schoolLogoUrl: null, levelFarmBgUrl: null, schoolName: 'ตาเบาวิทยา', schoolTagline: 'ระบบสะสมคะแนนความดีนักเรียน', streakReminderHour: 19, streakReminderMinDays: 2 },
+    settings: { leaderboardEnabled: true, leaderboardTopN: 10, schoolLogoUrl: null, levelFarmBgUrl: null, schoolName: 'ตาเบาวิทยา', schoolTagline: 'ระบบสะสมคะแนนความดีนักเรียน', streakReminderHour: 19, streakReminderMinDays: 2, gradesEnabled: true, leaveEnabled: true },
     rolePermissions: { 'admin-deedtypes': true, 'admin-rewards': true, 'admin-reward-pickup': true, 'admin-suggestions': true, 'admin-reports': true },
   });
   render();
@@ -4547,6 +4593,18 @@ document.addEventListener('click', async (e) => {
       break;
     }
 
+    case 'toggle-grades-enabled': {
+      const enabled = btn.dataset.enabled === 'true';
+      setState({ settings: { ...state.settings, gradesEnabled: !enabled } });
+      break;
+    }
+
+    case 'toggle-leave-enabled': {
+      const enabled = btn.dataset.enabled === 'true';
+      setState({ settings: { ...state.settings, leaveEnabled: !enabled } });
+      break;
+    }
+
     case 'toggle-role-permission': {
       const enabled = btn.dataset.enabled === 'true';
       const key = btn.dataset.key;
@@ -4631,6 +4689,8 @@ document.addEventListener('click', async (e) => {
       const permKeys = ['admin-deedtypes', 'admin-rewards', 'admin-reward-pickup', 'admin-suggestions', 'admin-reports'];
       const results = await Promise.all([
         updateAppSetting('leaderboard_enabled', state.settings.leaderboardEnabled ? 'true' : 'false'),
+        updateAppSetting('grades_enabled', state.settings.gradesEnabled ? 'true' : 'false'),
+        updateAppSetting('leave_enabled', state.settings.leaveEnabled ? 'true' : 'false'),
         updateAppSetting('leaderboard_top_n', topN),
         updateAppSetting('school_name', schoolName),
         updateAppSetting('school_tagline', schoolTagline),

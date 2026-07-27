@@ -1880,3 +1880,13 @@ as $$
   select exists(select 1 from public.students where id::text = p_id_text);
 $$;
 grant execute on function public.student_id_exists(text) to anon, authenticated;
+
+-- =============================================
+-- 34. Admin toggle: เปิด/ปิดเมนู "ผลการเรียน" และ "แจ้งขอลา" ของนักเรียนได้
+-- เก็บใน app_settings เหมือน leaderboard_enabled — ปิดแล้วเมนูหายจากนักเรียนทั้งหมด
+-- (ไม่ต้องลบข้อมูลเดิม แค่ซ่อน UI ฝั่งนักเรียน)
+-- =============================================
+insert into public.app_settings (key, value) values
+  ('grades_enabled', 'true'),
+  ('leave_enabled', 'true')
+on conflict (key) do nothing;

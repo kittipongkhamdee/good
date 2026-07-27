@@ -663,6 +663,8 @@ async function getAppSettings() {
       schoolTagline: settings.school_tagline || 'ระบบสะสมคะแนนความดีนักเรียน',
       streakReminderHour: Number.isNaN(parseInt(settings.streak_reminder_hour)) ? 19 : parseInt(settings.streak_reminder_hour),
       streakReminderMinDays: Number.isNaN(parseInt(settings.streak_reminder_min_days)) ? 2 : parseInt(settings.streak_reminder_min_days),
+      gradesEnabled: settings.grades_enabled !== 'false',
+      leaveEnabled: settings.leave_enabled !== 'false',
     },
     error: null,
   };

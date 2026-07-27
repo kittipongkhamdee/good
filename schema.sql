@@ -1702,27 +1702,18 @@ on conflict (key) do nothing;
 -- จึงเปิดให้ anon เขียนบัคเก็ตนี้ได้ด้วย แต่จำกัดไว้ว่า path (ชื่อไฟล์ก่อนนามสกุล) ต้อง
 -- ตรงกับ students.id ที่มีอยู่จริงเท่านั้น กันไม่ให้เขียนไฟล์มั่วๆ ลงบัคเก็ตได้
 -- =============================================
+-- ใช้ public.student_id_exists() (SECURITY DEFINER, เพิ่มที่ §33 หลังแก้บั๊ก) แทน
+-- exists(select 1 from students ...) ตรงๆ — เพราะ students เปิด RLS อยู่ และ anon
+-- ไม่มีสิทธิ์ SELECT แถวไหนเลย ทำให้ exists(...) ตรงๆ คืน false เสมอ (อัปโหลดพังทุกครั้ง)
 create policy "student_photos_self_insert" on storage.objects for insert
-  with check (
-    bucket_id = 'student-photos'
-    and exists (select 1 from public.students st where st.id::text = split_part(storage.objects.name, '.', 1))
-  );
+  with check (bucket_id = 'student-photos' and public.student_id_exists(split_part(storage.objects.name, '.', 1)));
 
 create policy "student_photos_self_update" on storage.objects for update
-  using (
-    bucket_id = 'student-photos'
-    and exists (select 1 from public.students st where st.id::text = split_part(storage.objects.name, '.', 1))
-  )
-  with check (
-    bucket_id = 'student-photos'
-    and exists (select 1 from public.students st where st.id::text = split_part(storage.objects.name, '.', 1))
-  );
+  using (bucket_id = 'student-photos' and public.student_id_exists(split_part(storage.objects.name, '.', 1)))
+  with check (bucket_id = 'student-photos' and public.student_id_exists(split_part(storage.objects.name, '.', 1)));
 
 create policy "student_photos_self_delete" on storage.objects for delete
-  using (
-    bucket_id = 'student-photos'
-    and exists (select 1 from public.students st where st.id::text = split_part(storage.objects.name, '.', 1))
-  );
+  using (bucket_id = 'student-photos' and public.student_id_exists(split_part(storage.objects.name, '.', 1)));
 
 -- students_update (§4 ตอนสร้างตาราง) ต้องการ auth.role() = 'authenticated' เท่านั้น
 -- (นักเรียนเป็น anon) แทนที่จะเปิด anon UPDATE ทั้งตาราง students ตรงๆ (เสี่ยงเกินไป
@@ -1864,8 +1855,28 @@ on conflict (id) do nothing;
 create policy "leave_attachments_read" on storage.objects for select
   using (bucket_id = 'leave-attachments');
 
+-- ใช้ public.student_id_exists() แทน exists(...) ตรงๆ ด้วยเหตุผลเดียวกับ §29 (แก้ที่ §33)
 create policy "leave_attachments_self_insert" on storage.objects for insert
-  with check (
-    bucket_id = 'leave-attachments'
-    and exists (select 1 from public.students st where st.id::text = split_part(storage.objects.name, '/', 1))
-  );
+  with check (bucket_id = 'leave-attachments' and public.student_id_exists(split_part(storage.objects.name, '/', 1)));
+
+-- =============================================
+-- 33. FIX: student_photos_self_* (§29) และ leave_attachments_self_insert (§32) เช็ค
+-- "path ต้องตรงกับ student id จริง" ด้วย exists(select 1 from students where id=...)
+-- ตรงๆ ในนโยบาย RLS ของ storage.objects — แต่ students เองก็เปิด RLS อยู่ และ anon
+-- (นักเรียน) ไม่มีสิทธิ์ SELECT แถวไหนในตาราง students เลย ทำให้ subquery คืนค่า false
+-- เสมอไม่ว่า path จะถูกหรือผิด → อัปโหลดรูปพัง 100% ด้วย error "new row violates
+-- row-level security policy" (RLS ใช้กับทุก query รวมถึง subquery ในนโยบายตารางอื่นด้วย)
+--
+-- แก้โดยเช็คผ่านฟังก์ชัน SECURITY DEFINER แทน (รันข้าม RLS ของ students ได้ ตรงเจตนา
+-- เดิมที่แค่อยากกันไม่ให้เขียนไฟล์ path มั่วๆ ไม่ได้ตั้งใจจะปิดกั้นการอัปโหลดจริง) — นโยบาย
+-- ทั้ง 4 ตัวที่ §29/§32 ด้านบนแก้ไขให้เรียกใช้ฟังก์ชันนี้แล้ว
+-- =============================================
+create or replace function public.student_id_exists(p_id_text text)
+returns boolean
+language sql
+security definer
+set search_path = public
+as $$
+  select exists(select 1 from public.students where id::text = p_id_text);
+$$;
+grant execute on function public.student_id_exists(text) to anon, authenticated;

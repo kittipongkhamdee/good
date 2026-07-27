@@ -1572,6 +1572,7 @@ function renderStudentLeave() {
 // แทนปุ่ม <input type=file> ที่ยังเลือกไฟล์เก่าจากคลังภาพได้ ให้แน่ใจว่าเป็นรูปที่ถ่าย ณ
 // ตอนแจ้งขอลาจริงๆ (ดูเหตุผลเรื่อง EXIF ที่ schema.sql §32)
 let _leaveCameraStream = null;
+let _leaveCameraFacing = 'environment'; // 'environment' = กล้องหลัง, 'user' = กล้องหน้า
 
 function stopLeaveCameraStream() {
   if (_leaveCameraStream) {
@@ -1580,13 +1581,14 @@ function stopLeaveCameraStream() {
   }
 }
 
-async function openLeaveCameraModal() {
+async function openLeaveCameraModal(facing) {
+  _leaveCameraFacing = facing || 'environment';
   showModal(`
     <div class="modal-title">📷 ถ่ายรูปคู่ผู้ปกครอง</div>
     <div style="text-align:center;padding:40px 0;color:#9ca3af;">กำลังเปิดกล้อง...</div>
   `);
   try {
-    _leaveCameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+    _leaveCameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: _leaveCameraFacing }, audio: false });
   } catch (e) {
     updateModalBody(`
       <div class="modal-title">📷 ถ่ายรูปคู่ผู้ปกครอง</div>
@@ -1598,14 +1600,23 @@ async function openLeaveCameraModal() {
     `);
     return;
   }
+  const mirrored = _leaveCameraFacing === 'user';
   updateModalBody(`
     <div class="modal-title">📷 ถ่ายรูปคู่ผู้ปกครอง</div>
-    <video id="leave-camera-video" autoplay playsinline muted style="width:100%;border-radius:12px;background:#000;max-height:340px;object-fit:cover;display:block;"></video>
-    <button class="btn-green" data-action="capture-leave-photo" style="padding:14px;margin-top:12px;">📸 ถ่ายภาพ</button>
+    <video id="leave-camera-video" autoplay playsinline muted style="width:100%;border-radius:12px;background:#000;max-height:340px;object-fit:cover;display:block;${mirrored ? 'transform:scaleX(-1);' : ''}"></video>
+    <div style="display:flex;gap:8px;margin-top:12px;">
+      <button class="btn-green" data-action="capture-leave-photo" style="flex:1;padding:14px;">📸 ถ่ายภาพ</button>
+      <button data-action="switch-leave-camera" title="สลับกล้อง" style="width:52px;flex-shrink:0;background:#f3f4f6;border:none;border-radius:12px;font-size:19px;cursor:pointer;">🔄</button>
+    </div>
     <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:Kanit;color:#9ca3af;cursor:pointer;">ยกเลิก</button>
   `);
   const video = document.getElementById('leave-camera-video');
   if (video) video.srcObject = _leaveCameraStream;
+}
+
+function switchLeaveCamera() {
+  stopLeaveCameraStream();
+  openLeaveCameraModal(_leaveCameraFacing === 'environment' ? 'user' : 'environment');
 }
 
 function captureLeavePhoto() {
@@ -1614,7 +1625,9 @@ function captureLeavePhoto() {
   const canvas = document.createElement('canvas');
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
-  canvas.getContext('2d').drawImage(video, 0, 0);
+  const ctx = canvas.getContext('2d');
+  if (_leaveCameraFacing === 'user') { ctx.translate(canvas.width, 0); ctx.scale(-1, 1); }
+  ctx.drawImage(video, 0, 0);
   canvas.toBlob(blob => {
     if (!blob) return;
     stopLeaveCameraStream();
@@ -4380,6 +4393,10 @@ document.addEventListener('click', async (e) => {
 
     case 'capture-leave-photo':
       captureLeavePhoto();
+      break;
+
+    case 'switch-leave-camera':
+      switchLeaveCamera();
       break;
 
     case 'request-leave-gps':

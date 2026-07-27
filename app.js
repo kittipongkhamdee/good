@@ -30,6 +30,9 @@ const state = {
   leavePhotoPreviewUrl: null, // object URL ของ leavePhotoBlob ไว้พรีวิวในฟอร์ม
   leaveGps: null,            // { lat, lng, accuracy } หลังขอตำแหน่งสำเร็จ
   leaveGpsStatus: 'idle',    // 'idle' | 'requesting' | 'granted' | 'denied' | 'error' | 'unsupported'
+  // ค่าฟอร์มแจ้งขอลา — เก็บใน state (ไม่ใช่แค่อ่านจาก DOM ตอนกดส่ง) เพราะการถ่ายรูป/ขอ GPS
+  // เรียก setState() ซึ่ง re-render ทั้งจอ ถ้าไม่เก็บไว้ค่าที่พิมพ์ไปแล้วจะหายหมด (บั๊กที่เจอจริง)
+  leaveType: 'sick', leaveStartDate: null, leaveEndDate: null, leaveReason: '',
   pushSubscribed: false,   // อุปกรณ์นี้เปิดการแจ้งเตือน (เตือนสตรีคใกล้ขาด) อยู่หรือไม่
 
   staffUser: null,        // { id, full_name, role, is_admin, photo_url }
@@ -1493,6 +1496,10 @@ function leaveGpsStatusHTML() {
 function renderStudentLeave() {
   const list = state.studentLeaveRequests;
   const today = new Date().toISOString().slice(0, 10);
+  const leaveType = state.leaveType || 'sick';
+  const startDate = state.leaveStartDate || today;
+  const endDate = state.leaveEndDate || today;
+  const reason = state.leaveReason || '';
   const gpsInfo = leaveGpsStatusHTML();
 
   return `
@@ -1508,24 +1515,24 @@ function renderStudentLeave() {
     <div class="card">
       <div class="form-group">
         <label class="form-label">ประเภทการลา</label>
-        <select class="form-input" id="leave-type-input">
-          <option value="sick">🤒 ลาป่วย</option>
-          <option value="personal">📝 ลากิจ</option>
+        <select class="form-input" id="leave-type-input" onchange="state.leaveType=this.value">
+          <option value="sick" ${leaveType === 'sick' ? 'selected' : ''}>🤒 ลาป่วย</option>
+          <option value="personal" ${leaveType === 'personal' ? 'selected' : ''}>📝 ลากิจ</option>
         </select>
       </div>
       <div style="display:flex;gap:10px;">
         <div class="form-group" style="flex:1;">
           <label class="form-label">วันที่เริ่มลา</label>
-          <input class="form-input" type="date" id="leave-start-input" value="${today}">
+          <input class="form-input" type="date" id="leave-start-input" value="${startDate}" onchange="state.leaveStartDate=this.value">
         </div>
         <div class="form-group" style="flex:1;">
           <label class="form-label">ถึงวันที่</label>
-          <input class="form-input" type="date" id="leave-end-input" value="${today}">
+          <input class="form-input" type="date" id="leave-end-input" value="${endDate}" onchange="state.leaveEndDate=this.value">
         </div>
       </div>
       <div class="form-group">
         <label class="form-label">เหตุผล (ถ้ามี)</label>
-        <textarea class="form-input" id="leave-reason-input" rows="3" placeholder="เช่น ป่วยเป็นไข้หวัด, ไปธุระที่บ้าน"></textarea>
+        <textarea class="form-input" id="leave-reason-input" rows="3" placeholder="เช่น ป่วยเป็นไข้หวัด, ไปธุระที่บ้าน" oninput="state.leaveReason=this.value">${reason}</textarea>
       </div>
 
       <div class="form-group">
@@ -3518,6 +3525,7 @@ async function doLogout() {
     student: null, studentHistory: [], studentRedemptions: [], leaderboard: null, leaderboardScope: 'school',
     studentGrades: null, gradesSemesterKey: null, studentLeaveRequests: null,
     leavePhotoBlob: null, leavePhotoPreviewUrl: null, leaveGps: null, leaveGpsStatus: 'idle',
+    leaveType: 'sick', leaveStartDate: null, leaveEndDate: null, leaveReason: '',
     staffUser: null, deedTypes: [], rewards: [], rewardRequests: [], rewardSuggestions: [], students: [], studentGradeFilter: '', studentRoomFilter: '', studentClasses: [], pointLogs: [], badgeTiers: [],
     reportSummary: null, reportError: null, reportLeaderboard: null, reportGradeFilter: '', scanStep: 0, scanStudent: null, selectedDeedId: null, points: 10,
     addStudentCode: '', addStudentName: '', studentScanMode: false,
@@ -4404,10 +4412,12 @@ document.addEventListener('click', async (e) => {
       break;
 
     case 'submit-leave-request': {
-      const leaveType = document.getElementById('leave-type-input')?.value;
-      const startDate = document.getElementById('leave-start-input')?.value;
-      const endDate = document.getElementById('leave-end-input')?.value;
-      const reason = document.getElementById('leave-reason-input')?.value.trim();
+      // อ่านจาก state ไม่ใช่ DOM ตรงๆ — เพราะการถ่ายรูป/ขอ GPS ก่อนหน้านี้ re-render ทั้งจอ
+      // ไปแล้ว ค่าที่พิมพ์ในฟอร์มต้องถูกเก็บไว้ใน state ผ่าน onchange/oninput ของแต่ละช่องแล้ว
+      const leaveType = state.leaveType || 'sick';
+      const startDate = state.leaveStartDate || new Date().toISOString().slice(0, 10);
+      const endDate = state.leaveEndDate || new Date().toISOString().slice(0, 10);
+      const reason = (state.leaveReason || '').trim();
       if (!startDate || !endDate) { showToast('กรุณาเลือกวันที่ลา'); return; }
       if (endDate < startDate) { showToast('วันที่สิ้นสุดต้องไม่ก่อนวันที่เริ่ม'); return; }
       if (!state.leavePhotoBlob) { showToast('กรุณาถ่ายรูปคู่ผู้ปกครองเพื่อยืนยัน'); return; }
@@ -4433,6 +4443,7 @@ document.addEventListener('click', async (e) => {
       setState({
         studentLeaveRequests: data || [],
         leavePhotoBlob: null, leavePhotoPreviewUrl: null, leaveGps: null, leaveGpsStatus: 'idle',
+        leaveType: 'sick', leaveStartDate: null, leaveEndDate: null, leaveReason: '',
       });
       showToast('ส่งแจ้งขอลาแล้ว ครูจะเห็นตอนเช็คชื่อ ✅');
       break;

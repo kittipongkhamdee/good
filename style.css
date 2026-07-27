@@ -386,15 +386,13 @@ select { appearance: none; -webkit-appearance: none; }
 .mascot-icon {
   position: absolute; left: 50%; bottom: 13%; transform: translateX(-50%);
   height: auto; filter: drop-shadow(0 6px 6px rgba(15,50,20,0.45));
-  animation: mascotSway 3.2s ease-in-out infinite; z-index: 2;
-  transform-origin: bottom center;
+  z-index: 2;
 }
 .mascot-icon[data-stage="1"] { width: 15cqw; }
 .mascot-icon[data-stage="2"] { width: 18cqw; }
 .mascot-icon[data-stage="3"] { width: 22cqw; }
 .mascot-icon[data-stage="4"] { width: 27cqw; }
 .mascot-icon[data-stage="5"] { width: 34cqw; }
-@keyframes mascotSway { 0%, 100% { transform: translateX(-50%) rotate(-3deg); } 50% { transform: translateX(-50%) rotate(3deg); } }
 
 .mascot-tag {
   position: absolute; top: 12px; left: 12px; background: #fff; color: var(--gd); font-size: 10.5px; font-weight: 700;

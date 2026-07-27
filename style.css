@@ -368,13 +368,13 @@ select { appearance: none; -webkit-appearance: none; }
   overflow: hidden;
 }
 
-.mascot-bird { position: absolute; left: -8%; font-size: 13px; opacity: 0; animation: mascotBirdFly 9s linear infinite; z-index: 2; }
+.mascot-bird { position: absolute; right: -8%; font-size: 13px; opacity: 0; animation: mascotBirdFly 9s linear infinite; z-index: 2; }
 @keyframes mascotBirdFly {
   0% { opacity: 0; transform: translateX(0) translateY(0); }
   6% { opacity: 0.9; }
-  50% { transform: translateX(58cqw) translateY(-10px); }
+  50% { transform: translateX(-58cqw) translateY(-10px); }
   94% { opacity: 0.9; }
-  100% { opacity: 0; transform: translateX(118cqw) translateY(2px); }
+  100% { opacity: 0; transform: translateX(-118cqw) translateY(2px); }
 }
 
 .mascot-pulse-ring {

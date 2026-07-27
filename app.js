@@ -1203,9 +1203,9 @@ function renderStudentBadges() {
     <div class="mascot-scene-wrap">
       <div class="mascot-scene" style="background-image:url('${farmBgUrl}');">
         <div class="mascot-tag">${tagText}</div>
-        <div class="mascot-bird" style="top:14%;animation-delay:0s;">🐦</div>
+        <div class="mascot-bird" style="top:14%;animation-delay:0s;">🕊️</div>
         <div class="mascot-bird" style="top:24%;animation-delay:4.5s;">🕊️</div>
-        <div class="mascot-bird" style="top:9%;animation-delay:9s;">🐦</div>
+        <div class="mascot-bird" style="top:9%;animation-delay:9s;">🕊️</div>
         <div class="mascot-pulse-ring"></div>
         <img class="mascot-icon" data-stage="${plantStage}" src="images/level-plant-${plantStage}.webp" alt="${currentTier.name}">
       </div>

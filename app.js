@@ -1479,6 +1479,12 @@ function subjectDetailModalHTML(row, units, detail) {
 // แต่ฐานข้อมูลเดียวกัน) ครูจะเห็น popup เตือนตอนเลือกห้องเช็คชื่อถ้ามีนักเรียนแจ้งลาในวันนั้น
 const LEAVE_TYPE_LABEL = { sick: '🤒 ลาป่วย', personal: '📝 ลากิจ' };
 
+// จำนวนวันลา นับรวมทั้งวันเริ่มและวันสิ้นสุด (ลาวันเดียว = 1 วัน)
+function leaveDayCount(startDate, endDate) {
+  const ms = new Date(endDate) - new Date(startDate);
+  return Math.round(ms / 86400000) + 1;
+}
+
 // สถานะปุ่ม "ขอตำแหน่งปัจจุบัน" — ข้อความ/สี ตาม state.leaveGpsStatus
 function leaveGpsStatusHTML() {
   const s = state.leaveGpsStatus;
@@ -1523,13 +1529,14 @@ function renderStudentLeave() {
       <div style="display:flex;gap:10px;">
         <div class="form-group" style="flex:1;">
           <label class="form-label">วันที่เริ่มลา</label>
-          <input class="form-input" type="date" id="leave-start-input" value="${startDate}" onchange="state.leaveStartDate=this.value">
+          <input class="form-input" type="date" id="leave-start-input" value="${startDate}" onchange="state.leaveStartDate=this.value;render()">
         </div>
         <div class="form-group" style="flex:1;">
           <label class="form-label">ถึงวันที่</label>
-          <input class="form-input" type="date" id="leave-end-input" value="${endDate}" onchange="state.leaveEndDate=this.value">
+          <input class="form-input" type="date" id="leave-end-input" value="${endDate}" onchange="state.leaveEndDate=this.value;render()">
         </div>
       </div>
+      ${endDate >= startDate ? `<div style="font-size:12.5px;color:var(--g);font-weight:700;margin:-6px 0 14px;">🗓️ รวม ${leaveDayCount(startDate, endDate)} วัน</div>` : ''}
       <div class="form-group">
         <label class="form-label">เหตุผล (ถ้ามี)</label>
         <textarea class="form-input" id="leave-reason-input" rows="3" placeholder="เช่น ป่วยเป็นไข้หวัด, ไปธุระที่บ้าน" oninput="state.leaveReason=this.value">${reason}</textarea>
@@ -1565,6 +1572,7 @@ function renderStudentLeave() {
               <div style="font-size:12px;color:#9ca3af;">${LEAVE_TYPE_LABEL[r.leave_type] || r.leave_type}</div>
               <div style="font-weight:700;font-size:15px;color:var(--gd);margin-top:2px;">
                 ${r.start_date === r.end_date ? formatDate(r.start_date) : `${formatDate(r.start_date)} – ${formatDate(r.end_date)}`}
+                <span style="font-weight:600;font-size:12px;color:var(--g);">(${leaveDayCount(r.start_date, r.end_date)} วัน)</span>
               </div>
               ${r.reason ? `<div style="font-size:12.5px;color:#6b7280;margin-top:3px;">📝 ${r.reason}</div>` : ''}
             </div>

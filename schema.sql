@@ -1890,3 +1890,141 @@ insert into public.app_settings (key, value) values
   ('grades_enabled', 'true'),
   ('leave_enabled', 'true')
 on conflict (key) do nothing;
+
+-- =============================================
+-- 35. ระบบรีเซ็ตคะแนนตอนเปิดเทอมปีการศึกษาใหม่ + ลบถาวร
+-- 3 ฟีเจอร์แยกกัน ตามที่แอดมินเลือกไว้:
+--   (a) "เริ่มปีการศึกษาใหม่" — ไม่ลบจริง ย้าย point_logs ทั้งหมดไปเก็บใน
+--       point_logs_archive พร้อม period_label แล้วล้าง point_logs ให้ว่าง
+--       ทุกคนเห็นคะแนนเป็น 0 ทันที (student_points/get_leaderboard/streak ฯลฯ
+--       อ่านจาก point_logs อยู่แล้วไม่ต้องแก้ query เดิมที่มีอยู่เป็นสิบจุดเลย)
+--       ประวัติเก่าย้อนดูได้ที่รายงาน → ปีการศึกษาก่อนหน้า (get_point_periods /
+--       get_archived_period_report) — แอดมินและครูที่มีสิทธิ์ดูรายงานเห็นได้ทั้งคู่
+--   (b) ลบประวัติคะแนนของนักเรียนรายคนถาวร (กรณีจบ/ลาออก) — ลบทั้งจาก
+--       point_logs และ point_logs_archive เฉพาะคนนั้น ไม่แตะบัญชี/โปรไฟล์
+--   (c) ล้างคะแนนทั้งระบบถาวร (ปุ่มเขตอันตราย) — ลบทิ้งทั้ง point_logs และ
+--       point_logs_archive ทุกคนทุกปี กู้คืนไม่ได้ ต่างจาก (a) ตรงที่ไม่เก็บ
+--       ประวัติไว้เลย
+-- ทุกฟังก์ชันเช็ค is_admin() เข้มงวด (ไม่เปิดให้ครูที่ได้สิทธิ์อื่นเรียกได้) เพราะ
+-- point_logs ไม่มี DELETE policy ตรงๆ อยู่แล้วตั้งแต่ §22 (ปิดช่องโหว่เดิมที่
+-- authenticated ทุกคนลบได้) — ต้องผ่าน SECURITY DEFINER RPC เท่านั้น
+-- =============================================
+create table public.point_logs_archive (
+  id uuid primary key,
+  student_id uuid not null references public.students(id) on delete cascade,
+  teacher_id uuid references public.profiles(id) on delete set null,
+  deed_type_id int references public.good_deed_types(id) on delete set null,
+  points int not null,
+  note text,
+  created_at timestamptz not null,
+  cancelled_at timestamptz,
+  cancelled_by uuid references public.profiles(id) on delete set null,
+  period_label text not null,
+  archived_at timestamptz not null default now()
+);
+alter table public.point_logs_archive enable row level security;
+create policy "point_logs_archive_read_staff" on public.point_logs_archive for select
+  using (auth.role() = 'authenticated');
+create index idx_point_logs_archive_student on public.point_logs_archive(student_id);
+create index idx_point_logs_archive_period on public.point_logs_archive(period_label);
+
+create or replace function public.reset_all_points_new_year(p_period_label text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not is_admin() then
+    raise exception 'ต้องเป็นแอดมินเท่านั้น';
+  end if;
+  if p_period_label is null or trim(p_period_label) = '' then
+    raise exception 'กรุณาระบุชื่อปีการศึกษา';
+  end if;
+
+  insert into public.point_logs_archive
+    (id, student_id, teacher_id, deed_type_id, points, note, created_at, cancelled_at, cancelled_by, period_label)
+  select id, student_id, teacher_id, deed_type_id, points, note, created_at, cancelled_at, cancelled_by, trim(p_period_label)
+  from public.point_logs;
+
+  delete from public.point_logs;
+end;
+$$;
+grant execute on function public.reset_all_points_new_year(text) to authenticated;
+
+create or replace function public.delete_student_points(p_student_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not is_admin() then
+    raise exception 'ต้องเป็นแอดมินเท่านั้น';
+  end if;
+  delete from public.point_logs where student_id = p_student_id;
+  delete from public.point_logs_archive where student_id = p_student_id;
+end;
+$$;
+grant execute on function public.delete_student_points(uuid) to authenticated;
+
+create or replace function public.wipe_all_points_permanently()
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not is_admin() then
+    raise exception 'ต้องเป็นแอดมินเท่านั้น';
+  end if;
+  delete from public.point_logs;
+  delete from public.point_logs_archive;
+end;
+$$;
+grant execute on function public.wipe_all_points_permanently() to authenticated;
+
+create or replace function public.get_point_periods()
+returns table(period_label text, archived_at timestamptz, student_count bigint, total_points bigint, log_count bigint)
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not (is_admin() or public.teacher_screen_enabled('admin-reports')) then
+    raise exception 'ไม่มีสิทธิ์เข้าถึงรายงาน';
+  end if;
+  return query
+    select pla.period_label, min(pla.archived_at) as archived_at,
+      count(distinct pla.student_id) as student_count,
+      coalesce(sum(pla.points) filter (where pla.cancelled_at is null), 0)::bigint as total_points,
+      count(*) as log_count
+    from public.point_logs_archive pla
+    group by pla.period_label
+    order by min(pla.archived_at) desc;
+end;
+$$;
+grant execute on function public.get_point_periods() to authenticated;
+
+create or replace function public.get_archived_period_report(p_period_label text)
+returns table(student_id uuid, student_code text, student_name text, prefix text, grade_level text, room text, total_points bigint, deed_count bigint)
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not (is_admin() or public.teacher_screen_enabled('admin-reports')) then
+    raise exception 'ไม่มีสิทธิ์เข้าถึงรายงาน';
+  end if;
+  return query
+    select s.id, s.student_code, s.student_name, s.prefix, s.grade_level, s.room,
+      coalesce(sum(pla.points) filter (where pla.cancelled_at is null), 0)::bigint as total_points,
+      count(pla.id) filter (where pla.cancelled_at is null) as deed_count
+    from public.point_logs_archive pla
+    join public.students s on s.id = pla.student_id
+    where pla.period_label = p_period_label
+    group by s.id, s.student_code, s.student_name, s.prefix, s.grade_level, s.room
+    order by total_points desc;
+end;
+$$;
+grant execute on function public.get_archived_period_report(text) to authenticated;

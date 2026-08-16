@@ -674,3 +674,32 @@ async function updateAppSetting(key, value) {
   const { error } = await _sb.from('app_settings').update({ value: String(value) }).eq('key', key);
   return { error: error?.message || null };
 }
+
+// ──────────────────────────────────────────────
+// Points reset (Admin only — เริ่มปีการศึกษาใหม่ / ลบถาวร)
+// ──────────────────────────────────────────────
+
+async function resetAllPointsNewYear(periodLabel) {
+  const { error } = await _sb.rpc('reset_all_points_new_year', { p_period_label: periodLabel });
+  return { error: error?.message || null };
+}
+
+async function deleteStudentPoints(studentId) {
+  const { error } = await _sb.rpc('delete_student_points', { p_student_id: studentId });
+  return { error: error?.message || null };
+}
+
+async function wipeAllPointsPermanently() {
+  const { error } = await _sb.rpc('wipe_all_points_permanently');
+  return { error: error?.message || null };
+}
+
+async function getPointPeriods() {
+  const { data, error } = await _sb.rpc('get_point_periods');
+  return { data, error: error?.message || null };
+}
+
+async function getArchivedPeriodReport(periodLabel) {
+  const { data, error } = await _sb.rpc('get_archived_period_report', { p_period_label: periodLabel });
+  return { data, error: error?.message || null };
+}

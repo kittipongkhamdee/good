@@ -52,6 +52,10 @@ const state = {
   reportError: null,
   reportLeaderboard: null,
   reportGradeFilter: '',
+  pointPeriods: null,
+  archivedPeriodLabel: null,
+  archivedPeriodReport: null,
+  resetPeriodLabelInput: null,
   badgeTiers: [],
   settings: { leaderboardEnabled: true, leaderboardTopN: 10, schoolLogoUrl: null, levelFarmBgUrl: null, schoolName: 'ตาเบาวิทยา', schoolTagline: 'ระบบสะสมคะแนนความดีนักเรียน', streakReminderHour: 19, streakReminderMinDays: 2, gradesEnabled: true, leaveEnabled: true },
   rolePermissions: { 'admin-deedtypes': true, 'admin-rewards': true, 'admin-reward-pickup': true, 'admin-suggestions': true, 'admin-reports': true },
@@ -2415,7 +2419,7 @@ function renderAdminStudents() {
             <button data-action="open-student-photo" data-id="${s.id}"
               style="position:absolute;bottom:-2px;right:-2px;width:18px;height:18px;border-radius:50%;background:var(--g);color:#fff;border:2px solid #fff;font-size:10px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;">📷</button>
           </div>
-          <div style="flex:1;min-width:0;">
+          <div data-action="open-student-actions" data-id="${s.id}" style="flex:1;min-width:0;cursor:pointer;">
             <div style="font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${fullName(s)}</div>
             <div style="font-size:12px;color:#9ca3af;margin-top:1px;">รหัส ${s.student_code} · ${classOf(s)} · ${s.total_points.toLocaleString()} คะแนน · ${s.badge_level}</div>
           </div>
@@ -2605,6 +2609,47 @@ function renderAdminReports() {
       </div>
       ${renderReportLeaderboardRows()}
     </div>
+
+    ${renderPointPeriodsCard()}
+  </div>`;
+}
+
+function renderPointPeriodsCard() {
+  const periods = state.pointPeriods;
+  if (periods === null) return '';
+  return `
+  <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.055);">
+    <div style="padding:14px 16px 10px;font-weight:700;color:var(--gd);">📚 ปีการศึกษาก่อนหน้า</div>
+    ${!periods.length
+      ? `<div style="padding:20px;text-align:center;color:#9ca3af;font-size:13px;">ยังไม่เคยเริ่มปีการศึกษาใหม่ — ประวัติจะปรากฏที่นี่หลังแอดมินกด "เริ่มปีการศึกษาใหม่"</div>`
+      : periods.map(p => `
+        <div class="list-item" data-action="view-point-period" data-label="${p.period_label}" style="cursor:pointer;">
+          <div style="flex:1;">
+            <div style="font-weight:600;font-size:14px;">${p.period_label}</div>
+            <div style="font-size:12px;color:#9ca3af;margin-top:1px;">${p.student_count.toLocaleString()} คน · ${p.log_count.toLocaleString()} รายการ · เก็บเมื่อ ${new Date(p.archived_at).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' })}</div>
+          </div>
+          <div style="font-weight:700;color:var(--g);">${p.total_points.toLocaleString()}</div>
+        </div>`).join('')}
+    ${state.archivedPeriodLabel ? `
+    <div style="border-top:1px solid #f3f4f6;padding:14px 16px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <div style="font-weight:700;color:var(--gd);font-size:13px;">🏆 อันดับ · ${state.archivedPeriodLabel}</div>
+        <button data-action="close-point-period" style="background:transparent;border:none;color:#9ca3af;cursor:pointer;font-size:13px;font-family:Kanit;">✕ ปิด</button>
+      </div>
+      ${state.archivedPeriodReport === null
+        ? `<div style="padding:16px;text-align:center;color:#9ca3af;font-size:13px;">กำลังโหลด...</div>`
+        : !state.archivedPeriodReport.length
+          ? `<div style="padding:16px;text-align:center;color:#9ca3af;font-size:13px;">ไม่มีข้อมูล</div>`
+          : state.archivedPeriodReport.slice(0, 20).map((s, i) => `
+            <div style="display:flex;align-items:center;gap:10px;padding:8px 0;${i < Math.min(state.archivedPeriodReport.length, 20) - 1 ? 'border-bottom:1px solid #f9fafb;' : ''}">
+              <div style="width:22px;color:#9ca3af;font-size:12px;font-weight:700;">${i + 1}</div>
+              <div style="flex:1;min-width:0;">
+                <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${s.prefix || ''}${s.student_name}</div>
+                <div style="font-size:11px;color:#9ca3af;">${gradeLabel(s.grade_level)}/${s.room}</div>
+              </div>
+              <div style="font-weight:700;color:var(--g);font-size:13px;">${Number(s.total_points).toLocaleString()}</div>
+            </div>`).join('')}
+    </div>` : ''}
   </div>`;
 }
 
@@ -2684,6 +2729,12 @@ function renderAdminCodeHistory() {
   </div>`;
 }
 
+function defaultAcademicYearLabel() {
+  const now = new Date();
+  const beYear = now.getFullYear() + 543 - (now.getMonth() + 1 < 5 ? 1 : 0);
+  return `ปีการศึกษา ${beYear}`;
+}
+
 function toggleSwitchHTML(action, key, enabled) {
   return `
     <button data-action="${action}" data-key="${key}" data-enabled="${enabled}"
@@ -2756,6 +2807,18 @@ function renderAdminSettings() {
     </div>
 
     <div class="card">
+      <div style="font-size:15px;font-weight:700;color:var(--gd);margin-bottom:6px;">🌱 เริ่มปีการศึกษาใหม่</div>
+      <div style="font-size:12px;color:#9ca3af;margin-bottom:16px;line-height:1.6;">รีเซ็ตคะแนนของนักเรียนทุกคนกลับเป็น 0 สำหรับเปิดเทอมใหม่ — <b style="color:var(--g);">ไม่ลบข้อมูลเดิม</b> ประวัติคะแนนปีการศึกษาที่ผ่านมาจะถูกเก็บไว้ ดูย้อนหลังได้ที่แท็บ "รายงาน"</div>
+      <div class="form-group">
+        <label class="form-label">ตั้งชื่อปีการศึกษาที่กำลังจะปิด (เพื่อเก็บเป็นประวัติ)</label>
+        <input class="form-input" id="reset-period-label-input" placeholder="เช่น ปีการศึกษา 2568"
+          value="${state.resetPeriodLabelInput ?? defaultAcademicYearLabel()}"
+          oninput="state.resetPeriodLabelInput = this.value">
+      </div>
+      <button data-action="open-confirm-reset-year" style="width:100%;padding:13px;background:#fef3c7;color:#b45309;border:none;border-radius:12px;font-family:Kanit;font-weight:700;cursor:pointer;font-size:14px;">🌱 เริ่มปีการศึกษาใหม่ (รีเซ็ตคะแนนทุกคน)</button>
+    </div>
+
+    <div class="card">
       <div style="font-size:15px;font-weight:700;color:var(--gd);margin-bottom:6px;">🔔 การแจ้งเตือนสตรีค</div>
       <div style="font-size:12px;color:#9ca3af;margin-bottom:16px;">ระบบจะเตือนนักเรียนที่สตรีคใกล้ขาดในเวลานี้ทุกวัน (เฉพาะคนที่เปิดแจ้งเตือนไว้)</div>
       <div class="form-group">
@@ -2817,6 +2880,12 @@ function renderAdminSettings() {
       <div style="font-size:15px;font-weight:700;color:var(--gd);margin-bottom:6px;">👀 พรีวิวมุมมองครู</div>
       <div style="font-size:12px;color:#9ca3af;margin-bottom:14px;">ดูหน้าจอในมุมมองที่ครูเห็นจริง (ตามสิทธิ์ที่ตั้งไว้ด้านบน) โดยไม่ต้องออกจากระบบ Admin</div>
       <button class="btn-green" data-action="toggle-teacher-preview" style="padding:13px;background:#3b82f6;">🧑‍🏫 ดูมุมมองครู</button>
+    </div>
+
+    <div class="card" style="border:1.5px solid #fecaca;">
+      <div style="font-size:15px;font-weight:700;color:#dc2626;margin-bottom:6px;">⚠️ เขตอันตราย</div>
+      <div style="font-size:12px;color:#9ca3af;margin-bottom:16px;line-height:1.6;">ลบคะแนนความดีของนักเรียน<b style="color:#dc2626;">ทุกคนทุกปีการศึกษาถาวร</b> ทั้งข้อมูลปัจจุบันและประวัติที่เก็บไว้ทั้งหมด <b>กู้คืนไม่ได้เลย</b> — ต่างจาก "เริ่มปีการศึกษาใหม่" ด้านบนที่ยังเก็บประวัติไว้ให้</div>
+      <button data-action="open-confirm-wipe-points" style="width:100%;padding:13px;background:#dc2626;color:#fff;border:none;border-radius:12px;font-family:Kanit;font-weight:700;cursor:pointer;font-size:14px;">🗑️ ล้างคะแนนทั้งระบบถาวร</button>
     </div>
   </div>`;
 }
@@ -3582,6 +3651,7 @@ async function doLogout() {
     leaveType: 'sick', leaveStartDate: null, leaveEndDate: null, leaveReason: '',
     staffUser: null, deedTypes: [], rewards: [], rewardRequests: [], rewardSuggestions: [], students: [], studentGradeFilter: '', studentRoomFilter: '', studentClasses: [], pointLogs: [], badgeTiers: [],
     reportSummary: null, reportError: null, reportLeaderboard: null, reportGradeFilter: '', scanStep: 0, scanStudent: null, selectedDeedId: null, points: 10,
+    pointPeriods: null, archivedPeriodLabel: null, archivedPeriodReport: null, resetPeriodLabelInput: null,
     addStudentCode: '', addStudentName: '', studentScanMode: false,
     pointCode: null, codeDurationMin: 10, codeGradeFilter: '', codeRoomFilter: '', codeHistory: [], teacherRecentLogs: [],
     deedCall: null, deedCallResponses: [], callDurationMin: 15, callDurationCustom: false, callGradeFilter: '', callRoomFilter: '', callSlots: 2, callMessage: '',
@@ -3639,6 +3709,10 @@ async function loadDataForScreen(screen) {
     state.pointLogs = logs || [];
     if (leaderboardResult) state.reportLeaderboard = leaderboardResult.data || [];
     if (classesResult) state.studentClasses = classesResult.data || [];
+    if (screen === 'admin-reports') {
+      const { data: periods } = await getPointPeriods();
+      state.pointPeriods = periods || [];
+    }
   }
   if (screen === 'admin-students') {
     const tasks = [getStudents({
@@ -4707,6 +4781,122 @@ document.addEventListener('click', async (e) => {
       document.title = `${schoolTagline} — ${schoolName}`;
       if (firstError) { showToast(`เกิดข้อผิดพลาด: ${firstError}`); break; }
       showToast('บันทึกการตั้งค่าสำเร็จ! ✅');
+      break;
+    }
+
+    case 'open-confirm-reset-year': {
+      const label = (document.getElementById('reset-period-label-input')?.value || '').trim() || defaultAcademicYearLabel();
+      setState({ resetPeriodLabelInput: label });
+      showModal(`
+        <div class="modal-title">🌱 ยืนยันเริ่มปีการศึกษาใหม่</div>
+        <div style="text-align:center;padding:6px 0 20px;color:#374151;font-size:14px;line-height:1.7;">
+          คะแนนของนักเรียน<b style="color:var(--gd);">ทุกคน</b>จะกลับเป็น <b>0</b> ทันที<br>
+          ประวัติปัจจุบันจะถูกเก็บไว้เป็น<br>
+          <b style="color:var(--g);">"${label}"</b><br>
+          <span style="color:#9ca3af;font-size:12px;">ดูย้อนหลังได้ที่แท็บรายงานเสมอ ไม่มีข้อมูลสูญหาย</span>
+        </div>
+        <button class="btn-green" data-action="confirm-reset-year" data-label="${label}" style="padding:13px;">✅ ยืนยันเริ่มปีการศึกษาใหม่</button>
+        <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:Kanit;color:#9ca3af;cursor:pointer;">ยกเลิก</button>
+      `);
+      break;
+    }
+
+    case 'confirm-reset-year': {
+      closeModal();
+      setState({ loading: true });
+      const { error } = await resetAllPointsNewYear(btn.dataset.label);
+      setState({ loading: false });
+      if (error) { showToast(`เกิดข้อผิดพลาด: ${error}`); break; }
+      showToast(`เริ่มปีการศึกษาใหม่แล้ว ✅ เก็บประวัติเป็น "${btn.dataset.label}"`);
+      state.resetPeriodLabelInput = null;
+      await loadDataForScreen(state.screen);
+      render();
+      break;
+    }
+
+    case 'open-confirm-wipe-points': {
+      showModal(`
+        <div class="modal-title">⚠️ ยืนยันล้างคะแนนทั้งระบบถาวร</div>
+        <div style="text-align:center;padding:6px 0 16px;color:#374151;font-size:14px;line-height:1.7;">
+          คะแนนของนักเรียน<b style="color:#dc2626;">ทุกคนทุกปีการศึกษา</b> ทั้งข้อมูลปัจจุบันและประวัติที่เก็บไว้จะถูก<b style="color:#dc2626;">ลบถาวร</b><br>
+          <span style="color:#9ca3af;font-size:12px;">กู้คืนไม่ได้เลย พิมพ์ "ลบถาวร" ด้านล่างเพื่อยืนยัน</span>
+        </div>
+        <div class="form-group">
+          <input class="form-input" id="wipe-confirm-input" placeholder="พิมพ์ ลบถาวร"
+            oninput="document.getElementById('wipe-confirm-btn').disabled = this.value.trim() !== 'ลบถาวร'">
+        </div>
+        <button class="btn-green" id="wipe-confirm-btn" data-action="confirm-wipe-points" style="padding:13px;background:#dc2626;" disabled>🗑️ ล้างคะแนนทั้งระบบถาวร</button>
+        <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:Kanit;color:#9ca3af;cursor:pointer;">ยกเลิก</button>
+      `);
+      break;
+    }
+
+    case 'confirm-wipe-points': {
+      if (btn.disabled) break;
+      closeModal();
+      setState({ loading: true });
+      const { error } = await wipeAllPointsPermanently();
+      setState({ loading: false });
+      if (error) { showToast(`เกิดข้อผิดพลาด: ${error}`); break; }
+      showToast('ล้างคะแนนทั้งระบบถาวรแล้ว');
+      await loadDataForScreen(state.screen);
+      render();
+      break;
+    }
+
+    case 'open-student-actions': {
+      const s = state.students.find(x => x.id === btn.dataset.id);
+      if (!s) break;
+      showModal(`
+        <div class="modal-title">${fullName(s)}</div>
+        <div style="text-align:center;padding:6px 0 20px;color:#9ca3af;font-size:13px;">
+          รหัส ${s.student_code} · ${classOf(s)} · ${s.total_points.toLocaleString()} คะแนน
+        </div>
+        ${state.role === 'admin' && !state.previewAsTeacher ? `
+        <button data-action="open-confirm-delete-student-points" data-id="${s.id}" data-name="${fullName(s)}"
+          style="width:100%;padding:13px;background:#fee2e2;color:#dc2626;border:none;border-radius:12px;font-family:Kanit;font-weight:700;cursor:pointer;font-size:14px;">🗑️ ลบประวัติคะแนนถาวร</button>
+        <div style="font-size:11px;color:#9ca3af;margin-top:8px;text-align:center;">สำหรับนักเรียนที่จบการศึกษา/ลาออก — ไม่ลบบัญชี/โปรไฟล์</div>
+        ` : ''}
+        <button data-action="close-modal" style="width:100%;padding:10px;margin-top:12px;background:transparent;border:none;font-family:Kanit;color:#9ca3af;cursor:pointer;">ปิด</button>
+      `);
+      break;
+    }
+
+    case 'open-confirm-delete-student-points': {
+      const { id, name } = btn.dataset;
+      showModal(`
+        <div class="modal-title">⚠️ ยืนยันลบประวัติคะแนนถาวร</div>
+        <div style="text-align:center;padding:6px 0 20px;color:#374151;font-size:14px;line-height:1.7;">
+          ลบประวัติคะแนนของ<br><b style="color:var(--gd);">${name}</b><br>ถาวร ใช่หรือไม่?<br>
+          <span style="color:#9ca3af;font-size:12px;">กู้คืนไม่ได้เลย (บัญชี/โปรไฟล์ยังอยู่ตามเดิม)</span>
+        </div>
+        <button class="btn-green" data-action="confirm-delete-student-points" data-id="${id}" data-name="${name}" style="padding:13px;background:#dc2626;">🗑️ ยืนยันลบถาวร</button>
+        <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:Kanit;color:#9ca3af;cursor:pointer;">ยกเลิก</button>
+      `);
+      break;
+    }
+
+    case 'confirm-delete-student-points': {
+      closeModal();
+      const { error } = await deleteStudentPoints(btn.dataset.id);
+      if (error) { showToast(`เกิดข้อผิดพลาด: ${error}`); break; }
+      showToast(`ลบประวัติคะแนนของ ${btn.dataset.name} แล้ว`);
+      await loadDataForScreen(state.screen);
+      render();
+      break;
+    }
+
+    case 'view-point-period': {
+      const label = btn.dataset.label;
+      setState({ archivedPeriodLabel: label, archivedPeriodReport: null });
+      const { data, error } = await getArchivedPeriodReport(label);
+      if (error) { showToast(`เกิดข้อผิดพลาด: ${error}`); break; }
+      setState({ archivedPeriodReport: data || [] });
+      break;
+    }
+
+    case 'close-point-period': {
+      setState({ archivedPeriodLabel: null, archivedPeriodReport: null });
       break;
     }
 

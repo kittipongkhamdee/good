@@ -2028,3 +2028,21 @@ begin
 end;
 $$;
 grant execute on function public.get_archived_period_report(text) to authenticated;
+
+-- =============================================
+-- 36. ติดตาม "ใช้งานล่าสุด" ของนักเรียน (last_seen_at) — แอดมินดูได้ว่าใครใช้งาน
+-- ระบบบ่อย/นานแล้วไม่ได้เข้า ใช้รูปแบบเดียวกับ set_student_own_photo (§29): RPC
+-- แคบๆ แก้ได้แค่คอลัมน์เดียว เพราะนักเรียนเป็น anon อัปเดตตาราง students ตรงๆ ไม่ได้
+-- ฝั่ง client throttle การเรียกเอง (ไม่เกิน 1 ครั้งทุก 2 นาที) กันยิง RPC ถี่เกินไป
+-- =============================================
+alter table public.students add column if not exists last_seen_at timestamptz;
+
+create or replace function public.touch_student_last_seen(p_student_id uuid)
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  update public.students set last_seen_at = now() where id = p_student_id;
+$$;
+grant execute on function public.touch_student_last_seen(uuid) to anon, authenticated;

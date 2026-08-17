@@ -158,7 +158,7 @@ async function removePushSubscription(endpoint) {
 
 async function getStudents({ search = '', limit = 20, offset = 0, gradeLevel = '', room = '' } = {}) {
   let q = _sb.from('students')
-    .select('id, student_code, student_name, prefix, grade_level, room, photo_url', { count: 'exact' })
+    .select('id, student_code, student_name, prefix, grade_level, room, photo_url, last_seen_at', { count: 'exact' })
     .order('grade_level').order('room').order('student_name')
     .range(offset, offset + limit - 1);
   if (search) q = q.or(`student_name.ilike.%${search}%,student_code.ilike.%${search}%`);
@@ -702,4 +702,9 @@ async function getPointPeriods() {
 async function getArchivedPeriodReport(periodLabel) {
   const { data, error } = await _sb.rpc('get_archived_period_report', { p_period_label: periodLabel });
   return { data, error: error?.message || null };
+}
+
+async function touchStudentLastSeen(studentId) {
+  const { error } = await _sb.rpc('touch_student_last_seen', { p_student_id: studentId });
+  return { error: error?.message || null };
 }

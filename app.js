@@ -1616,6 +1616,7 @@ function renderStudentLeave() {
 // ── กล้องถ่ายรูปยืนยัน (แจ้งขอลา) — เปิดกล้องสดผ่าน getUserMedia แล้วถ่ายเป็น Blob ทันที
 // แทนปุ่ม <input type=file> ที่ยังเลือกไฟล์เก่าจากคลังภาพได้ ให้แน่ใจว่าเป็นรูปที่ถ่าย ณ
 // ตอนแจ้งขอลาจริงๆ (ดูเหตุผลเรื่อง EXIF ที่ schema.sql §32)
+let _lastSeenTouchedAt = 0;
 let _leaveCameraStream = null;
 let _leaveCameraFacing = 'environment'; // 'environment' = กล้องหลัง, 'user' = กล้องหน้า
 
@@ -2422,6 +2423,7 @@ function renderAdminStudents() {
           <div data-action="open-student-actions" data-id="${s.id}" style="flex:1;min-width:0;cursor:pointer;">
             <div style="font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${fullName(s)}</div>
             <div style="font-size:12px;color:#9ca3af;margin-top:1px;">รหัส ${s.student_code} · ${classOf(s)} · ${s.total_points.toLocaleString()} คะแนน · ${s.badge_level}</div>
+            <div style="font-size:11px;color:#9ca3af;margin-top:1px;">${timeAgoLabel(s.last_seen_at)}</div>
           </div>
         </div>
       `).join('')}
@@ -2727,6 +2729,20 @@ function renderAdminCodeHistory() {
         : `<div style="padding:30px;text-align:center;color:#9ca3af;font-size:13px;">ยังไม่มีประวัติการสร้างโค้ด</div>`}
     </div>
   </div>`;
+}
+
+function timeAgoLabel(ts) {
+  if (!ts) return 'ไม่เคยใช้งาน';
+  const diffMs = Date.now() - new Date(ts).getTime();
+  const min = Math.floor(diffMs / 60000);
+  if (min < 2) return '🟢 ใช้งานอยู่ตอนนี้';
+  if (min < 60) return `ใช้งานล่าสุด ${min} นาทีที่แล้ว`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `ใช้งานล่าสุด ${hr} ชั่วโมงที่แล้ว`;
+  const day = Math.floor(hr / 24);
+  if (day < 30) return `ใช้งานล่าสุด ${day} วันที่แล้ว`;
+  const month = Math.floor(day / 30);
+  return `ใช้งานล่าสุด ${month} เดือนที่แล้ว`;
 }
 
 function defaultAcademicYearLabel() {
@@ -3668,6 +3684,10 @@ async function doLogout() {
 // ══════════════════════════════════════════════
 
 async function loadDataForScreen(screen) {
+  if (state.student && Date.now() - _lastSeenTouchedAt > 120000) {
+    _lastSeenTouchedAt = Date.now();
+    touchStudentLastSeen(state.student.student_id);
+  }
   if (screen === 'student-grades' && state.student) {
     const { data } = await getStudentGrades(state.student.student_code);
     state.studentGrades = data || [];
@@ -4849,9 +4869,10 @@ document.addEventListener('click', async (e) => {
       if (!s) break;
       showModal(`
         <div class="modal-title">${fullName(s)}</div>
-        <div style="text-align:center;padding:6px 0 20px;color:#9ca3af;font-size:13px;">
+        <div style="text-align:center;padding:6px 0 4px;color:#9ca3af;font-size:13px;">
           รหัส ${s.student_code} · ${classOf(s)} · ${s.total_points.toLocaleString()} คะแนน
         </div>
+        <div style="text-align:center;padding:0 0 20px;color:#9ca3af;font-size:12px;">${timeAgoLabel(s.last_seen_at)}</div>
         ${state.role === 'admin' && !state.previewAsTeacher ? `
         <button data-action="open-confirm-delete-student-points" data-id="${s.id}" data-name="${fullName(s)}"
           style="width:100%;padding:13px;background:#fee2e2;color:#dc2626;border:none;border-radius:12px;font-family:Kanit;font-weight:700;cursor:pointer;font-size:14px;">🗑️ ลบประวัติคะแนนถาวร</button>

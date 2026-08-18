@@ -1749,11 +1749,17 @@ function renderStudentLeaderboard() {
     </div>`;
   }
 
-  const podium = top.length >= 3 ? [top[1], top[0], top[2]] : top;
+  const isMe = s => state.role === 'student' && s.student_name === state.student.student_name && classOf(s) === classOf(state.student);
+  const topN = state.settings.leaderboardTopN || 10;
+  const visible = top.slice(0, topN);
+  const myEntry = top.find(isMe);
+  const myEntryHidden = myEntry && !visible.includes(myEntry);
+
+  const podium = visible.length >= 3 ? [visible[1], visible[0], visible[2]] : visible;
   const heights = [130, 155, 110];
   const colors  = ['#C0C0C0', '#FFD700', '#CD7F32'];
   const textClr = ['#fff', '#78350f', '#fff'];
-  const rest = top.slice(3);
+  const rest = visible.slice(3);
 
   return `
   <div class="screen-wrap anim-slideup">
@@ -1766,7 +1772,7 @@ function renderStudentLeaderboard() {
 
     ${scopeTabsHTML}
 
-    ${top.length >= 3 ? `
+    ${visible.length >= 3 ? `
     <div class="podium">
       ${podium.map((s, i) => `
         <div class="podium-col">
@@ -1786,7 +1792,7 @@ function renderStudentLeaderboard() {
 
     <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.055);">
       ${rest.map(s => {
-        const mine = state.role === 'student' && s.student_name === state.student.student_name && classOf(s) === classOf(state.student);
+        const mine = isMe(s);
         return `
         <div class="list-item" style="background:${mine ? 'var(--gl)' : '#fff'};">
           <div style="width:28px;height:28px;border-radius:50%;background:${mine ? 'var(--g)' : '#e5e7eb'};color:${mine ? '#fff' : '#6b7280'};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;">${s.rank}</div>
@@ -1798,6 +1804,19 @@ function renderStudentLeaderboard() {
         </div>`;
       }).join('')}
     </div>
+
+    ${myEntryHidden ? `
+    <div style="background:var(--g);border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.12);">
+      <div style="padding:8px 16px 0;font-size:11px;color:#fff;opacity:0.85;">อันดับของคุณ</div>
+      <div class="list-item" style="background:transparent;">
+        <div style="width:28px;height:28px;border-radius:50%;background:#fff;color:var(--gd);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;">${myEntry.rank}</div>
+        <div style="flex:1;">
+          <div style="font-weight:700;font-size:14px;color:#fff;">${fullName(myEntry)} ★</div>
+          <div style="font-size:12px;color:#fff;opacity:0.85;margin-top:1px;">${classOf(myEntry)}</div>
+        </div>
+        <div style="font-weight:700;color:#fff;">${myEntry.total_points.toLocaleString()}</div>
+      </div>
+    </div>` : ''}
   </div>`;
 }
 
@@ -3561,7 +3580,7 @@ async function enterStudentSession(code, { silent = false } = {}) {
 
   const [{ data: history }, { data: leaderboard }, { data: rewards }, { data: badgeTiers }, { data: settings }, { data: activeCalls }] = await Promise.all([
     getStudentHistory(code, 30),
-    getLeaderboard({ limit: 10 }),
+    getLeaderboard({}),
     getRewards(),
     getBadgeTiers(),
     getAppSettings(),
@@ -4167,7 +4186,7 @@ document.addEventListener('click', async (e) => {
       const filter = scope === 'grade' ? { gradeLevel: s.grade_level }
                    : scope === 'room' ? { gradeLevel: s.grade_level, room: s.room }
                    : {};
-      const { data } = await getLeaderboard({ limit: 10, ...filter });
+      const { data } = await getLeaderboard({ ...filter });
       setState({ leaderboard: data || [] });
       break;
     }

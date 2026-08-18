@@ -3580,7 +3580,10 @@ async function enterStudentSession(code, { silent = false } = {}) {
 
   const [{ data: history }, { data: leaderboard }, { data: rewards }, { data: badgeTiers }, { data: settings }, { data: activeCalls }] = await Promise.all([
     getStudentHistory(code, 30),
-    getLeaderboard({}),
+    // limit: null on get_leaderboard means "use the admin-configured Top N", not
+    // "unlimited" (see §10 in schema.sql) — pass a large explicit number here so a
+    // student ranked below Top N can still find their own row / rank card.
+    getLeaderboard({ limit: 100000 }),
     getRewards(),
     getBadgeTiers(),
     getAppSettings(),
@@ -4186,7 +4189,7 @@ document.addEventListener('click', async (e) => {
       const filter = scope === 'grade' ? { gradeLevel: s.grade_level }
                    : scope === 'room' ? { gradeLevel: s.grade_level, room: s.room }
                    : {};
-      const { data } = await getLeaderboard({ ...filter });
+      const { data } = await getLeaderboard({ limit: 100000, ...filter });
       setState({ leaderboard: data || [] });
       break;
     }

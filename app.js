@@ -2180,10 +2180,7 @@ function renderTeacherDashboard() {
     <div class="hero-banner">
       <div id="teacher-hero-leaf-field" class="leaf-field" aria-hidden="true"></div>
       <div style="position:relative;z-index:1;display:flex;align-items:center;gap:14px;">
-        <div style="position:relative;flex-shrink:0;">
-          ${staffAvatar(u, { size: 60, fontSize: 26 })}
-          <button data-action="open-staff-photo" style="position:absolute;bottom:-2px;right:-2px;width:20px;height:20px;border-radius:50%;background:var(--g);color:#fff;border:2px solid #fff;font-size:11px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;">📷</button>
-        </div>
+        ${staffAvatar(u, { size: 60, fontSize: 26 })}
         <div>
           <div style="font-size:18px;font-weight:700;">${u?.full_name || ''}</div>
           <div style="font-size:12px;opacity:0.8;margin-top:3px;">ครู</div>

@@ -739,6 +739,11 @@ async function getPendingDeedRequests() {
   return { data, error: error?.message || null };
 }
 
+async function getPendingDeedRequestsCount() {
+  const { data, error } = await _sb.rpc('get_pending_deed_requests_count');
+  return { count: data ?? 0, error: error?.message || null };
+}
+
 async function reviewDeedRequest(requestId, action, points, note) {
   const { error } = await _sb.rpc('review_deed_request', {
     p_request_id: requestId, p_action: action, p_points: points ?? null, p_note: note || null,

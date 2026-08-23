@@ -39,7 +39,7 @@ const state = {
   deedPhotoBlob1: null, deedPhotoPreviewUrl1: null,
   deedPhotoBlob2: null, deedPhotoPreviewUrl2: null,
   studentDeedRequests: null,
-  pendingDeedRequests: null, pendingDeedRequestsError: null,
+  pendingDeedRequests: null, pendingDeedRequestsError: null, pendingDeedRequestsCount: 0,
   pushSubscribed: false,   // อุปกรณ์นี้เปิดการแจ้งเตือน (เตือนสตรีคใกล้ขาด) อยู่หรือไม่
 
   staffUser: null,        // { id, full_name, role, is_admin, photo_url }
@@ -950,21 +950,32 @@ function bottomNavItems() {
   return items;
 }
 
+function navBadgeCount(id) {
+  return id === 'teacher-deedrequests' ? state.pendingDeedRequestsCount : 0;
+}
+
 function renderBottomNav() {
   const items = bottomNavItems();
-  document.getElementById('nav-a').innerHTML = items.map(it => `
+  document.getElementById('nav-a').innerHTML = items.map(it => {
+    const count = navBadgeCount(it.id);
+    return `
     <button class="bnav-btn ${state.screen === it.id ? 'active' : ''}" data-action="nav" data-screen="${it.id}">
-      <span class="bnav-icon">${it.icon}</span>
+      <span style="position:relative;display:inline-block;">
+        <span class="bnav-icon">${it.icon}</span>
+        ${count > 0 ? `<span style="position:absolute;top:-4px;right:-8px;background:#ef4444;color:#fff;font-size:9.5px;font-weight:700;min-width:15px;height:15px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 3px;line-height:1;">${count > 9 ? '9+' : count}</span>` : ''}
+      </span>
       <span class="bnav-label">${it.label}</span>
-    </button>
-  `).join('');
+    </button>`;
+  }).join('');
 }
 
 // ── Drawer (full nav, slides in from the left) ──
 function drawerBtnHTML(it) {
+  const count = navBadgeCount(it.id);
   return `
     <button class="snav-btn ${state.screen === it.id ? 'active' : ''}" data-action="drawer-nav" data-screen="${it.id}">
       <span class="snav-icon">${it.icon}</span>${it.label}
+      ${count > 0 ? `<span style="margin-left:auto;background:#ef4444;color:#fff;font-size:10.5px;font-weight:700;min-width:18px;height:18px;border-radius:9px;display:flex;align-items:center;justify-content:center;padding:0 4px;line-height:1;">${count > 9 ? '9+' : count}</span>` : ''}
     </button>`;
 }
 
@@ -1739,6 +1750,7 @@ function renderStudentDeedRequest() {
 // แทนปุ่ม <input type=file> ที่ยังเลือกไฟล์เก่าจากคลังภาพได้ ให้แน่ใจว่าเป็นรูปที่ถ่าย ณ
 // ตอนแจ้งขอลาจริงๆ (ดูเหตุผลเรื่อง EXIF ที่ schema.sql §32)
 let _lastSeenTouchedAt = 0;
+let _lastDeedCountFetchedAt = 0;
 let _leaveCameraStream = null;
 let _leaveCameraFacing = 'environment'; // 'environment' = กล้องหลัง, 'user' = กล้องหน้า
 
@@ -3913,15 +3925,16 @@ async function enterStaffSession(profile, { silent = false } = {}) {
   // ยังอยู่ แค่ย้ายไปเป็นเมนูแยกในลิ้นชัก ไม่ใช่หน้าแรกอีกต่อไป (ดู NAV.admin)
   const screen = 'teacher-dashboard';
 
-  const [{ data: badgeTiers }, { data: rolePermissions }] = await Promise.all([
+  const [{ data: badgeTiers }, { data: rolePermissions }, { count: pendingDeedRequestsCount }] = await Promise.all([
     getBadgeTiers(),
     getRolePermissions(),
+    getPendingDeedRequestsCount(),
     loadDataForScreen(screen),
   ]);
   state.staffUser = profile;
   state.badgeTiers = badgeTiers || [];
   state.rolePermissions = rolePermissions || state.rolePermissions;
-  setState({ loading: false, role, screen });
+  setState({ loading: false, role, screen, pendingDeedRequestsCount: pendingDeedRequestsCount || 0 });
   if (!silent) showToast(`ยินดีต้อนรับ ${profile.full_name}! 🌿`);
 }
 
@@ -3991,7 +4004,7 @@ async function doLogout() {
     leaveType: 'sick', leaveStartDate: null, leaveEndDate: null, leaveReason: '',
     deedRequestTypeId: null, deedRequestDescription: '',
     deedPhotoBlob1: null, deedPhotoPreviewUrl1: null, deedPhotoBlob2: null, deedPhotoPreviewUrl2: null,
-    studentDeedRequests: null, pendingDeedRequests: null, pendingDeedRequestsError: null,
+    studentDeedRequests: null, pendingDeedRequests: null, pendingDeedRequestsError: null, pendingDeedRequestsCount: 0,
     staffUser: null, deedTypes: [], rewards: [], rewardRequests: [], rewardSuggestions: [], students: [], studentGradeFilter: '', studentRoomFilter: '', studentClasses: [], pointLogs: [], badgeTiers: [],
     reportSummary: null, reportError: null, reportLeaderboard: null, reportGradeFilter: '', scanStep: 0, scanStudent: null, selectedDeedId: null, points: 10,
     pointPeriods: null, archivedPeriodLabel: null, archivedPeriodReport: null, resetPeriodLabelInput: null,
@@ -4014,6 +4027,11 @@ async function loadDataForScreen(screen) {
   if (state.student && Date.now() - _lastSeenTouchedAt > 120000) {
     _lastSeenTouchedAt = Date.now();
     touchStudentLastSeen(state.student.student_id);
+  }
+  if (state.staffUser && (state.role === 'teacher' || state.role === 'admin') && Date.now() - _lastDeedCountFetchedAt > 30000) {
+    _lastDeedCountFetchedAt = Date.now();
+    const { count } = await getPendingDeedRequestsCount();
+    state.pendingDeedRequestsCount = count;
   }
   if (screen === 'student-grades' && state.student) {
     const { data } = await getStudentGrades(state.student.student_code);
@@ -5052,6 +5070,9 @@ document.addEventListener('click', async (e) => {
       const { error } = await reviewDeedRequest(btn.dataset.id, 'approve', points, note);
       if (error) { showToast(`เกิดข้อผิดพลาด: ${error}`); break; }
       showToast(`ให้คะแนนแล้ว +${points} คะแนน ✅`);
+      _lastDeedCountFetchedAt = Date.now();
+      const { count: newCount1 } = await getPendingDeedRequestsCount();
+      state.pendingDeedRequestsCount = newCount1;
       await loadDataForScreen('teacher-deedrequests');
       render();
       break;
@@ -5064,6 +5085,9 @@ document.addEventListener('click', async (e) => {
       const { error } = await reviewDeedRequest(btn.dataset.id, 'reject', null, note);
       if (error) { showToast(`เกิดข้อผิดพลาด: ${error}`); break; }
       showToast('ไม่อนุมัติคำขอแล้ว');
+      _lastDeedCountFetchedAt = Date.now();
+      const { count: newCount2 } = await getPendingDeedRequestsCount();
+      state.pendingDeedRequestsCount = newCount2;
       await loadDataForScreen('teacher-deedrequests');
       render();
       break;

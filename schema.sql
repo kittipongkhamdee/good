@@ -2223,3 +2223,39 @@ grant execute on function public.review_deed_request(uuid,text,int,text) to auth
 -- =============================================
 alter table public.profiles add column if not exists homeroom_grade_level text;
 alter table public.profiles add column if not exists homeroom_room text;
+
+-- =============================================
+-- 39. เลขแจ้งเตือนจำนวนคำขอ "ขอทำดี" ค้างตรวจสอบ — โชว์เป็น badge ตัวเลขที่ไอคอน
+-- "ตรวจคำขอ" (แถบล่าง/ลิ้นชัก) นับเฉพาะแบบเบาๆ (count เดียว ไม่ดึงข้อมูลเต็ม) กรอง
+-- ตามครูประจำชั้นเหมือน get_pending_deed_requests() (§37) ทุกประการ
+-- =============================================
+create or replace function public.get_pending_deed_requests_count()
+returns int
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_grade text;
+  v_room text;
+  v_count int;
+begin
+  if auth.uid() is null then
+    return 0;
+  end if;
+
+  if not is_admin() then
+    select homeroom_grade_level, homeroom_room into v_grade, v_room
+    from public.profiles where id = auth.uid();
+  end if;
+
+  select count(*) into v_count
+  from public.good_deed_requests r
+  join public.students s on s.id = r.student_id
+  where r.status = 'pending'
+    and (is_admin() or (v_grade is not null and v_room is not null and s.grade_level = v_grade and s.room = v_room));
+
+  return v_count;
+end;
+$$;
+grant execute on function public.get_pending_deed_requests_count() to authenticated;

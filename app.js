@@ -155,24 +155,33 @@ const NAV = {
     { id: 'admin-reports',     icon: '📈', label: 'รายงาน' },
     // Badge/ตั้งค่า are Admin-only — never shown to teachers, permission or not.
   ],
+  // Admin เห็นชุดเมนู "ทั่วไป" เหมือนครูทุกคนเป๊ะๆ (id/icon/label ตรงกับ NAV.teacher
+  // ทุกตัว ไม่มีสิทธิ์ถูกปิดกั้นแบบครู) แล้วต่อท้ายด้วยเมนูที่เป็นของ Admin เท่านั้น
+  // (Dashboard ภาพรวม/Badge/ประวัติโค้ด/ตั้งค่า) — renderDrawer() จะแยกสองกลุ่มนี้
+  // เป็นหัวข้อ "สำหรับแอดมิน" ให้เอง ไม่ต้องปนกับเมนูทั่วไปจนสับสน
   admin: [
-    { id: 'admin-dashboard',  icon: '📊', label: 'Dashboard' },
-    { id: 'teacher-scan',     icon: '📷', label: 'สแกน QR' },
-    { id: 'teacher-addpoints', icon: '✏️', label: 'เพิ่มคะแนน' },
+    { id: 'teacher-dashboard',  icon: '🏠', label: 'หน้าหลัก' },
+    { id: 'teacher-scan',       icon: '📷', label: 'สแกน QR' },
+    { id: 'teacher-addpoints',  icon: '✏️', label: 'เพิ่มคะแนน' },
     { id: 'teacher-deedrequests', icon: '🙋', label: 'ตรวจคำขอ' },
-    { id: 'teacher-calldeeds', icon: '📣', label: 'เรียกหานักเรียน' },
-    { id: 'teacher-history',  icon: '📋', label: 'ประวัติให้คะแนน' },
-    { id: 'admin-students',   icon: '👩‍🎓', label: 'นักเรียน' },
-    { id: 'admin-deedtypes',  icon: '💚', label: 'ความดี' },
-    { id: 'admin-rewards',    icon: '🎁', label: 'รางวัล' },
+    { id: 'teacher-calldeeds',  icon: '📣', label: 'เรียกหา' },
+    { id: 'teacher-history',    icon: '📋', label: 'ประวัติ' },
+    { id: 'admin-students',    icon: '👩‍🎓', label: 'นักเรียน' },
+    { id: 'admin-deedtypes',   icon: '💚', label: 'ความดี' },
+    { id: 'admin-rewards',     icon: '🎁', label: 'รางวัล' },
     { id: 'admin-reward-pickup', icon: '📦', label: 'รับของรางวัล' },
     { id: 'admin-suggestions', icon: '💭', label: 'ข้อเสนอแนะ' },
-    { id: 'admin-reports',    icon: '📈', label: 'รายงาน' },
-    { id: 'admin-badges',     icon: '🏅', label: 'Badge' },
+    { id: 'admin-reports',     icon: '📈', label: 'รายงาน' },
+    { id: 'admin-dashboard',   icon: '📊', label: 'Dashboard ภาพรวม' },
+    { id: 'admin-badges',      icon: '🏅', label: 'Badge' },
     { id: 'admin-codehistory', icon: '🎯', label: 'ประวัติโค้ด' },
-    { id: 'admin-settings',   icon: '⚙️', label: 'ตั้งค่า' },
+    { id: 'admin-settings',    icon: '⚙️', label: 'ตั้งค่า' },
   ],
 };
+
+// ใช้แยกกลุ่ม "สำหรับแอดมิน" ออกจากเมนูทั่วไปในลิ้นชัก (renderDrawer) — เฉพาะ id
+// พวกนี้เท่านั้นที่เป็นของ Admin ล้วนๆ ไม่เคยโผล่ใน NAV.teacher เลยแม้เปิดสิทธิ์ก็ตาม
+const ADMIN_ONLY_SCREENS = ['admin-dashboard', 'admin-badges', 'admin-codehistory', 'admin-settings'];
 
 // Screens an Admin can individually enable/disable for teachers (state.rolePermissions).
 // Anything not listed here is always visible to teachers (or Admin-only, like Badge/ตั้งค่า).
@@ -949,13 +958,28 @@ function renderBottomNav() {
 }
 
 // ── Drawer (full nav, slides in from the left) ──
-function renderDrawer() {
-  const items = visibleNavItems(effectiveRole());
-  const nav = items.map(it => `
+function drawerBtnHTML(it) {
+  return `
     <button class="snav-btn ${state.screen === it.id ? 'active' : ''}" data-action="drawer-nav" data-screen="${it.id}">
       <span class="snav-icon">${it.icon}</span>${it.label}
-    </button>
-  `).join('');
+    </button>`;
+}
+
+function renderDrawer() {
+  const role = effectiveRole();
+  const items = visibleNavItems(role);
+
+  // Admin (มุมมองจริง ไม่ใช่พรีวิวครู) เห็นเมนู "สำหรับแอดมิน" แยกหัวข้อต่างหาก กันสับสน
+  // กับเมนูทั่วไปที่หน้าตาเหมือนครูทุกคนเป๊ะๆ — role อื่นแสดงเป็นลิสต์เดียวเหมือนเดิม
+  const nav = (role === 'admin' && !state.previewAsTeacher)
+    ? (() => {
+        const common = items.filter(it => !ADMIN_ONLY_SCREENS.includes(it.id));
+        const adminOnly = items.filter(it => ADMIN_ONLY_SCREENS.includes(it.id));
+        return common.map(drawerBtnHTML).join('') +
+          `<div style="margin:14px 18px 6px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.1);font-size:11px;font-weight:700;letter-spacing:0.04em;color:rgba(255,255,255,0.4);">สำหรับแอดมิน</div>` +
+          adminOnly.map(drawerBtnHTML).join('');
+      })()
+    : items.map(drawerBtnHTML).join('');
 
   document.getElementById('drawer-panel').innerHTML = `
     <div class="sidebar-brand">
@@ -3853,7 +3877,9 @@ async function enterStudentSession(code, { silent = false } = {}) {
 async function enterStaffSession(profile, { silent = false } = {}) {
   const isAdmin = !!profile.is_admin;
   const role = isAdmin ? 'admin' : 'teacher';
-  const screen = isAdmin ? 'admin-dashboard' : 'teacher-dashboard';
+  // Admin เข้าหน้าเดียวกับครูทุกคน (teacher-dashboard) — Dashboard ภาพรวมของ Admin
+  // ยังอยู่ แค่ย้ายไปเป็นเมนูแยกในลิ้นชัก ไม่ใช่หน้าแรกอีกต่อไป (ดู NAV.admin)
+  const screen = 'teacher-dashboard';
 
   const [{ data: badgeTiers }, { data: rolePermissions }] = await Promise.all([
     getBadgeTiers(),
@@ -5116,7 +5142,9 @@ document.addEventListener('click', async (e) => {
     case 'toggle-teacher-preview': {
       closeDrawer();
       const entering = !state.previewAsTeacher;
-      const screen = entering ? 'teacher-dashboard' : 'admin-dashboard';
+      // ทั้งสองโหมดอยู่หน้าเดียวกัน (teacher-dashboard) แล้ว — พรีวิวครูต่างกันแค่เรื่อง
+      // nav/สิทธิ์ที่มองเห็น (ผ่าน effectiveRole()) ไม่ใช่หน้าจอที่ลงอีกต่อไป
+      const screen = 'teacher-dashboard';
       setState({ loading: true });
       await loadDataForScreen(screen);
       setState({ loading: false, previewAsTeacher: entering, screen, scanStep: 0, selectedDeedId: null, scanStudent: null, addStudentCode: '', addStudentName: '', studentScanMode: false });

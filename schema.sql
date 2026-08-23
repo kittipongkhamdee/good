@@ -2046,3 +2046,180 @@ as $$
   update public.students set last_seen_at = now() where id = p_student_id;
 $$;
 grant execute on function public.touch_student_last_seen(uuid) to anon, authenticated;
+
+-- =============================================
+-- 37. "ขอทำดี" — นักเรียนแจ้งขอคะแนนเอง (แนบรูป 2 รูป + คำอธิบาย) ครูประจำชั้นตรวจสอบ
+-- แล้วให้คะแนน/ไม่อนุมัติ ตอนอนุมัติ insert เข้า point_logs ตรงๆ (เหมือน add_point_log)
+-- เพื่อให้นับรวมคะแนน/streak/อันดับ/เลเวล เหมือนครูให้คะแนนตรงทุกประการ
+-- ไม่มี client-facing INSERT/UPDATE policy บน good_deed_requests เลย (แบบเดียวกับ
+-- point_logs/leave_requests) ทุกอย่างผ่าน SECURITY DEFINER RPC เท่านั้น
+-- =============================================
+create table public.good_deed_requests (
+  id uuid primary key default gen_random_uuid(),
+  student_id uuid not null references public.students(id) on delete cascade,
+  deed_type_id int references public.good_deed_types(id) on delete set null,
+  description text not null,
+  photo_url_1 text not null,
+  photo_url_2 text not null,
+  status text not null default 'pending' check (status in ('pending','approved','rejected')),
+  points_awarded int,
+  teacher_note text,
+  reviewed_by uuid references public.profiles(id) on delete set null,
+  reviewed_at timestamptz,
+  created_at timestamptz not null default now()
+);
+alter table public.good_deed_requests enable row level security;
+create policy "good_deed_requests_staff_select" on public.good_deed_requests for select
+  using (auth.role() = 'authenticated');
+create index idx_good_deed_requests_student on public.good_deed_requests(student_id);
+create index idx_good_deed_requests_status on public.good_deed_requests(status);
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('deed-request-photos', 'deed-request-photos', true, 3145728, array['image/jpeg','image/png','image/webp'])
+on conflict (id) do nothing;
+
+create policy "deed_request_photos_read" on storage.objects for select
+  using (bucket_id = 'deed-request-photos');
+
+-- ใช้ public.student_id_exists() แทน exists(...) ตรงๆ ด้วยเหตุผลเดียวกับ §29/§32/§33
+create policy "deed_request_photos_self_insert" on storage.objects for insert
+  with check (bucket_id = 'deed-request-photos' and public.student_id_exists(split_part(storage.objects.name, '/', 1)));
+
+create or replace function public.submit_deed_request(
+  p_student_code text, p_deed_type_id int, p_description text, p_photo_url_1 text, p_photo_url_2 text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_student_id uuid;
+begin
+  select id into v_student_id from public.students where student_code = p_student_code;
+  if v_student_id is null then
+    raise exception 'ไม่พบรหัสนักเรียนนี้';
+  end if;
+  if p_description is null or trim(p_description) = '' then
+    raise exception 'กรุณาอธิบายสิ่งที่ทำ';
+  end if;
+  if p_photo_url_1 is null or p_photo_url_2 is null then
+    raise exception 'กรุณาแนบรูปให้ครบ 2 รูป';
+  end if;
+
+  insert into public.good_deed_requests (student_id, deed_type_id, description, photo_url_1, photo_url_2)
+  values (v_student_id, p_deed_type_id, trim(p_description), p_photo_url_1, p_photo_url_2);
+end;
+$$;
+grant execute on function public.submit_deed_request(text,int,text,text,text) to anon, authenticated;
+
+create or replace function public.get_student_deed_requests(p_student_code text)
+returns table(
+  id uuid, deed_name text, deed_icon text, description text, photo_url_1 text, photo_url_2 text,
+  status text, points_awarded int, teacher_note text, created_at timestamptz, reviewed_at timestamptz
+)
+language sql
+security definer
+set search_path = public
+as $$
+  select r.id, gdt.name, gdt.icon, r.description, r.photo_url_1, r.photo_url_2,
+    r.status, r.points_awarded, r.teacher_note, r.created_at, r.reviewed_at
+  from public.good_deed_requests r
+  join public.students s on s.id = r.student_id
+  left join public.good_deed_types gdt on gdt.id = r.deed_type_id
+  where s.student_code = p_student_code
+  order by r.created_at desc;
+$$;
+grant execute on function public.get_student_deed_requests(text) to anon, authenticated;
+
+-- คิวรอตรวจสอบของครู — กรองเฉพาะห้องที่ตัวเองเป็นครูประจำชั้น (§38) ยังไม่ตั้งค่า = ไม่เห็นคิวเลย
+-- (เตือนให้ไปตั้งค่าก่อน) ยกเว้นแอดมินเห็นทุกห้อง
+create or replace function public.get_pending_deed_requests()
+returns table(
+  id uuid, student_id uuid, student_code text, student_name text, prefix text, grade_level text, room text,
+  deed_name text, deed_icon text, description text, photo_url_1 text, photo_url_2 text,
+  points_min int, points_max int, created_at timestamptz
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_grade text;
+  v_room text;
+begin
+  if auth.uid() is null then
+    raise exception 'ต้องเข้าสู่ระบบก่อน';
+  end if;
+
+  if not is_admin() then
+    select homeroom_grade_level, homeroom_room into v_grade, v_room
+    from public.profiles where id = auth.uid();
+  end if;
+
+  return query
+    select r.id, s.id, s.student_code, s.student_name, s.prefix, s.grade_level, s.room,
+      gdt.name, gdt.icon, r.description, r.photo_url_1, r.photo_url_2,
+      gdt.points_min, gdt.points_max, r.created_at
+    from public.good_deed_requests r
+    join public.students s on s.id = r.student_id
+    left join public.good_deed_types gdt on gdt.id = r.deed_type_id
+    where r.status = 'pending'
+      and (is_admin() or (v_grade is not null and v_room is not null and s.grade_level = v_grade and s.room = v_room))
+    order by r.created_at asc;
+end;
+$$;
+grant execute on function public.get_pending_deed_requests() to authenticated;
+
+-- อนุมัติ/ไม่อนุมัติ — ครูคนไหนก็กดได้ (ไม่ผูกกับครูประจำชั้น) ให้สอดคล้องกับ add_point_log
+-- เดิมที่ครูทุกคนให้คะแนนนักเรียนคนไหนก็ได้อยู่แล้ว ตอนอนุมัติ insert point_logs ตรงๆ
+create or replace function public.review_deed_request(p_request_id uuid, p_action text, p_points int default null, p_note text default null)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_req record;
+begin
+  if auth.uid() is null then
+    raise exception 'ต้องเข้าสู่ระบบก่อน';
+  end if;
+  if p_action not in ('approve','reject') then
+    raise exception 'action ไม่ถูกต้อง';
+  end if;
+
+  select * into v_req from public.good_deed_requests where id = p_request_id and status = 'pending';
+  if v_req is null then
+    raise exception 'ไม่พบคำขอนี้ หรือถูกตรวจสอบไปแล้ว';
+  end if;
+
+  if p_action = 'approve' then
+    if p_points is null or p_points <= 0 then
+      raise exception 'กรุณาระบุคะแนนที่จะให้';
+    end if;
+
+    insert into public.point_logs(student_id, teacher_id, deed_type_id, points, note)
+    values (v_req.student_id, auth.uid(), v_req.deed_type_id, p_points, coalesce(nullif(trim(p_note), ''), 'อนุมัติจากคำขอ "ขอทำดี"'));
+
+    update public.good_deed_requests
+      set status = 'approved', points_awarded = p_points, teacher_note = p_note,
+          reviewed_by = auth.uid(), reviewed_at = now()
+      where id = p_request_id;
+  else
+    update public.good_deed_requests
+      set status = 'rejected', teacher_note = p_note,
+          reviewed_by = auth.uid(), reviewed_at = now()
+      where id = p_request_id;
+  end if;
+end;
+$$;
+grant execute on function public.review_deed_request(uuid,text,int,text) to authenticated;
+
+-- =============================================
+-- 38. ครูประจำชั้น — ครูตั้งค่าเองจากหน้าโปรไฟล์/แดชบอร์ดของตัวเองว่าประจำชั้นไหน
+-- ใช้กรองคิว "ตรวจคำขอทำดี" (§37) ให้เห็นเฉพาะนักเรียนห้องตัวเอง — ตาราง profiles
+-- มี UPDATE policy ที่ id = auth.uid() อยู่แล้ว (ดู §23) เลยไม่ต้องเพิ่ม policy ใหม่
+-- =============================================
+alter table public.profiles add column if not exists homeroom_grade_level text;
+alter table public.profiles add column if not exists homeroom_room text;

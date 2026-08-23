@@ -33,7 +33,7 @@ async function staffLogin(email, password) {
 
   const { data: profile, error: profErr } = await _sb
     .from('profiles')
-    .select('id, full_name, role, is_admin, is_active, photo_url')
+    .select('id, full_name, role, is_admin, is_active, photo_url, homeroom_grade_level, homeroom_room')
     .eq('id', data.user.id)
     .single();
   if (profErr) return { profile: null, error: profErr.message };
@@ -59,7 +59,7 @@ async function getCurrentStaffProfile() {
 
   const { data: profile, error: profErr } = await _sb
     .from('profiles')
-    .select('id, full_name, role, is_admin, is_active, photo_url')
+    .select('id, full_name, role, is_admin, is_active, photo_url, homeroom_grade_level, homeroom_room')
     .eq('id', session.user.id)
     .single();
   if (profErr || !profile || !profile.is_active) return { profile: null, error: null };
@@ -706,5 +706,49 @@ async function getArchivedPeriodReport(periodLabel) {
 
 async function touchStudentLastSeen(studentId) {
   const { error } = await _sb.rpc('touch_student_last_seen', { p_student_id: studentId });
+  return { error: error?.message || null };
+}
+
+// ──────────────────────────────────────────────
+// ขอทำดี — นักเรียนแจ้งขอคะแนนเอง / ครูตรวจสอบและให้คะแนน
+// ──────────────────────────────────────────────
+
+async function uploadDeedRequestPhoto(studentId, file, { ext = 'jpg', contentType = 'image/jpeg' } = {}) {
+  const path = `${studentId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const { error: upErr } = await _sb.storage.from('deed-request-photos').upload(path, file, { contentType });
+  if (upErr) return { url: null, error: upErr.message };
+  const { data } = _sb.storage.from('deed-request-photos').getPublicUrl(path);
+  return { url: data.publicUrl, error: null };
+}
+
+async function submitDeedRequest(studentCode, deedTypeId, description, photoUrl1, photoUrl2) {
+  const { error } = await _sb.rpc('submit_deed_request', {
+    p_student_code: studentCode, p_deed_type_id: deedTypeId, p_description: description,
+    p_photo_url_1: photoUrl1, p_photo_url_2: photoUrl2,
+  });
+  return { error: error?.message || null };
+}
+
+async function getStudentDeedRequests(studentCode) {
+  const { data, error } = await _sb.rpc('get_student_deed_requests', { p_student_code: studentCode });
+  return { data, error: error?.message || null };
+}
+
+async function getPendingDeedRequests() {
+  const { data, error } = await _sb.rpc('get_pending_deed_requests');
+  return { data, error: error?.message || null };
+}
+
+async function reviewDeedRequest(requestId, action, points, note) {
+  const { error } = await _sb.rpc('review_deed_request', {
+    p_request_id: requestId, p_action: action, p_points: points ?? null, p_note: note || null,
+  });
+  return { error: error?.message || null };
+}
+
+async function setOwnHomeroom(staffId, gradeLevel, room) {
+  const { error } = await _sb.from('profiles')
+    .update({ homeroom_grade_level: gradeLevel || null, homeroom_room: room || null })
+    .eq('id', staffId);
   return { error: error?.message || null };
 }

@@ -33,6 +33,13 @@ const state = {
   // ค่าฟอร์มแจ้งขอลา — เก็บใน state (ไม่ใช่แค่อ่านจาก DOM ตอนกดส่ง) เพราะการถ่ายรูป/ขอ GPS
   // เรียก setState() ซึ่ง re-render ทั้งจอ ถ้าไม่เก็บไว้ค่าที่พิมพ์ไปแล้วจะหายหมด (บั๊กที่เจอจริง)
   leaveType: 'sick', leaveStartDate: null, leaveEndDate: null, leaveReason: '',
+
+  // ค่าฟอร์ม "ขอทำดี" — เก็บใน state ด้วยเหตุผลเดียวกับแจ้งขอลาข้างบน (ถ่ายรูป 2 ครั้ง = re-render 2 ครั้ง)
+  deedRequestTypeId: null, deedRequestDescription: '',
+  deedPhotoBlob1: null, deedPhotoPreviewUrl1: null,
+  deedPhotoBlob2: null, deedPhotoPreviewUrl2: null,
+  studentDeedRequests: null,
+  pendingDeedRequests: null, pendingDeedRequestsError: null,
   pushSubscribed: false,   // อุปกรณ์นี้เปิดการแจ้งเตือน (เตือนสตรีคใกล้ขาด) อยู่หรือไม่
 
   staffUser: null,        // { id, full_name, role, is_admin, photo_url }
@@ -94,6 +101,7 @@ const state = {
 // ── Screen titles ──
 const TITLES = {
   'student-dashboard': 'หน้าหลัก',
+  'student-deedrequest': 'ขอทำดี',
   'student-history':   'ประวัติความดี',
   'student-badges':    'เลเวลของฉัน',
   'student-grades':    'ผลการเรียน',
@@ -108,6 +116,7 @@ const TITLES = {
   'teacher-createcode': 'สร้างโค้ดรับคะแนน',
   'teacher-codedisplay': 'โค้ดรับคะแนน',
   'teacher-calldeeds':  'เรียกหานักเรียน',
+  'teacher-deedrequests': 'ตรวจคำขอทำดี',
   'admin-dashboard':   'Admin Dashboard',
   'admin-students':    'จัดการนักเรียน',
   'admin-deedtypes':   'ประเภทความดี',
@@ -123,17 +132,19 @@ const TITLES = {
 const NAV = {
   student: [
     { id: 'student-dashboard',   icon: '🏠', label: 'หน้าหลัก' },
-    { id: 'student-history',     icon: '📋', label: 'ประวัติ' },
+    { id: 'student-deedrequest', icon: '🙋', label: 'ขอทำดี' },
     { id: 'student-badges',      icon: '🌳', label: 'เลเวล' },
     { id: 'student-leaderboard', icon: '🥇', label: 'อันดับ' },
     { id: 'student-rewards',     icon: '🎁', label: 'รางวัล' },
     { id: 'student-grades',      icon: '📊', label: 'ผลการเรียน' },
     { id: 'student-leave',       icon: '🤒', label: 'แจ้งขอลา' },
+    { id: 'student-history',     icon: '📋', label: 'ประวัติ' },
   ],
   teacher: [
     { id: 'teacher-dashboard',  icon: '🏠', label: 'หน้าหลัก' },
     { id: 'teacher-scan',       icon: '📷', label: 'สแกน QR' },
     { id: 'teacher-addpoints',  icon: '✏️', label: 'เพิ่มคะแนน' },
+    { id: 'teacher-deedrequests', icon: '🙋', label: 'ตรวจคำขอ' },
     { id: 'teacher-calldeeds',  icon: '📣', label: 'เรียกหา' },
     { id: 'teacher-history',    icon: '📋', label: 'ประวัติ' },
     { id: 'admin-students',    icon: '👩‍🎓', label: 'นักเรียน' },
@@ -148,6 +159,7 @@ const NAV = {
     { id: 'admin-dashboard',  icon: '📊', label: 'Dashboard' },
     { id: 'teacher-scan',     icon: '📷', label: 'สแกน QR' },
     { id: 'teacher-addpoints', icon: '✏️', label: 'เพิ่มคะแนน' },
+    { id: 'teacher-deedrequests', icon: '🙋', label: 'ตรวจคำขอ' },
     { id: 'teacher-calldeeds', icon: '📣', label: 'เรียกหานักเรียน' },
     { id: 'teacher-history',  icon: '📋', label: 'ประวัติให้คะแนน' },
     { id: 'admin-students',   icon: '👩‍🎓', label: 'นักเรียน' },
@@ -899,11 +911,11 @@ function staffLoginFormHTML() {
 }
 
 // ── Bottom nav ──
-// Teacher/Admin have 8 nav destinations total — too many for a mobile bottom bar,
-// so only the 4 most-used stay here; the full list (including นักเรียน/ความดี/
-// รางวัล/รายงาน) is always reachable from the ☰ drawer (see openDrawer()).
-// Student now has 6 (ผลการเรียน added) — same pattern: bottom bar keeps the
-// original 5, ผลการเรียน lives in the drawer only.
+// Teacher/Admin have many more nav destinations than fit a mobile bottom bar,
+// so only the 5 most-used (incl. ตรวจคำขอ) stay here; the full list (นักเรียน/
+// ความดี/รางวัล/รายงาน/ฯลฯ) is always reachable from the ☰ drawer (see openDrawer()).
+// Student also caps at 5 in the bottom bar — ประวัติ/ผลการเรียน/แจ้งขอลา live in
+// the drawer only, ขอทำดี took ประวัติ's old bottom-bar slot.
 function visibleNavItems(role) {
   let items = navItemsForRole(role);
   if (role === 'student' && !state.settings.leaderboardEnabled) {
@@ -921,7 +933,7 @@ function visibleNavItems(role) {
 function bottomNavItems() {
   const role = effectiveRole();
   const items = visibleNavItems(role);
-  if (role === 'teacher' || role === 'admin') return items.slice(0, 4);
+  if (role === 'teacher' || role === 'admin') return items.slice(0, 5);
   if (role === 'student') return items.slice(0, 5);
   return items;
 }
@@ -971,6 +983,7 @@ function closeDrawer() {
 function renderScreen(screen) {
   const S = {
     'student-dashboard':   renderStudentDashboard,
+    'student-deedrequest': renderStudentDeedRequest,
     'student-history':     renderStudentHistory,
     'student-badges':      renderStudentBadges,
     'student-grades':      renderStudentGrades,
@@ -985,6 +998,7 @@ function renderScreen(screen) {
     'teacher-createcode':  renderTeacherCreateCode,
     'teacher-codedisplay': renderTeacherCodeDisplay,
     'teacher-calldeeds':   renderTeacherCallForDeeds,
+    'teacher-deedrequests': renderTeacherDeedRequests,
     'admin-dashboard':     renderAdminDashboard,
     'admin-students':      renderAdminStudents,
     'admin-deedtypes':     renderAdminDeedTypes,
@@ -1613,6 +1627,86 @@ function renderStudentLeave() {
   </div>`;
 }
 
+function renderStudentDeedRequest() {
+  const list = state.studentDeedRequests;
+  const types = state.deedTypes;
+  const selectedId = state.deedRequestTypeId;
+
+  const statusPillHTML = (r) => {
+    if (r.status === 'pending') return `<div style="flex-shrink:0;background:#fef3c7;color:#b45309;font-size:11.5px;font-weight:700;padding:5px 10px;border-radius:20px;white-space:nowrap;">⏳ รอตรวจสอบ</div>`;
+    if (r.status === 'approved') return `
+      <div style="flex-shrink:0;text-align:right;">
+        <div style="background:#d1fae5;color:var(--g);font-size:11.5px;font-weight:700;padding:5px 10px;border-radius:20px;white-space:nowrap;">✅ อนุมัติแล้ว</div>
+        <div style="font-weight:700;color:var(--g);font-size:14px;margin-top:4px;">+${r.points_awarded} คะแนน</div>
+      </div>`;
+    return `<div style="flex-shrink:0;background:#fee2e2;color:#ef4444;font-size:11.5px;font-weight:700;padding:5px 10px;border-radius:20px;white-space:nowrap;">❌ ไม่อนุมัติ</div>`;
+  };
+
+  return `
+  <div class="screen-wrap anim-slideup">
+    <div class="hero-banner">
+      <div>
+        <div style="font-size:18px;font-weight:700;position:relative;">🙋 แจ้งความดีที่ทำ</div>
+        <div style="font-size:12.5px;opacity:0.85;margin-top:5px;line-height:1.6;position:relative;">ทำความดีแล้วยังไม่มีครูให้คะแนน? ส่งคำขอพร้อมรูปถ่ายมาให้ครูประจำชั้นตรวจสอบได้เลย</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="font-weight:700;color:var(--gd);margin-bottom:12px;font-size:14px;">1. เลือกประเภทความดี</div>
+      <div class="deed-grid">
+        ${types.map(d => `
+          <button class="deed-chip ${selectedId === d.id ? 'selected' : ''}" data-action="select-deed-request-type" data-deed-id="${d.id}">
+            ${d.icon} ${d.name}
+          </button>
+        `).join('')}
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="font-weight:700;color:var(--gd);margin-bottom:12px;font-size:14px;">2. อธิบายสิ่งที่ทำ</div>
+      <textarea class="form-input" rows="3" placeholder="เช่น ช่วยครูจัดโต๊ะเก้าอี้หลังเลิกแถวเช้านี้..."
+        oninput="state.deedRequestDescription=this.value">${state.deedRequestDescription}</textarea>
+    </div>
+
+    <div class="card">
+      <div style="font-weight:700;color:var(--gd);margin-bottom:4px;font-size:14px;">3. แนบรูปภาพประกอบ</div>
+      <div style="font-size:11.5px;color:#9ca3af;margin-bottom:12px;">แนบ 2 รูป เพื่อยืนยันว่าทำจริง</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        ${[1, 2].map(slot => {
+          const url = state[`deedPhotoPreviewUrl${slot}`];
+          return url
+            ? `<div data-action="open-deed-camera" data-slot="${slot}" style="aspect-ratio:1/1;border-radius:12px;overflow:hidden;position:relative;cursor:pointer;">
+                <img src="${url}" alt="" style="width:100%;height:100%;object-fit:cover;display:block;">
+                <div style="position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,0.5);color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center;">✓</div>
+              </div>`
+            : `<div data-action="open-deed-camera" data-slot="${slot}" style="aspect-ratio:1/1;border:1.5px dashed oklch(0.88 0.07 145);border-radius:12px;background:var(--gl);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;">
+                <span style="font-size:26px;">📷</span>
+                <span style="font-size:11px;color:#9ca3af;">รูปที่ ${slot}</span>
+              </div>`;
+        }).join('')}
+      </div>
+    </div>
+
+    <button class="btn-green" data-action="submit-deed-request" style="padding:14px;">📩 ส่งคำขอ</button>
+
+    <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.055);">
+      <div style="padding:16px 16px 4px;font-weight:700;color:var(--gd);font-size:14px;">ประวัติคำขอของฉัน</div>
+      ${list === null ? `<div style="padding:20px;text-align:center;color:#9ca3af;font-size:13px;">กำลังโหลด...</div>`
+        : !list.length ? `<div style="padding:20px;text-align:center;color:#9ca3af;font-size:13px;">ยังไม่เคยส่งคำขอ</div>`
+        : list.map(r => `
+          <div style="display:flex;align-items:flex-start;gap:12px;padding:14px 16px;border-bottom:1px solid oklch(0.96 0.02 145);">
+            <span style="font-size:22px;width:32px;text-align:center;flex-shrink:0;">${r.deed_icon || '💚'}</span>
+            <div style="flex:1;min-width:0;">
+              <div style="font-weight:600;font-size:14px;color:#1f2937;">${r.deed_name || 'ความดี'}</div>
+              <div style="font-size:12px;color:#9ca3af;margin-top:1px;">ส่งเมื่อ ${formatDate(r.created_at)}</div>
+              ${r.status === 'rejected' && r.teacher_note ? `<div style="font-size:11.5px;color:#ef4444;margin-top:4px;background:#fee2e2;padding:6px 10px;border-radius:8px;line-height:1.5;">หมายเหตุจากครู: ${r.teacher_note}</div>` : ''}
+            </div>
+            ${statusPillHTML(r)}
+          </div>`).join('')}
+    </div>
+  </div>`;
+}
+
 // ── กล้องถ่ายรูปยืนยัน (แจ้งขอลา) — เปิดกล้องสดผ่าน getUserMedia แล้วถ่ายเป็น Blob ทันที
 // แทนปุ่ม <input type=file> ที่ยังเลือกไฟล์เก่าจากคลังภาพได้ ให้แน่ใจว่าเป็นรูปที่ถ่าย ณ
 // ตอนแจ้งขอลาจริงๆ (ดูเหตุผลเรื่อง EXIF ที่ schema.sql §32)
@@ -1698,6 +1792,78 @@ function requestLeaveGps() {
     (err) => { setState({ leaveGpsStatus: err.code === 1 ? 'denied' : 'error' }); },
     { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
   );
+}
+
+// ── กล้องถ่ายรูปประกอบ "ขอทำดี" — เหมือน leave camera ทุกอย่าง ต่างแค่มี 2 ช่อง (slot 1/2)
+// เก็บ slot ที่กำลังถ่ายไว้ใน _deedCameraSlot แทนที่จะแยกฟังก์ชันซ้ำสองชุด
+let _deedCameraStream = null;
+let _deedCameraFacing = 'environment';
+let _deedCameraSlot = 1;
+
+function stopDeedCameraStream() {
+  if (_deedCameraStream) {
+    _deedCameraStream.getTracks().forEach(t => t.stop());
+    _deedCameraStream = null;
+  }
+}
+
+async function openDeedCameraModal(slot, facing) {
+  _deedCameraSlot = slot;
+  _deedCameraFacing = facing || 'environment';
+  showModal(`
+    <div class="modal-title">📷 ถ่ายรูปที่ ${slot}</div>
+    <div style="text-align:center;padding:40px 0;color:#9ca3af;">กำลังเปิดกล้อง...</div>
+  `);
+  try {
+    _deedCameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: _deedCameraFacing }, audio: false });
+  } catch (e) {
+    updateModalBody(`
+      <div class="modal-title">📷 ถ่ายรูปที่ ${slot}</div>
+      <div style="text-align:center;padding:16px 0 20px;color:#dc2626;font-size:14px;line-height:1.6;">
+        ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตให้เว็บไซต์นี้ใช้กล้องในเบราว์เซอร์<br>
+        <span style="color:#9ca3af;font-size:12px;">${e.message || e.name || ''}</span>
+      </div>
+      <button data-action="close-modal" style="width:100%;padding:10px;background:transparent;border:none;font-family:Kanit;color:#9ca3af;cursor:pointer;">ปิด</button>
+    `);
+    return;
+  }
+  const mirrored = _deedCameraFacing === 'user';
+  updateModalBody(`
+    <div class="modal-title">📷 ถ่ายรูปที่ ${slot}</div>
+    <video id="deed-camera-video" autoplay playsinline muted style="width:100%;border-radius:12px;background:#000;max-height:340px;object-fit:cover;display:block;${mirrored ? 'transform:scaleX(-1);' : ''}"></video>
+    <div style="display:flex;gap:8px;margin-top:12px;">
+      <button class="btn-green" data-action="capture-deed-photo" style="flex:1;padding:14px;">📸 ถ่ายภาพ</button>
+      <button data-action="switch-deed-camera" title="สลับกล้อง" style="width:52px;flex-shrink:0;background:#f3f4f6;border:none;border-radius:12px;font-size:19px;cursor:pointer;">🔄</button>
+    </div>
+    <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:Kanit;color:#9ca3af;cursor:pointer;">ยกเลิก</button>
+  `);
+  const video = document.getElementById('deed-camera-video');
+  if (video) video.srcObject = _deedCameraStream;
+}
+
+function switchDeedCamera() {
+  stopDeedCameraStream();
+  openDeedCameraModal(_deedCameraSlot, _deedCameraFacing === 'environment' ? 'user' : 'environment');
+}
+
+function captureDeedPhoto() {
+  const video = document.getElementById('deed-camera-video');
+  if (!video || !video.videoWidth) return;
+  const canvas = document.createElement('canvas');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const ctx = canvas.getContext('2d');
+  if (_deedCameraFacing === 'user') { ctx.translate(canvas.width, 0); ctx.scale(-1, 1); }
+  ctx.drawImage(video, 0, 0);
+  canvas.toBlob(blob => {
+    if (!blob) return;
+    stopDeedCameraStream();
+    const slot = _deedCameraSlot;
+    const prevUrlKey = `deedPhotoPreviewUrl${slot}`;
+    if (state[prevUrlKey]) URL.revokeObjectURL(state[prevUrlKey]);
+    setState({ [`deedPhotoBlob${slot}`]: blob, [prevUrlKey]: URL.createObjectURL(blob) });
+    closeModal();
+  }, 'image/jpeg', 0.85);
 }
 
 function renderStudentLeaderboard() {
@@ -1971,6 +2137,22 @@ function renderTeacherDashboard() {
       style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:16px;background:linear-gradient(90deg,#d97706,#f59e0b);color:#fff;border:none;border-radius:14px;font-family:Kanit;font-weight:700;font-size:16px;cursor:pointer;box-shadow:0 4px 20px rgba(245,158,11,0.35);">
       <span style="font-size:22px;">🎯</span> สร้างโค้ดรับคะแนน
     </button>
+
+    <div class="card">
+      <div style="font-weight:700;color:var(--gd);margin-bottom:4px;font-size:14px;">🏫 ครูประจำชั้น</div>
+      <div style="font-size:11.5px;color:#9ca3af;margin-bottom:14px;">ตั้งค่าเพื่อดูคำขอ "ขอทำดี" ของนักเรียนห้องที่ปรึกษาในเมนู "ตรวจคำขอ"</div>
+      <div style="display:flex;gap:10px;">
+        <select class="form-input" id="homeroom-grade-select" style="flex:1;">
+          <option value="">ไม่ระบุ</option>
+          ${distinctGrades().map(g => `<option value="${g}" ${u?.homeroom_grade_level === g ? 'selected' : ''}>ม.${g}</option>`).join('')}
+        </select>
+        <select class="form-input" id="homeroom-room-select" style="flex:1;">
+          <option value="">ไม่ระบุ</option>
+          ${[...new Set(state.studentClasses.map(c => c.room))].sort((a, b) => a.localeCompare(b, 'th', { numeric: true })).map(r => `<option value="${r}" ${u?.homeroom_room === r ? 'selected' : ''}>ห้อง ${r}</option>`).join('')}
+        </select>
+      </div>
+      <button class="btn-green" data-action="save-homeroom" style="padding:12px;margin-top:12px;">✅ บันทึก</button>
+    </div>
 
     <div class="stat-grid-2">
       ${statBox('📋', todayCount, 'ให้คะแนนวันนี้', 'var(--g)')}
@@ -2302,6 +2484,56 @@ function renderTeacherCallForDeeds() {
 
       <div style="font-size:11.5px;color:#9ca3af;margin-top:10px;text-align:center;">* ใช้งานได้เมื่อนักเรียนเปิดแอปอยู่เท่านั้น (ยังไม่ใช่ Push Notification)</div>
     </div>
+  </div>`;
+}
+
+function renderTeacherDeedRequests() {
+  const u = state.staffUser;
+  const hasHomeroom = state.role === 'admin' || !!(u?.homeroom_grade_level && u?.homeroom_room);
+  const list = state.pendingDeedRequests;
+
+  if (!hasHomeroom) {
+    return `
+    <div class="screen-wrap anim-slideup">
+      <div class="card" style="text-align:center;padding:40px 20px;color:#9ca3af;">
+        <div style="font-size:40px;margin-bottom:10px;">🏫</div>
+        <div style="font-size:14px;line-height:1.7;">ยังไม่ได้ตั้งค่าว่าคุณเป็นครูประจำชั้นห้องไหน<br>ตั้งค่าก่อนเพื่อดูคำขอทำดีของนักเรียนห้องคุณ</div>
+        <button data-action="nav" data-screen="teacher-dashboard" style="margin-top:16px;padding:11px 20px;background:var(--gl);color:var(--gd);border:none;border-radius:10px;font-family:Kanit;font-weight:700;cursor:pointer;">ไปตั้งค่าที่หน้าหลัก</button>
+      </div>
+    </div>`;
+  }
+
+  if (list === null) return loadingBlock();
+
+  return `
+  <div class="screen-wrap anim-slideup">
+    <div class="hero-banner">
+      <div style="font-size:15px;opacity:0.85;">📋 คำขอรอตรวจสอบ</div>
+      <div style="font-size:32px;font-weight:800;margin-top:4px;">${list.length} รายการ</div>
+      <div style="font-size:12px;opacity:0.75;margin-top:4px;">ห้อง ${state.role === 'admin' ? 'ทุกห้อง' : `ม.${u.homeroom_grade_level}/${u.homeroom_room}`}</div>
+    </div>
+
+    ${!list.length ? `
+    <div class="card" style="text-align:center;padding:40px 20px;color:#9ca3af;">
+      <div style="font-size:40px;margin-bottom:10px;">🎉</div>
+      <div style="font-size:14px;">ไม่มีคำขอค้างตรวจสอบตอนนี้</div>
+    </div>` : `
+    <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.055);">
+      ${list.map(r => `
+        <div class="list-item" data-action="open-deed-review" data-id="${r.id}" style="cursor:pointer;align-items:flex-start;">
+          <div style="width:44px;height:44px;border-radius:50%;background:var(--gl);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">${studentGenderIcon({ student_name: r.student_name })}</div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-weight:600;font-size:14px;color:#1f2937;">${r.prefix || ''}${r.student_name} · ${classOf(r)}</div>
+            <div style="font-size:12px;color:#9ca3af;margin-top:2px;">${r.deed_icon || '💚'} ${r.deed_name || 'ความดี'} · ${relativeTimeLabel(r.created_at)}</div>
+            <div style="display:flex;gap:5px;margin-top:6px;">
+              <img src="${r.photo_url_1}" alt="" style="width:34px;height:34px;border-radius:6px;object-fit:cover;">
+              <img src="${r.photo_url_2}" alt="" style="width:34px;height:34px;border-radius:6px;object-fit:cover;">
+            </div>
+          </div>
+          <span style="font-size:18px;color:#c1c9d2;flex-shrink:0;">›</span>
+        </div>
+      `).join('')}
+    </div>`}
   </div>`;
 }
 
@@ -2762,6 +2994,18 @@ function timeAgoLabel(ts) {
   if (day < 30) return `ใช้งานล่าสุด ${day} วันที่แล้ว`;
   const month = Math.floor(day / 30);
   return `ใช้งานล่าสุด ${month} เดือนที่แล้ว`;
+}
+
+function relativeTimeLabel(ts) {
+  if (!ts) return '';
+  const diffMs = Date.now() - new Date(ts).getTime();
+  const min = Math.floor(diffMs / 60000);
+  if (min < 1) return 'เมื่อสักครู่';
+  if (min < 60) return `${min} นาทีที่แล้ว`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr} ชั่วโมงที่แล้ว`;
+  const day = Math.floor(hr / 24);
+  return `${day} วันที่แล้ว`;
 }
 
 function defaultAcademicYearLabel() {
@@ -3687,6 +3931,9 @@ async function doLogout() {
     studentGrades: null, gradesSemesterKey: null, studentLeaveRequests: null,
     leavePhotoBlob: null, leavePhotoPreviewUrl: null, leaveGps: null, leaveGpsStatus: 'idle',
     leaveType: 'sick', leaveStartDate: null, leaveEndDate: null, leaveReason: '',
+    deedRequestTypeId: null, deedRequestDescription: '',
+    deedPhotoBlob1: null, deedPhotoPreviewUrl1: null, deedPhotoBlob2: null, deedPhotoPreviewUrl2: null,
+    studentDeedRequests: null, pendingDeedRequests: null, pendingDeedRequestsError: null,
     staffUser: null, deedTypes: [], rewards: [], rewardRequests: [], rewardSuggestions: [], students: [], studentGradeFilter: '', studentRoomFilter: '', studentClasses: [], pointLogs: [], badgeTiers: [],
     reportSummary: null, reportError: null, reportLeaderboard: null, reportGradeFilter: '', scanStep: 0, scanStudent: null, selectedDeedId: null, points: 10,
     pointPeriods: null, archivedPeriodLabel: null, archivedPeriodReport: null, resetPeriodLabelInput: null,
@@ -3722,6 +3969,19 @@ async function loadDataForScreen(screen) {
     const { data } = await getStudentLeaveRequests(state.student.student_code);
     state.studentLeaveRequests = data || [];
   }
+  if (screen === 'student-deedrequest' && state.student) {
+    const { data } = await getStudentDeedRequests(state.student.student_code);
+    state.studentDeedRequests = data || [];
+    if (!state.deedTypes.length) {
+      const { data: types } = await getDeedTypes();
+      state.deedTypes = types || [];
+    }
+  }
+  if (screen === 'teacher-deedrequests' && state.staffUser) {
+    const { data, error } = await getPendingDeedRequests();
+    state.pendingDeedRequests = error ? [] : (data || []);
+    state.pendingDeedRequestsError = error || null;
+  }
   if (screen === 'teacher-history') {
     const { data } = await getPointLogs({ limit: 20 });
     state.pointLogs = data || [];
@@ -3730,6 +3990,10 @@ async function loadDataForScreen(screen) {
     // ไม่ใส่ since — ดึงมาทั้งหมดของครูคนนี้ เพื่อคำนวณทั้งสถิติวันนี้/เดือนนี้/รวมทั้งหมดจากชุดข้อมูลเดียว
     const { data } = await getPointLogs({ limit: null, teacherId: state.staffUser.id });
     state.teacherRecentLogs = data || [];
+    if (!state.studentClasses.length) {
+      const { data: classes } = await getStudentClasses();
+      state.studentClasses = classes || [];
+    }
   }
   if (screen === 'teacher-scan' || screen === 'teacher-addpoints' || screen === 'teacher-createcode' || screen === 'teacher-calldeeds') {
     const { data } = await getDeedTypes();
@@ -4619,6 +4883,127 @@ document.addEventListener('click', async (e) => {
       break;
     }
 
+    case 'select-deed-request-type':
+      setState({ deedRequestTypeId: parseInt(btn.dataset.deedId) });
+      break;
+
+    case 'open-deed-camera':
+      openDeedCameraModal(parseInt(btn.dataset.slot), 'environment');
+      break;
+
+    case 'capture-deed-photo':
+      captureDeedPhoto();
+      break;
+
+    case 'switch-deed-camera':
+      switchDeedCamera();
+      break;
+
+    case 'submit-deed-request': {
+      const deedTypeId = state.deedRequestTypeId;
+      const description = (state.deedRequestDescription || '').trim();
+      if (!deedTypeId) { showToast('กรุณาเลือกประเภทความดี'); return; }
+      if (!description) { showToast('กรุณาอธิบายสิ่งที่ทำ'); return; }
+      if (!state.deedPhotoBlob1 || !state.deedPhotoBlob2) { showToast('กรุณาแนบรูปให้ครบ 2 รูป'); return; }
+      btn.disabled = true;
+      btn.textContent = 'กำลังส่ง...';
+      const [{ url: url1, error: err1 }, { url: url2, error: err2 }] = await Promise.all([
+        uploadDeedRequestPhoto(state.student.student_id, state.deedPhotoBlob1),
+        uploadDeedRequestPhoto(state.student.student_id, state.deedPhotoBlob2),
+      ]);
+      if (err1 || err2) {
+        btn.disabled = false;
+        btn.textContent = '📩 ส่งคำขอ';
+        showToast(`อัปโหลดรูปไม่สำเร็จ: ${err1 || err2}`);
+        break;
+      }
+      const { error } = await submitDeedRequest(state.student.student_code, deedTypeId, description, url1, url2);
+      btn.disabled = false;
+      btn.textContent = '📩 ส่งคำขอ';
+      if (error) { showToast(`เกิดข้อผิดพลาด: ${error}`); break; }
+      const { data } = await getStudentDeedRequests(state.student.student_code);
+      if (state.deedPhotoPreviewUrl1) URL.revokeObjectURL(state.deedPhotoPreviewUrl1);
+      if (state.deedPhotoPreviewUrl2) URL.revokeObjectURL(state.deedPhotoPreviewUrl2);
+      setState({
+        studentDeedRequests: data || [],
+        deedRequestTypeId: null, deedRequestDescription: '',
+        deedPhotoBlob1: null, deedPhotoPreviewUrl1: null, deedPhotoBlob2: null, deedPhotoPreviewUrl2: null,
+      });
+      showToast('ส่งคำขอแล้ว รอครูตรวจสอบ ✅');
+      break;
+    }
+
+    case 'save-homeroom': {
+      const gradeLevel = document.getElementById('homeroom-grade-select')?.value || null;
+      const room = document.getElementById('homeroom-room-select')?.value || null;
+      const { error } = await setOwnHomeroom(state.staffUser.id, gradeLevel, room);
+      if (error) { showToast(`เกิดข้อผิดพลาด: ${error}`); break; }
+      setState({ staffUser: { ...state.staffUser, homeroom_grade_level: gradeLevel, homeroom_room: room } });
+      showToast(gradeLevel && room ? `ตั้งค่าครูประจำชั้น ม.${gradeLevel}/${room} แล้ว ✅` : 'ล้างค่าครูประจำชั้นแล้ว');
+      break;
+    }
+
+    case 'open-deed-review': {
+      const r = state.pendingDeedRequests.find(x => x.id === btn.dataset.id);
+      if (!r) break;
+      const defaultPoints = r.points_min || 10;
+      showModal(`
+        <div class="modal-title">${r.prefix || ''}${r.student_name}</div>
+        <div style="text-align:center;padding:0 0 16px;color:#9ca3af;font-size:12.5px;">${classOf(r)} · รหัส ${r.student_code} · ${relativeTimeLabel(r.created_at)}</div>
+
+        <div style="font-weight:700;color:var(--gd);margin-bottom:8px;font-size:14px;">ประเภทความดี</div>
+        <div style="display:inline-block;padding:8px 14px;background:var(--gl);border:2px solid var(--g);border-radius:10px;font-size:13px;color:var(--gd);font-weight:700;margin-bottom:16px;">${r.deed_icon || '💚'} ${r.deed_name || 'ความดี'}</div>
+
+        <div style="font-weight:700;color:var(--gd);margin-bottom:8px;font-size:14px;">คำอธิบายจากนักเรียน</div>
+        <div style="font-size:13.5px;color:#374151;line-height:1.7;background:#f9fafb;border-radius:10px;padding:12px 14px;margin-bottom:16px;">${r.description}</div>
+
+        <div style="font-weight:700;color:var(--gd);margin-bottom:8px;font-size:14px;">รูปภาพประกอบ</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+          <img src="${r.photo_url_1}" alt="" style="width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:12px;">
+          <img src="${r.photo_url_2}" alt="" style="width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:12px;">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">ให้คะแนน (ช่วงปกติ ${r.points_min ?? '-'}–${r.points_max ?? '-'} คะแนน)</label>
+          <input class="form-input" type="number" min="1" id="deed-review-points" value="${defaultPoints}" style="text-align:center;font-size:18px;font-weight:700;">
+        </div>
+        <div class="form-group">
+          <label class="form-label">หมายเหตุ (ไม่บังคับ — จำเป็นถ้าไม่อนุมัติ)</label>
+          <textarea class="form-input" rows="2" id="deed-review-note" placeholder="เช่น รูปภาพไม่ชัดเจน กรุณาส่งใหม่"></textarea>
+        </div>
+
+        <button class="btn-green" data-action="confirm-approve-deed-request" data-id="${r.id}" style="padding:13px;">✅ อนุมัติให้คะแนน</button>
+        <button data-action="confirm-reject-deed-request" data-id="${r.id}" style="width:100%;padding:11px;margin-top:8px;background:#fee2e2;color:#dc2626;border:none;border-radius:10px;font-family:Kanit;font-weight:700;cursor:pointer;">❌ ไม่อนุมัติ</button>
+        <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:Kanit;color:#9ca3af;cursor:pointer;">ปิด</button>
+      `);
+      break;
+    }
+
+    case 'confirm-approve-deed-request': {
+      const points = parseInt(document.getElementById('deed-review-points')?.value);
+      if (!points || points <= 0) { showToast('กรุณาระบุคะแนนที่จะให้'); break; }
+      const note = document.getElementById('deed-review-note')?.value.trim() || null;
+      closeModal();
+      const { error } = await reviewDeedRequest(btn.dataset.id, 'approve', points, note);
+      if (error) { showToast(`เกิดข้อผิดพลาด: ${error}`); break; }
+      showToast(`ให้คะแนนแล้ว +${points} คะแนน ✅`);
+      await loadDataForScreen('teacher-deedrequests');
+      render();
+      break;
+    }
+
+    case 'confirm-reject-deed-request': {
+      const note = document.getElementById('deed-review-note')?.value.trim();
+      if (!note) { showToast('กรุณาระบุเหตุผลที่ไม่อนุมัติ'); break; }
+      closeModal();
+      const { error } = await reviewDeedRequest(btn.dataset.id, 'reject', null, note);
+      if (error) { showToast(`เกิดข้อผิดพลาด: ${error}`); break; }
+      showToast('ไม่อนุมัติคำขอแล้ว');
+      await loadDataForScreen('teacher-deedrequests');
+      render();
+      break;
+    }
+
     case 'mark-suggestion-read': {
       const { error } = await markSuggestionRead(btn.dataset.id);
       if (error) { showToast(`เกิดข้อผิดพลาด: ${error}`); break; }
@@ -4945,7 +5330,7 @@ document.addEventListener('click', async (e) => {
 
     case 'close-modal':
       // Same guard as close-drawer: only the backdrop itself closes the modal.
-      if (btn === e.target) { stopLeaveCameraStream(); closeModal(); }
+      if (btn === e.target) { stopLeaveCameraStream(); stopDeedCameraStream(); closeModal(); }
       break;
 
     case 'close-levelup':

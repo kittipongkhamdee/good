@@ -824,8 +824,10 @@ function render() {
 
   const title = TITLES[state.screen] || state.screen;
   const dRole = effectiveRole();
-  const roleLabel = { student: 'นักเรียน', teacher: state.previewAsTeacher ? 'ครู (พรีวิว) ✕' : 'ครู', admin: 'Admin' }[dRole];
-  const avatar = { student: studentGenderIcon(state.student), teacher: '👨‍🏫', admin: '🛡️' }[dRole];
+  // แอดมินโชว์ป้าย/รูปเหมือนครูทุกคนเป๊ะๆ (ไม่มี badge "Admin" หรือไอคอนโล่แยกอีกต่อไป)
+  // เพราะเมนูที่เป็นของแอดมินจริงๆ ถูกแยกไปอยู่ในลิ้นชักแล้ว ไม่จำเป็นต้องเห็นความต่างตรงนี้
+  const roleLabel = { student: 'นักเรียน', teacher: state.previewAsTeacher ? 'ครู (พรีวิว) ✕' : 'ครู', admin: 'ครู' }[dRole];
+  const avatarHTML = dRole === 'student' ? studentGenderIcon(state.student) : staffAvatar(state.staffUser, { size: 32, fontSize: 15, bg: 'var(--gl)', border: 'none' });
 
   document.getElementById('title-a').textContent = title;
   document.getElementById('header-logo-a').innerHTML = schoolLogoHTML(22);
@@ -838,7 +840,7 @@ function render() {
     badgeEl.removeAttribute('data-action');
     badgeEl.style.cursor = '';
   }
-  document.getElementById('avatar-a').textContent = avatar;
+  document.getElementById('avatar-a').innerHTML = avatarHTML;
 
   renderBottomNav();
   if (state.drawerOpen) renderDrawer();

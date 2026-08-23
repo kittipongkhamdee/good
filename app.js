@@ -109,6 +109,7 @@ const TITLES = {
   'student-leaderboard': 'อันดับนักเรียน',
   'student-rewards':   'แลกรางวัล',
   'student-profile':   'โปรไฟล์',
+  'teacher-profile':   'โปรไฟล์',
   'teacher-dashboard': 'หน้าหลักครู',
   'teacher-scan':      'สแกน QR Code',
   'teacher-addpoints': 'เพิ่มคะแนน',
@@ -1017,6 +1018,7 @@ function renderScreen(screen) {
     'student-leaderboard': renderStudentLeaderboard,
     'student-rewards':     renderStudentRewards,
     'student-profile':     renderStudentProfile,
+    'teacher-profile':     renderTeacherProfile,
     'teacher-dashboard':   renderTeacherDashboard,
     'teacher-scan':        renderTeacherScan,
     'teacher-addpoints':   renderTeacherAddPoints,
@@ -2115,6 +2117,53 @@ function renderStudentProfile() {
 // TEACHER SCREENS
 // ══════════════════════════════════════════════
 
+function renderTeacherProfile() {
+  const u = state.staffUser;
+  return `
+  <div class="screen-wrap anim-slideup">
+    <div class="hero-banner">
+      <div style="text-align:center;">
+        <div data-action="open-staff-photo" style="position:relative;display:inline-block;cursor:pointer;">
+          ${staffAvatar(u, { size: 80, fontSize: 36 })}
+          <span style="position:absolute;bottom:-2px;right:-2px;width:26px;height:26px;border-radius:50%;background:#fff;color:var(--gd);display:flex;align-items:center;justify-content:center;font-size:13px;box-shadow:0 2px 6px rgba(0,0,0,0.25);">📷</span>
+        </div>
+        <div style="font-size:20px;font-weight:700;margin-top:12px;">${u?.full_name || ''}</div>
+        <div style="font-size:13px;opacity:0.8;margin-top:4px;">ครู${u?.homeroom_grade_level && u?.homeroom_room ? ` · ครูประจำชั้น ม.${u.homeroom_grade_level}/${u.homeroom_room}` : ''}</div>
+      </div>
+    </div>
+
+    <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.055);">
+      <div class="list-item">
+        <span style="font-size:20px;">👤</span>
+        <div style="flex:1;">
+          <div style="font-size:11px;color:#9ca3af;">ชื่อ-สกุล</div>
+          <div style="font-size:14px;font-weight:600;color:#1f2937;margin-top:2px;">${u?.full_name || ''}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="font-weight:700;color:var(--gd);margin-bottom:4px;font-size:14px;">🏫 ครูประจำชั้น</div>
+      <div style="font-size:11.5px;color:#9ca3af;margin-bottom:14px;">ตั้งค่าเพื่อดูคำขอ "ขอทำดี" ของนักเรียนห้องที่ปรึกษาในเมนู "ตรวจคำขอ"</div>
+      <div style="display:flex;gap:10px;">
+        <select class="form-input" id="homeroom-grade-select" style="flex:1;">
+          <option value="">ไม่ระบุ</option>
+          ${distinctGrades().map(g => `<option value="${g}" ${u?.homeroom_grade_level === g ? 'selected' : ''}>ม.${g}</option>`).join('')}
+        </select>
+        <select class="form-input" id="homeroom-room-select" style="flex:1;">
+          <option value="">ไม่ระบุ</option>
+          ${[...new Set(state.studentClasses.map(c => c.room))].sort((a, b) => a.localeCompare(b, 'th', { numeric: true })).map(r => `<option value="${r}" ${u?.homeroom_room === r ? 'selected' : ''}>ห้อง ${r}</option>`).join('')}
+        </select>
+      </div>
+      <button class="btn-green" data-action="save-homeroom" style="padding:12px;margin-top:12px;">✅ บันทึก</button>
+    </div>
+
+    <button data-action="logout" style="width:100%;padding:14px;background:#fee2e2;color:#dc2626;border:none;border-radius:12px;font-family:Kanit;font-weight:700;font-size:14px;cursor:pointer;">
+      🚪 ออกจากระบบ
+    </button>
+  </div>`;
+}
+
 function renderTeacherDashboard() {
   const u = state.staffUser;
   const allLogs = state.teacherRecentLogs.filter(l => !l.cancelled_at);
@@ -2163,22 +2212,6 @@ function renderTeacherDashboard() {
       style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:16px;background:linear-gradient(90deg,#d97706,#f59e0b);color:#fff;border:none;border-radius:14px;font-family:Kanit;font-weight:700;font-size:16px;cursor:pointer;box-shadow:0 4px 20px rgba(245,158,11,0.35);">
       <span style="font-size:22px;">🎯</span> สร้างโค้ดรับคะแนน
     </button>
-
-    <div class="card">
-      <div style="font-weight:700;color:var(--gd);margin-bottom:4px;font-size:14px;">🏫 ครูประจำชั้น</div>
-      <div style="font-size:11.5px;color:#9ca3af;margin-bottom:14px;">ตั้งค่าเพื่อดูคำขอ "ขอทำดี" ของนักเรียนห้องที่ปรึกษาในเมนู "ตรวจคำขอ"</div>
-      <div style="display:flex;gap:10px;">
-        <select class="form-input" id="homeroom-grade-select" style="flex:1;">
-          <option value="">ไม่ระบุ</option>
-          ${distinctGrades().map(g => `<option value="${g}" ${u?.homeroom_grade_level === g ? 'selected' : ''}>ม.${g}</option>`).join('')}
-        </select>
-        <select class="form-input" id="homeroom-room-select" style="flex:1;">
-          <option value="">ไม่ระบุ</option>
-          ${[...new Set(state.studentClasses.map(c => c.room))].sort((a, b) => a.localeCompare(b, 'th', { numeric: true })).map(r => `<option value="${r}" ${u?.homeroom_room === r ? 'selected' : ''}>ห้อง ${r}</option>`).join('')}
-        </select>
-      </div>
-      <button class="btn-green" data-action="save-homeroom" style="padding:12px;margin-top:12px;">✅ บันทึก</button>
-    </div>
 
     <div class="stat-grid-2">
       ${statBox('📋', todayCount, 'ให้คะแนนวันนี้', 'var(--g)')}
@@ -4023,6 +4056,10 @@ async function loadDataForScreen(screen) {
       state.studentClasses = classes || [];
     }
   }
+  if (screen === 'teacher-profile' && state.staffUser && !state.studentClasses.length) {
+    const { data: classes } = await getStudentClasses();
+    state.studentClasses = classes || [];
+  }
   if (screen === 'teacher-scan' || screen === 'teacher-addpoints' || screen === 'teacher-createcode' || screen === 'teacher-calldeeds') {
     const { data } = await getDeedTypes();
     state.deedTypes = data || [];
@@ -4190,6 +4227,9 @@ document.addEventListener('click', async (e) => {
       if (state.role === 'student') {
         if (state.studentScanMode) stopStudentScan();
         setState({ screen: 'student-profile', studentScanMode: false });
+      } else if (state.role === 'teacher' || state.role === 'admin') {
+        await loadDataForScreen('teacher-profile');
+        setState({ screen: 'teacher-profile' });
       }
       break;
 

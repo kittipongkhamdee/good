@@ -5029,7 +5029,7 @@ document.addEventListener('click', async (e) => {
     case 'open-deed-review': {
       const r = state.pendingDeedRequests.find(x => x.id === btn.dataset.id);
       if (!r) break;
-      const defaultPoints = r.points_min || 10;
+      const defaultPoints = Math.min(10, Math.max(1, r.points_min || 5));
       showModal(`
         <div class="modal-title">${r.prefix || ''}${r.student_name}</div>
         <div style="text-align:center;padding:0 0 16px;color:#9ca3af;font-size:12.5px;">${classOf(r)} · รหัส ${r.student_code} · ${relativeTimeLabel(r.created_at)}</div>
@@ -5047,8 +5047,13 @@ document.addEventListener('click', async (e) => {
         </div>
 
         <div class="form-group">
-          <label class="form-label">ให้คะแนน (ช่วงปกติ ${r.points_min ?? '-'}–${r.points_max ?? '-'} คะแนน)</label>
-          <input class="form-input" type="number" min="1" id="deed-review-points" value="${defaultPoints}" style="text-align:center;font-size:18px;font-weight:700;">
+          <label class="form-label">ให้คะแนน: <span id="deed-review-points-display">${defaultPoints}</span> คะแนน <span style="color:#9ca3af;font-weight:400;">(ช่วงปกติ ${r.points_min ?? '-'}–${r.points_max ?? '-'})</span></label>
+          <input type="range" min="1" max="10" step="1" value="${defaultPoints}" id="deed-review-points"
+            style="background:linear-gradient(to right, var(--g) ${((defaultPoints - 1) / 9) * 100}%, #e5e7eb ${((defaultPoints - 1) / 9) * 100}%);"
+            oninput="document.getElementById('deed-review-points-display').textContent=this.value; const p=((this.value-1)/9)*100; this.style.background='linear-gradient(to right, var(--g) '+p+'%, #e5e7eb '+p+'%)';">
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:#9ca3af;margin-top:2px;">
+            <span>1</span><span>5</span><span>10</span>
+          </div>
         </div>
         <div class="form-group">
           <label class="form-label">หมายเหตุ (ไม่บังคับ — จำเป็นถ้าไม่อนุมัติ)</label>

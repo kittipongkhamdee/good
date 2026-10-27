@@ -1947,7 +1947,7 @@ begin
   select id, student_id, teacher_id, deed_type_id, points, note, created_at, cancelled_at, cancelled_by, trim(p_period_label)
   from public.point_logs;
 
-  delete from public.point_logs;
+  delete from public.point_logs where true;
 end;
 $$;
 grant execute on function public.reset_all_points_new_year(text) to authenticated;
@@ -1978,8 +1978,8 @@ begin
   if not is_admin() then
     raise exception 'ต้องเป็นแอดมินเท่านั้น';
   end if;
-  delete from public.point_logs;
-  delete from public.point_logs_archive;
+  delete from public.point_logs where true;
+  delete from public.point_logs_archive where true;
 end;
 $$;
 grant execute on function public.wipe_all_points_permanently() to authenticated;

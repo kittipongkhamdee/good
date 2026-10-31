@@ -898,10 +898,37 @@ function pointCodeCardFileName(pc) {
 }
 
 // ── setState + render ──
+// ปุ่มย้อนกลับของมือถือ/เบราว์เซอร์: ทุกครั้งที่เปลี่ยนหน้าในแอปจะเพิ่มประวัติ (history) หนึ่งรายการ
+// แล้ว popstate พากลับหน้าก่อนหน้า แทนที่จะเด้งออกจากเว็บไปเลย (แอปนี้เป็น SPA หน้าเดียว ไม่มี URL ต่อหน้า)
+let _navFromPop = false;
 function setState(updates) {
+  const wasLoggedIn = !!state.role;
+  const prevScreen = state.screen;
   Object.assign(state, updates);
+  if (state.role && !_navFromPop) {
+    try {
+      if (!wasLoggedIn) history.replaceState({ app: 1, screen: state.screen }, '');
+      else if (state.screen !== prevScreen) history.pushState({ app: 1, screen: state.screen }, '');
+    } catch {}
+  }
   render();
 }
+
+window.addEventListener('popstate', async (e) => {
+  const target = e.state?.app ? e.state.screen : null;
+  if (!state.role || !target) return;
+  if (state.screen === 'teacher-scan') stopScan();
+  if (state.screen === 'teacher-codedisplay') stopCodeCountdown();
+  if (state.screen === 'teacher-calldeeds') stopCallCountdown();
+  if (state.studentScanMode) stopStudentScan();
+  _navFromPop = true;
+  try {
+    await loadDataForScreen(target);
+    setState({ screen: target, drawerOpen: false, scanStep: 0, selectedDeedId: null, scanStudent: null, addStudentCode: '', addStudentName: '', studentScanMode: false });
+  } finally {
+    _navFromPop = false;
+  }
+});
 
 // ── Main render ──
 function render() {

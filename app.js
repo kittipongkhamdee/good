@@ -228,10 +228,10 @@ const NAV = {
     { id: 'student-badges',      icon: '🌳', label: 'เลเวล' },
     { id: 'student-deedrequest', icon: '🙋', label: 'ขอทำดี', fab: true },
     { id: 'student-leaderboard', icon: '🥇', label: 'อันดับ' },
-    { id: 'student-classroom',   icon: '🏫', label: 'ห้องเรียน', also: ['student-grades'], drawerHidden: true },
+    { id: 'student-classroom',   icon: '🏫', label: 'ห้องเรียน', also: ['student-grades', 'student-leave'], drawerHidden: true },
     { id: 'student-rewards',     icon: '🎁', label: 'รางวัล' },
     { id: 'student-grades',      icon: '📊', label: 'ผลการเรียน', group: 'ห้องเรียน' },
-    { id: 'student-leave',       icon: '🤒', label: 'แจ้งขอลา' },
+    { id: 'student-leave',       icon: '🤒', label: 'แจ้งขอลา', group: 'ห้องเรียน' },
     { id: 'student-history',     icon: '📋', label: 'ประวัติ' },
   ],
   teacher: [
@@ -1478,6 +1478,16 @@ function renderStudentClassroom() {
       <div style="flex:1;">
         <div style="font-weight:700;font-size:15px;color:#1f2937;">ผลการเรียน</div>
         <div style="font-size:12px;color:#9ca3af;margin-top:2px;">ดูเกรดและผลการเรียนรายวิชา</div>
+      </div>
+      <span style="font-size:18px;color:#c1c9d2;">›</span>
+    </button>` : ''}
+
+    ${state.settings.leaveEnabled ? `
+    <button data-action="nav" data-screen="student-leave" style="${cardStyle}cursor:pointer;">
+      <div style="width:50px;height:50px;border-radius:14px;background:var(--gl);display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;">🤒</div>
+      <div style="flex:1;">
+        <div style="font-weight:700;font-size:15px;color:#1f2937;">แจ้งขอลา</div>
+        <div style="font-size:12px;color:#9ca3af;margin-top:2px;">ส่งใบลาและติดตามสถานะ</div>
       </div>
       <span style="font-size:18px;color:#c1c9d2;">›</span>
     </button>` : ''}

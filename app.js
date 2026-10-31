@@ -933,6 +933,7 @@ window.addEventListener('popstate', async (e) => {
 // ── Main render ──
 function render() {
   const loggedIn = !!state.role;
+  renderInstallGate();
   document.body.classList.toggle('staff-compact', state.role === 'teacher' || state.role === 'admin');
 
   document.getElementById('login-view').style.display = loggedIn ? 'none' : '';
@@ -1232,6 +1233,8 @@ function renderStudentDashboard() {
         </div>
       </div>
     </div>
+
+    ${setupCardHTML()}
 
     ${renderOpenDeedCalls()}
 
@@ -2298,6 +2301,8 @@ function renderStudentProfile() {
         </button>` : ''}
     </div>
 
+    ${setupProfileButtonHTML()}
+
     ${themeCardHTML()}
 
     <button data-action="logout" style="width:100%;padding:14px;background:#fee2e2;color:#dc2626;border:none;border-radius:12px;font-family:var(--font);font-weight:700;font-size:14px;cursor:pointer;">
@@ -2351,6 +2356,10 @@ function renderTeacherProfile() {
       <button class="btn-green" data-action="save-homeroom" style="padding:12px;margin-top:12px;">✅ บันทึก</button>
     </div>
 
+    ${teacherShareLinkCardHTML()}
+
+    ${setupProfileButtonHTML()}
+
     ${themeCardHTML()}
 
     <button data-action="logout" style="width:100%;padding:14px;background:#fee2e2;color:#dc2626;border:none;border-radius:12px;font-family:var(--font);font-weight:700;font-size:14px;cursor:pointer;">
@@ -2394,6 +2403,8 @@ function renderTeacherDashboard() {
         </div>
       </div>
     </div>
+
+    ${setupCardHTML()}
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
       <button data-action="nav" data-screen="teacher-scan"
@@ -4111,6 +4122,8 @@ async function enterStudentSession(code, { silent = false } = {}) {
   subscribeIncomingDeedCalls();
   (activeCalls || []).forEach(queueIncomingDeedCall);
   checkPushSubscribed();
+  refreshPermissionStates().then(() => render());
+  maybeAutoOpenSetupWizard();
 
   return { ok: true };
 }
@@ -4134,6 +4147,8 @@ async function enterStaffSession(profile, { silent = false } = {}) {
   state.rolePermissions = rolePermissions || state.rolePermissions;
   setState({ loading: false, role, screen, pendingDeedRequestsCount: pendingDeedRequestsCount || 0 });
   if (!silent) showToast(`ยินดีต้อนรับ ${profile.full_name}! 🌿`);
+  refreshPermissionStates().then(() => render());
+  maybeAutoOpenSetupWizard();
 }
 
 async function submitStudentLogin() {
@@ -4385,6 +4400,8 @@ document.addEventListener('click', async (e) => {
   const btn = e.target.closest('[data-action]');
   if (!btn) return;
   const { action } = btn.dataset;
+
+  if (await handleOnboardingAction(action, btn)) return;
 
   switch (action) {
     case 'show-auth':
@@ -5683,6 +5700,7 @@ document.addEventListener('click', async (e) => {
       deferredInstallPrompt = null;
       if (choice.outcome === 'accepted') showToast('ติดตั้งแอปสำเร็จ! 🎉');
       render();
+      refreshSetupUI();
       break;
     }
 
@@ -5893,7 +5911,7 @@ document.addEventListener('DOMContentLoaded', () => {
   render();
   spawnLoginLeaves();
   loadGlobalSettings();
-  restoreSession();
+  restoreSession().finally(() => { window._sessionChecked = true; renderInstallGate(); });
   // ลงทะเบียน service worker เปล่าๆ ไว้เพื่อให้ Chrome/Android นับเป็น PWA ติดตั้งได้
   // (ไม่ทำ offline caching) — ไม่ throw ถ้าเบราว์เซอร์ไม่รองรับหรือ path ผิด เผื่อรันจากเครื่องพัฒนา
   if ('serviceWorker' in navigator) {

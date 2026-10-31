@@ -1,8 +1,25 @@
-// Service worker ขั้นต่ำ — มีไว้เพื่อให้ Chrome/Android นับหน้านี้เป็น PWA ที่ติดตั้งได้
-// (ขึ้นแบนเนอร์ "ติดตั้งแอป" อัตโนมัติ) ไม่ได้ทำ offline caching ใดๆ ปล่อยทุก request ผ่านเครือข่ายตามปกติ
-self.addEventListener('install', () => self.skipWaiting());
-self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
-self.addEventListener('fetch', () => {});
+// Service worker — ทำสองอย่าง: (1) ให้ Chrome/Android นับเป็น PWA ที่ติดตั้งได้
+// (2) แสดงหน้า offline.html แทนหน้า "ไม่มีอินเทอร์เน็ต" ของเบราว์เซอร์ตอนเปิดแอปโดยไม่มีเน็ต
+// ไม่ทำ caching ของไฟล์แอป (index/app.js/style.css) เลย เพื่อไม่ให้ผู้ใช้ติดเวอร์ชันเก่า — โหลดสดจากเครือข่ายเสมอ
+const OFFLINE_CACHE = 'good-offline-v1';
+const OFFLINE_URL = 'offline.html';
+
+self.addEventListener('install', (e) => {
+  e.waitUntil(
+    caches.open(OFFLINE_CACHE).then((c) => c.add(OFFLINE_URL)).catch(() => {}).then(() => self.skipWaiting())
+  );
+});
+self.addEventListener('activate', (e) => {
+  e.waitUntil(
+    caches.keys()
+      .then((keys) => Promise.all(keys.filter((k) => k !== OFFLINE_CACHE).map((k) => caches.delete(k))))
+      .then(() => self.clients.claim())
+  );
+});
+self.addEventListener('fetch', (e) => {
+  if (e.request.mode !== 'navigate') return;
+  e.respondWith(fetch(e.request).catch(() => caches.match(OFFLINE_URL).then((r) => r || Response.error())));
+});
 
 // ── Web Push — เตือนสตรีคใกล้ขาด (ส่งจาก Supabase Edge Function ที่ตั้งเวลาไว้) ──
 self.addEventListener('push', (event) => {

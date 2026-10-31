@@ -1299,29 +1299,29 @@ function renderLevelProgress(s) {
   const maxTier = tiers[tiers.length - 1];
 
   return `
-  <div class="card">
-    <div style="font-size:14px;font-weight:700;color:var(--gd);margin-bottom:16px;text-align:center;">🌱 ระดับความดีของคุณ</div>
+  <div class="card" style="padding:12px 16px;">
+    <div style="font-size:13px;font-weight:700;color:var(--gd);margin-bottom:8px;text-align:center;">🌱 ระดับความดีของคุณ</div>
 
-    <div style="display:flex;justify-content:space-between;padding:0 2px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:0 2px;">
       ${tiers.map((t, i) => {
         const achieved = t.min_points <= pts;
         const isCurrent = i === currentIdx;
-        const size = isCurrent ? 32 : 22;
+        const size = isCurrent ? 26 : 18;
         return `
         <div style="flex:1;text-align:center;font-size:${size}px;line-height:1;opacity:${achieved ? 1 : 0.35};filter:${achieved ? 'none' : 'grayscale(1)'};${isCurrent ? `filter:drop-shadow(0 0 7px ${t.color});` : ''}transition:opacity 0.3s;">${t.icon}</div>`;
       }).join('')}
     </div>
 
-    <div style="position:relative;height:10px;background:#e5e7eb;border-radius:6px;margin:10px 2px 0;">
+    <div style="position:relative;height:8px;background:#e5e7eb;border-radius:6px;margin:8px 2px 0;">
       <div class="level-bar-fill" data-pct="${pct}" style="position:absolute;inset:0;width:0%;background:linear-gradient(90deg,var(--gd),var(--g));border-radius:6px;transition:width 0.9s cubic-bezier(0.3,0.7,0.3,1);"></div>
     </div>
 
-    <div style="text-align:center;margin-top:12px;font-size:13px;color:#374151;font-weight:700;">
+    <div style="text-align:center;margin-top:8px;font-size:12px;color:#374151;font-weight:700;">
       ${isMax
         ? `${pts.toLocaleString()} คะแนน`
         : `${(pts - currentTier.min_points).toLocaleString()} / ${(next.min_points - currentTier.min_points).toLocaleString()} คะแนนในระดับนี้`}
     </div>
-    <div style="text-align:center;margin-top:3px;font-size:12px;color:${isMax ? '#f59e0b' : '#9ca3af'};">
+    <div style="text-align:center;margin-top:1px;font-size:11px;color:${isMax ? '#f59e0b' : '#9ca3af'};">
       ${isMax
         ? `🎉 สุดยอด! คุณถึงระดับสูงสุดแล้ว — ${maxTier.icon} ${maxTier.name}`
         : `อีก ${(next.min_points - pts).toLocaleString()} คะแนน ถึง ${next.icon} ${next.name}`}

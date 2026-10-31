@@ -2681,25 +2681,25 @@ function renderTeacherCallForDeeds() {
   return `
   <div class="screen-wrap anim-slideup">
     <div class="card">
-      <div style="background:linear-gradient(135deg,#d97706,#f59e0b);border-radius:12px;padding:16px 20px;color:#fff;text-align:center;margin-bottom:16px;">
-        <div style="font-size:18px;font-weight:700;">📣 เรียกหานักเรียนทำความดี</div>
-        <div style="font-size:12px;opacity:0.85;margin-top:4px;">นักเรียนที่เปิดแอปอยู่ในขอบเขตที่เลือกจะได้รับแจ้งเตือนทันที</div>
+      <div style="background:linear-gradient(135deg,#d97706,#f59e0b);border-radius:12px;padding:10px 14px;color:#fff;text-align:center;margin-bottom:10px;">
+        <div style="font-size:16px;font-weight:700;">📣 เรียกหานักเรียนทำความดี</div>
+        <div style="font-size:12px;opacity:0.85;margin-top:2px;">นักเรียนที่เปิดแอปอยู่ในขอบเขตที่เลือกจะได้รับแจ้งเตือนทันที</div>
       </div>
 
-      <div style="font-weight:700;color:var(--gd);margin-bottom:12px;">เลือกประเภทความดี</div>
-      <div class="deed-grid" style="margin-bottom:16px;">
+      <div style="font-weight:700;font-size:13.5px;color:var(--gd);margin-bottom:6px;">เลือกประเภทความดี</div>
+      <div class="deed-grid" style="gap:6px;margin-bottom:10px;">
         ${deedTypes.map(d => `
-          <button class="deed-chip ${state.selectedDeedId === d.id ? 'selected' : ''}" data-action="select-deed" data-deed-id="${d.id}">
+          <button class="deed-chip ${state.selectedDeedId === d.id ? 'selected' : ''}" style="padding:7px 6px;font-size:12.5px;" data-action="select-deed" data-deed-id="${d.id}">
             ${d.icon} ${d.name}
           </button>
         `).join('')}
       </div>
 
-      <div style="font-weight:700;color:var(--gd);margin-bottom:8px;">ข้อความถึงนักเรียน</div>
-      <textarea class="form-input" id="call-message" rows="2" style="resize:none;margin-bottom:16px;" placeholder="เช่น ใครช่วยเก็บขยะหน้าห้องพักครูหน่อยครับ 🙏">${state.callMessage}</textarea>
+      <div style="font-weight:700;font-size:13.5px;color:var(--gd);margin-bottom:6px;">ข้อความถึงนักเรียน</div>
+      <textarea class="form-input" id="call-message" rows="2" style="resize:none;margin-bottom:10px;" placeholder="เช่น ใครช่วยเก็บขยะหน้าห้องพักครูหน่อยครับ 🙏">${state.callMessage}</textarea>
 
-      <div style="font-weight:700;color:var(--gd);margin-bottom:10px;">ขอบเขต</div>
-      <div style="display:flex;gap:10px;margin-bottom:16px;">
+      <div style="font-weight:700;font-size:13.5px;color:var(--gd);margin-bottom:6px;">ขอบเขต</div>
+      <div style="display:flex;gap:8px;margin-bottom:10px;">
         <select class="form-input" id="call-grade-filter" style="flex:1;">
           <option value="">ทั้งโรงเรียน</option>
           ${grades.map(g => `<option value="${g}" ${state.callGradeFilter === g ? 'selected' : ''}>ชั้น ${gradeLabel(g)}</option>`).join('')}
@@ -2710,22 +2710,22 @@ function renderTeacherCallForDeeds() {
         </select>
       </div>
 
-      <div style="font-weight:700;color:var(--gd);margin-bottom:10px;">รับกี่คน</div>
-      <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;">
-        <button class="slots-btn" data-action="call-slots-minus" style="width:34px;height:34px;border-radius:50%;border:1.5px solid #e5e7eb;background:#fff;font-weight:800;font-size:16px;cursor:pointer;">−</button>
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px;">
+        <div style="font-weight:700;font-size:13.5px;color:var(--gd);flex:1;">รับกี่คน</div>
+        <button class="slots-btn" data-action="call-slots-minus" style="width:30px;height:30px;border-radius:50%;border:1.5px solid #e5e7eb;background:#fff;font-weight:800;font-size:16px;cursor:pointer;">−</button>
         <span style="font-weight:800;font-size:16px;min-width:24px;text-align:center;">${state.callSlots}</span>
-        <button class="slots-btn" data-action="call-slots-plus" style="width:34px;height:34px;border-radius:50%;border:1.5px solid #e5e7eb;background:#fff;font-weight:800;font-size:16px;cursor:pointer;">+</button>
+        <button class="slots-btn" data-action="call-slots-plus" style="width:30px;height:30px;border-radius:50%;border:1.5px solid #e5e7eb;background:#fff;font-weight:800;font-size:16px;cursor:pointer;">+</button>
       </div>
 
-      <div style="font-weight:700;color:var(--gd);margin-bottom:10px;">⏱️ เวลาที่รับได้</div>
-      <div class="deed-grid" style="margin-bottom:${state.callDurationCustom ? '10px' : '18px'};">
+      <div style="font-weight:700;font-size:13.5px;color:var(--gd);margin-bottom:6px;">⏱️ เวลาที่รับได้</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:${state.callDurationCustom ? '8px' : '12px'};">
         ${[5, 10, 15, 30].map(m => `
-          <button class="deed-chip ${!state.callDurationCustom && state.callDurationMin === m ? 'selected' : ''}" data-action="select-call-duration" data-min="${m}">${m} นาที</button>
+          <button class="deed-chip ${!state.callDurationCustom && state.callDurationMin === m ? 'selected' : ''}" style="padding:7px 4px;font-size:12.5px;" data-action="select-call-duration" data-min="${m}">${m} นาที</button>
         `).join('')}
-        <button class="deed-chip ${state.callDurationCustom ? 'selected' : ''}" data-action="select-call-duration-custom">กำหนดเอง</button>
+        <button class="deed-chip ${state.callDurationCustom ? 'selected' : ''}" style="padding:7px 4px;font-size:12.5px;" data-action="select-call-duration-custom">กำหนดเอง</button>
       </div>
       ${state.callDurationCustom ? `
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:18px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
         <input type="number" class="form-input" id="call-duration-custom-input" min="1" max="180" step="1" value="${state.callDurationMin}" style="flex:1;">
         <span style="font-size:13px;color:#6b7280;">นาที</span>
       </div>` : ''}
@@ -2734,7 +2734,7 @@ function renderTeacherCallForDeeds() {
         ${state.loading ? 'กำลังส่ง...' : '📣 เรียกเลย!'}
       </button>
 
-      <div style="font-size:11.5px;color:#9ca3af;margin-top:10px;text-align:center;">* ใช้งานได้เมื่อนักเรียนเปิดแอปอยู่เท่านั้น (ยังไม่ใช่ Push Notification)</div>
+      <div style="font-size:11px;color:#9ca3af;margin-top:6px;text-align:center;">* ใช้งานได้เมื่อนักเรียนเปิดแอปอยู่เท่านั้น (ยังไม่ใช่ Push Notification)</div>
     </div>
   </div>`;
 }
@@ -2755,13 +2755,13 @@ function renderTeacherDeedRequests() {
 
   const rowHTML = r => `
     <div class="list-item" data-action="open-deed-review" data-id="${r.id}" style="cursor:pointer;align-items:flex-start;">
-      <div style="width:44px;height:44px;border-radius:50%;background:var(--gl);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">${studentGenderIcon({ student_name: r.student_name })}</div>
+      <div style="width:36px;height:36px;border-radius:50%;background:var(--gl);display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;">${studentGenderIcon({ student_name: r.student_name })}</div>
       <div style="flex:1;min-width:0;">
         <div style="font-weight:600;font-size:14px;color:#1f2937;">${r.prefix || ''}${r.student_name} · ${classOf(r)}</div>
         <div style="font-size:12px;color:#9ca3af;margin-top:2px;">${r.deed_icon || '💚'} ${r.deed_name || 'ความดี'} · ${relativeTimeLabel(r.created_at)}</div>
-        <div style="display:flex;gap:5px;margin-top:6px;">
-          <img src="${r.photo_url_1}" alt="" style="width:34px;height:34px;border-radius:6px;object-fit:cover;">
-          <img src="${r.photo_url_2}" alt="" style="width:34px;height:34px;border-radius:6px;object-fit:cover;">
+        <div style="display:flex;gap:5px;margin-top:4px;">
+          <img src="${r.photo_url_1}" alt="" style="width:28px;height:28px;border-radius:5px;object-fit:cover;">
+          <img src="${r.photo_url_2}" alt="" style="width:28px;height:28px;border-radius:5px;object-fit:cover;">
         </div>
       </div>
       <span style="font-size:18px;color:#c1c9d2;flex-shrink:0;">›</span>
@@ -2772,8 +2772,8 @@ function renderTeacherDeedRequests() {
     const open = key in state.deedRoomOpen ? state.deedRoomOpen[key] : isMine;
     const [g, rm] = key.split('/');
     return `
-    <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.055);margin-bottom:10px;${isMine ? 'border:1.5px solid var(--g);' : ''}">
-      <div data-action="toggle-deed-room" data-room="${key}" style="display:flex;align-items:center;gap:8px;padding:13px 16px;cursor:pointer;${isMine ? 'background:var(--gl);' : ''}">
+    <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.055);margin-bottom:8px;${isMine ? 'border:1.5px solid var(--g);' : ''}">
+      <div data-action="toggle-deed-room" data-room="${key}" style="display:flex;align-items:center;gap:8px;padding:8px 14px;cursor:pointer;${isMine ? 'background:var(--gl);' : ''}">
         <span style="font-weight:700;font-size:14px;color:${isMine ? 'var(--gd)' : '#374151'};">ม.${g}/${rm}</span>
         ${isMine ? '<span style="font-size:11px;font-weight:700;background:var(--g);color:#fff;border-radius:99px;padding:2px 9px;">ห้องที่ปรึกษา</span>' : ''}
         <span style="margin-left:auto;font-size:12px;font-weight:700;background:#fef3c7;color:#b45309;border-radius:99px;padding:2px 10px;">${groups[key].length} รายการ</span>
@@ -2786,9 +2786,8 @@ function renderTeacherDeedRequests() {
   return `
   <div class="screen-wrap anim-slideup">
     <div class="hero-banner">
-      <div style="font-size:15px;opacity:0.85;">📋 คำขอรอตรวจสอบ</div>
-      <div style="font-size:32px;font-weight:800;margin-top:4px;">${list.length} รายการ</div>
-      <div style="font-size:12px;opacity:0.75;margin-top:4px;">ทุกห้อง · ${keys.length} ห้อง</div>
+      <div style="display:flex;align-items:baseline;gap:10px;"><div style="font-size:13px;opacity:0.85;">📋 คำขอรอตรวจสอบ</div><div style="font-size:24px;font-weight:800;">${list.length} รายการ</div></div>
+      <div style="font-size:11.5px;opacity:0.75;margin-top:2px;">ทุกห้อง · ${keys.length} ห้อง</div>
     </div>
     ${!myKey && state.role !== 'admin' ? `
     <div style="font-size:12px;color:#9ca3af;text-align:center;margin:0 0 10px;">ตั้งห้องที่ปรึกษาได้ที่หน้าโปรไฟล์ เพื่อให้ห้องของคุณขึ้นเป็นอันดับแรก</div>` : ''}

@@ -933,6 +933,7 @@ window.addEventListener('popstate', async (e) => {
 // ── Main render ──
 function render() {
   const loggedIn = !!state.role;
+  document.body.classList.toggle('staff-compact', state.role === 'teacher' || state.role === 'admin');
 
   document.getElementById('login-view').style.display = loggedIn ? 'none' : '';
   document.getElementById('app-a').style.display = loggedIn ? 'block' : 'none';
@@ -1333,21 +1334,21 @@ function renderStudentHistory() {
   const deeds = state.studentHistory;
   const s = state.student;
   return `
-  <div class="screen-wrap anim-slideup">
-    <div class="hero-banner">
+  <div class="screen-wrap anim-slideup" style="gap:10px;">
+    <div class="hero-banner" style="padding:12px 16px;">
       <div style="display:flex;justify-content:space-between;align-items:center;">
         <div>
           <div style="font-size:12px;opacity:0.8;">คะแนนสะสมทั้งหมด</div>
-          <div style="font-size:36px;font-weight:700;">${s.total_points.toLocaleString()}</div>
+          <div style="font-size:28px;font-weight:700;line-height:1.1;">${s.total_points.toLocaleString()}</div>
         </div>
         <div style="text-align:right;">
           <div style="font-size:12px;opacity:0.8;">ทำความดีทั้งหมด</div>
-          <div style="font-size:36px;font-weight:700;">${s.total_deeds} ครั้ง</div>
+          <div style="font-size:28px;font-weight:700;line-height:1.1;">${s.total_deeds} ครั้ง</div>
         </div>
       </div>
     </div>
     <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.055);">
-      <div style="padding:14px 16px 10px;font-weight:700;color:var(--gd);">ประวัติความดีทั้งหมด</div>
+      <div style="padding:10px 14px 6px;font-weight:700;font-size:14px;color:var(--gd);">ประวัติความดีทั้งหมด</div>
       ${deeds.length
         ? deeds.map(d => listRow(d.deed_icon || '💚', d.deed_name || 'ทำความดี', `${d.teacher_name || ''} · ${formatDate(d.created_at)}`, `+${d.points} คะแนน`)).join('')
         : `<div style="padding:30px;text-align:center;color:#9ca3af;font-size:13px;">ยังไม่มีประวัติ</div>`}
@@ -1453,18 +1454,18 @@ function subjectGroupRank(group) {
 }
 
 function renderStudentClassroom() {
-  const cardStyle = 'display:flex;align-items:center;gap:14px;padding:18px;background:#fff;border-radius:16px;box-shadow:0 2px 12px rgba(0,0,0,0.055);border:none;width:100%;text-align:left;font-family:var(--font);';
+  const cardStyle = 'display:flex;align-items:center;gap:12px;padding:12px 14px;background:#fff;border-radius:16px;box-shadow:0 2px 12px rgba(0,0,0,0.055);border:none;width:100%;text-align:left;font-family:var(--font);';
   return `
-  <div class="screen-wrap anim-slideup">
-    <div class="hero-banner">
-      <div style="font-size:15px;opacity:0.85;">🏫 ห้องเรียนของฉัน</div>
-      <div style="font-size:22px;font-weight:800;margin-top:4px;">${state.student ? classOf(state.student) : ''}</div>
+  <div class="screen-wrap anim-slideup" style="gap:10px;">
+    <div class="hero-banner" style="padding:12px 16px;">
+      <div style="font-size:13px;opacity:0.85;">🏫 ห้องเรียนของฉัน</div>
+      <div style="font-size:18px;font-weight:800;margin-top:2px;">${state.student ? classOf(state.student) : ''}</div>
     </div>
 
     <div style="${cardStyle}opacity:0.6;">
-      <div style="width:50px;height:50px;border-radius:14px;background:var(--gl);display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;">📝</div>
+      <div style="width:40px;height:40px;border-radius:12px;background:var(--gl);display:flex;align-items:center;justify-content:center;font-size:21px;flex-shrink:0;">📝</div>
       <div style="flex:1;">
-        <div style="font-weight:700;font-size:15px;color:#1f2937;">ส่งงาน</div>
+        <div style="font-weight:700;font-size:14px;color:#1f2937;">ส่งงาน</div>
         <div style="font-size:12px;color:#9ca3af;margin-top:2px;">ส่งงานและการบ้านที่ครูมอบหมาย</div>
       </div>
       <span style="font-size:11px;font-weight:700;background:#fef3c7;color:#b45309;border-radius:99px;padding:3px 10px;">เร็วๆ นี้</span>
@@ -1472,9 +1473,9 @@ function renderStudentClassroom() {
 
     ${state.settings.gradesEnabled ? `
     <button data-action="nav" data-screen="student-grades" style="${cardStyle}cursor:pointer;">
-      <div style="width:50px;height:50px;border-radius:14px;background:var(--gl);display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;">📊</div>
+      <div style="width:40px;height:40px;border-radius:12px;background:var(--gl);display:flex;align-items:center;justify-content:center;font-size:21px;flex-shrink:0;">📊</div>
       <div style="flex:1;">
-        <div style="font-weight:700;font-size:15px;color:#1f2937;">ผลการเรียน</div>
+        <div style="font-weight:700;font-size:14px;color:#1f2937;">ผลการเรียน</div>
         <div style="font-size:12px;color:#9ca3af;margin-top:2px;">ดูเกรดและผลการเรียนรายวิชา</div>
       </div>
       <span style="font-size:18px;color:#c1c9d2;">›</span>
@@ -1482,9 +1483,9 @@ function renderStudentClassroom() {
 
     ${state.settings.leaveEnabled ? `
     <button data-action="nav" data-screen="student-leave" style="${cardStyle}cursor:pointer;">
-      <div style="width:50px;height:50px;border-radius:14px;background:var(--gl);display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;">🤒</div>
+      <div style="width:40px;height:40px;border-radius:12px;background:var(--gl);display:flex;align-items:center;justify-content:center;font-size:21px;flex-shrink:0;">🤒</div>
       <div style="flex:1;">
-        <div style="font-weight:700;font-size:15px;color:#1f2937;">แจ้งขอลา</div>
+        <div style="font-weight:700;font-size:14px;color:#1f2937;">แจ้งขอลา</div>
         <div style="font-size:12px;color:#9ca3af;margin-top:2px;">ส่งใบลาและติดตามสถานะ</div>
       </div>
       <span style="font-size:18px;color:#c1c9d2;">›</span>
@@ -2374,7 +2375,7 @@ function renderTeacherDashboard() {
     <div class="hero-banner">
       <div id="teacher-hero-leaf-field" class="leaf-field" aria-hidden="true"></div>
       <div style="position:relative;z-index:1;display:flex;align-items:center;gap:14px;">
-        ${staffAvatar(u, { size: 60, fontSize: 26 })}
+        ${staffAvatar(u, { size: 52, fontSize: 24 })}
         <div>
           <div style="font-size:18px;font-weight:700;">${u?.full_name || ''}</div>
           <div style="font-size:12px;opacity:0.8;margin-top:3px;">ครู</div>
@@ -2383,26 +2384,27 @@ function renderTeacherDashboard() {
       <div style="position:relative;z-index:1;margin-top:18px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.18);display:flex;align-items:flex-end;justify-content:space-between;">
         <div>
           <div style="font-size:12px;opacity:0.75;">ให้คะแนนทั้งหมด</div>
-          <div style="font-size:44px;font-weight:700;line-height:1;margin-top:2px;" data-countup="${totalPointsGiven}">0</div>
+          <div style="font-size:36px;font-weight:700;line-height:1;margin-top:2px;" data-countup="${totalPointsGiven}">0</div>
           <div style="font-size:13px;opacity:0.7;margin-top:2px;">คะแนน</div>
         </div>
         <div style="text-align:right;font-size:12px;opacity:0.75;">
           <div>ให้ความดีแล้ว</div>
-          <div style="font-size:30px;font-weight:700;line-height:1;" data-countup="${totalDeedsGiven}">0</div>
+          <div style="font-size:26px;font-weight:700;line-height:1;" data-countup="${totalDeedsGiven}">0</div>
           <div>ครั้ง</div>
         </div>
       </div>
     </div>
 
-    <button data-action="nav" data-screen="teacher-scan"
-      style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:16px;background:linear-gradient(90deg,var(--gd),var(--g));color:#fff;border:none;border-radius:14px;font-family:var(--font);font-weight:700;font-size:16px;cursor:pointer;box-shadow:0 4px 20px oklch(0.52 0.17 var(--h) / 0.4);">
-      <span style="font-size:22px;">📷</span> สแกน QR Code นักเรียน
-    </button>
-
-    <button data-action="nav" data-screen="teacher-createcode"
-      style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:16px;background:linear-gradient(90deg,#d97706,#f59e0b);color:#fff;border:none;border-radius:14px;font-family:var(--font);font-weight:700;font-size:16px;cursor:pointer;box-shadow:0 4px 20px rgba(245,158,11,0.35);">
-      <span style="font-size:22px;">🎯</span> สร้างโค้ดรับคะแนน
-    </button>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <button data-action="nav" data-screen="teacher-scan"
+        style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:10px 6px;background:linear-gradient(90deg,var(--gd),var(--g));color:#fff;border:none;border-radius:14px;font-family:var(--font);font-weight:700;font-size:13.5px;cursor:pointer;box-shadow:0 3px 12px oklch(0.52 0.17 var(--h) / 0.35);">
+        <span style="font-size:20px;">📷</span> สแกน QR นักเรียน
+      </button>
+      <button data-action="nav" data-screen="teacher-createcode"
+        style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:10px 6px;background:linear-gradient(90deg,#d97706,#f59e0b);color:#fff;border:none;border-radius:14px;font-family:var(--font);font-weight:700;font-size:13.5px;cursor:pointer;box-shadow:0 3px 12px rgba(245,158,11,0.3);">
+        <span style="font-size:20px;">🎯</span> สร้างโค้ดรับคะแนน
+      </button>
+    </div>
 
     <div class="stat-grid-2">
       ${statBox('📋', todayCount, 'ให้คะแนนวันนี้', 'var(--g)')}
@@ -2410,7 +2412,7 @@ function renderTeacherDashboard() {
     </div>
 
     <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.055);">
-      <div style="padding:14px 16px 10px;font-weight:700;font-size:14px;color:var(--gd);">⏱️ ให้คะแนนล่าสุด</div>
+      <div style="padding:10px 14px 6px;font-weight:700;font-size:14px;color:var(--gd);">⏱️ ให้คะแนนล่าสุด</div>
       ${recent.length
         ? recent.map(l => listRow(studentGenderIcon(l.students), `${fullName(l.students)} · ${classOf(l.students)}`, `${l.good_deed_types?.name || ''} · ${formatDate(l.created_at)}`, `+${l.points}`)).join('')
         : `<div style="padding:20px;text-align:center;color:#9ca3af;font-size:13px;">ยังไม่มีกิจกรรมเดือนนี้</div>`}

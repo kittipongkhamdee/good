@@ -2429,7 +2429,7 @@ function renderTeacherScan() {
     return `
     <div class="screen-wrap anim-slideup">
       <div class="card">
-        <div style="background:linear-gradient(135deg,var(--gd),var(--g));border-radius:12px;padding:16px 20px;color:#fff;text-align:center;margin-bottom:16px;">
+        <div style="background:linear-gradient(135deg,var(--gd),var(--g));border-radius:12px;padding:10px 14px;color:#fff;text-align:center;margin-bottom:10px;">
           <div style="font-size:18px;font-weight:700;">📷 สแกน QR Code</div>
           <div style="font-size:12px;opacity:0.8;margin-top:4px;">นำกล้องไปยัง QR Code ของนักเรียน</div>
         </div>
@@ -2466,7 +2466,7 @@ function renderTeacherScan() {
   return `
   <div class="screen-wrap anim-slideup">
     <div class="card">
-      <div style="background:var(--gl);border-radius:12px;padding:18px;display:flex;align-items:center;gap:14px;margin-bottom:16px;">
+      <div style="background:var(--gl);border-radius:12px;padding:18px;display:flex;align-items:center;gap:14px;margin-bottom:10px;">
         ${studentAvatar(sc, { size: 60, fontSize: 26, bg: 'var(--g)', border: 'none', shadow: '0 4px 14px oklch(0.52 0.17 var(--h) / 0.4)' })}
         <div>
           <div style="font-size:17px;font-weight:700;color:var(--gd);">${fullName(sc)}</div>
@@ -2476,7 +2476,7 @@ function renderTeacherScan() {
       </div>
 
       <div style="font-weight:700;color:var(--gd);margin-bottom:12px;">เลือกประเภทความดี</div>
-      <div class="deed-grid" style="margin-bottom:16px;">
+      <div class="deed-grid" style="margin-bottom:10px;">
         ${deedTypes.map(d => `
           <button class="deed-chip ${state.selectedDeedId === d.id ? 'selected' : ''}" data-action="select-deed" data-deed-id="${d.id}">
             ${d.icon} ${d.name}
@@ -2504,7 +2504,7 @@ function renderTeacherAddPoints() {
   return `
   <div class="screen-wrap anim-slideup">
     <div class="card">
-      <div style="font-size:15px;font-weight:700;color:var(--gd);margin-bottom:20px;">✏️ เพิ่มคะแนนความดี (ระบุรหัส)</div>
+      <div style="font-size:14px;font-weight:700;color:var(--gd);margin-bottom:8px;">✏️ เพิ่มคะแนนความดี (ระบุรหัส)</div>
       <div class="form-group">
         <label class="form-label">รหัสนักเรียน *</label>
         <input class="form-input" placeholder="เช่น 65001" id="add-student-code" value="${state.addStudentCode}">
@@ -2515,7 +2515,7 @@ function renderTeacherAddPoints() {
       </div>
 
       <div style="font-weight:700;color:var(--gd);margin-bottom:12px;">เลือกประเภทความดี</div>
-      <div class="deed-grid" style="margin-bottom:16px;">
+      <div class="deed-grid" style="margin-bottom:10px;">
         ${deedTypes.map(d => `
           <button class="deed-chip ${state.selectedDeedId === d.id ? 'selected' : ''}" data-action="select-deed" data-deed-id="${d.id}">
             ${d.icon} ${d.name}
@@ -2566,7 +2566,7 @@ function renderTeacherHistory() {
   return `
   <div class="screen-wrap anim-slideup">
     <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.055);">
-      <div style="padding:14px 16px 10px;font-weight:700;color:var(--gd);">ประวัติการให้คะแนน</div>
+      <div style="padding:10px 14px 6px;font-weight:700;color:var(--gd);">ประวัติการให้คะแนน</div>
       ${logs.length
         ? logs.map(pointLogRowHTML).join('')
         : `<div style="padding:30px;text-align:center;color:#9ca3af;font-size:13px;">ยังไม่มีประวัติ</div>`}
@@ -2587,13 +2587,13 @@ function renderTeacherCreateCode() {
   return `
   <div class="screen-wrap anim-slideup">
     <div class="card">
-      <div style="background:linear-gradient(135deg,#d97706,#f59e0b);border-radius:12px;padding:16px 20px;color:#fff;text-align:center;margin-bottom:16px;">
+      <div style="background:linear-gradient(135deg,#d97706,#f59e0b);border-radius:12px;padding:10px 14px;color:#fff;text-align:center;margin-bottom:10px;">
         <div style="font-size:18px;font-weight:700;">🎯 สร้างโค้ดรับคะแนน</div>
         <div style="font-size:12px;opacity:0.85;margin-top:4px;">ให้นักเรียนสแกนรับคะแนนพร้อมกันได้ทั้งห้อง</div>
       </div>
 
       <div style="font-weight:700;color:var(--gd);margin-bottom:12px;">เลือกประเภทความดี</div>
-      <div class="deed-grid" style="margin-bottom:16px;">
+      <div class="deed-grid" style="margin-bottom:10px;">
         ${deedTypes.map(d => `
           <button class="deed-chip ${state.selectedDeedId === d.id ? 'selected' : ''}" data-action="select-deed" data-deed-id="${d.id}">
             ${d.icon} ${d.name}
@@ -2609,7 +2609,7 @@ function renderTeacherCreateCode() {
       </div>
 
       <div style="font-weight:700;color:var(--gd);margin:18px 0 10px;">ขอบเขตผู้ใช้โค้ด</div>
-      <div style="display:flex;gap:10px;margin-bottom:18px;">
+      <div style="display:flex;gap:10px;margin-bottom:12px;">
         <select class="form-input" id="code-grade-filter" style="flex:1;">
           <option value="">ทุกชั้น</option>
           ${grades.map(g => `<option value="${g}" ${state.codeGradeFilter === g ? 'selected' : ''}>ชั้น ${gradeLabel(g)}</option>`).join('')}
@@ -2621,7 +2621,7 @@ function renderTeacherCreateCode() {
       </div>
 
       <div style="font-weight:700;color:var(--gd);margin-bottom:10px;">⏱️ เวลาที่ใช้ได้</div>
-      <div class="deed-grid" style="margin-bottom:18px;">
+      <div class="deed-grid" style="margin-bottom:12px;">
         ${[5, 10, 15, 30].map(m => `
           <button class="deed-chip ${state.codeDurationMin === m ? 'selected' : ''}" data-action="select-code-duration" data-min="${m}">${m} นาที</button>
         `).join('')}
@@ -2642,11 +2642,11 @@ function renderTeacherCodeDisplay() {
   <div class="screen-wrap anim-slideup">
     <div class="card" style="text-align:center;">
       <div style="font-size:15px;font-weight:700;color:var(--gd);">${pc.icon} ${pc.name}</div>
-      <div style="font-size:13px;color:#9ca3af;margin-top:4px;margin-bottom:18px;">${pc.scopeLabel} · +${pc.points} คะแนน</div>
+      <div style="font-size:13px;color:#9ca3af;margin-top:4px;margin-bottom:12px;">${pc.scopeLabel} · +${pc.points} คะแนน</div>
 
       <div class="qr-display"><div class="qr-frame"><canvas id="teacher-code-qr" width="164" height="164"></canvas></div></div>
 
-      <div style="font-size:34px;font-weight:700;letter-spacing:8px;color:var(--gd);margin-top:18px;">${pc.code}</div>
+      <div style="font-size:34px;font-weight:700;letter-spacing:8px;color:var(--gd);margin-top:10px;">${pc.code}</div>
       <div style="font-size:12px;color:#9ca3af;margin-top:4px;">ให้นักเรียนพลิกกล้องจาก QR Code ประจำตัว แล้วสแกนโค้ดนี้</div>
 
       <div style="margin-top:22px;display:flex;flex-direction:column;align-items:center;">
@@ -2880,7 +2880,7 @@ function renderAdminDashboard() {
       </div>
     </div>
     <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.055);">
-      <div style="padding:14px 16px 10px;font-weight:700;color:var(--gd);">📋 กิจกรรมล่าสุดของระบบ</div>
+      <div style="padding:10px 14px 6px;font-weight:700;color:var(--gd);">📋 กิจกรรมล่าสุดของระบบ</div>
       ${state.pointLogs.slice(0, 4).map(l => listRow(studentGenderIcon(l.students), `${fullName(l.students)} ได้รับ ${l.points} คะแนน`, `${l.good_deed_types?.name || ''} · ${formatDate(l.created_at)}`, '')).join('')
         || `<div style="padding:20px;text-align:center;color:#9ca3af;font-size:13px;">ยังไม่มีกิจกรรม</div>`}
     </div>
@@ -3115,7 +3115,7 @@ function renderAdminReports() {
     </div>
 
     <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.055);">
-      <div style="padding:14px 16px 10px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
+      <div style="padding:10px 14px 6px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
         <div style="font-weight:700;color:var(--gd);white-space:nowrap;">🏆 อันดับนักเรียน Top 10${state.reportGradeFilter ? ` · ชั้น ${gradeLabel(state.reportGradeFilter)}` : ''}</div>
         <select class="form-input" id="report-grade-filter" style="width:auto;padding:6px 10px;font-size:12px;">
           <option value="">ทุกชั้น</option>
@@ -3134,7 +3134,7 @@ function renderPointPeriodsCard() {
   if (periods === null) return '';
   return `
   <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.055);">
-    <div style="padding:14px 16px 10px;font-weight:700;color:var(--gd);">📚 ปีการศึกษาก่อนหน้า</div>
+    <div style="padding:10px 14px 6px;font-weight:700;color:var(--gd);">📚 ปีการศึกษาก่อนหน้า</div>
     ${!periods.length
       ? `<div style="padding:20px;text-align:center;color:#9ca3af;font-size:13px;">ยังไม่เคยเริ่มปีการศึกษาใหม่ — ประวัติจะปรากฏที่นี่หลังแอดมินกด "เริ่มปีการศึกษาใหม่"</div>`
       : periods.map(p => `
@@ -3236,7 +3236,7 @@ function renderAdminCodeHistory() {
   return `
   <div class="screen-wrap anim-slideup">
     <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.055);">
-      <div style="padding:14px 16px 10px;font-weight:700;color:var(--gd);">🎯 ประวัติการสร้างโค้ดรับคะแนน</div>
+      <div style="padding:10px 14px 6px;font-weight:700;color:var(--gd);">🎯 ประวัติการสร้างโค้ดรับคะแนน</div>
       ${history.length
         ? history.map(codeHistoryRowHTML).join('')
         : `<div style="padding:30px;text-align:center;color:#9ca3af;font-size:13px;">ยังไม่มีประวัติการสร้างโค้ด</div>`}
@@ -3299,7 +3299,7 @@ function renderAdminSettings() {
   <div class="screen-wrap anim-slideup">
     <div class="card">
       <div style="font-size:15px;font-weight:700;color:var(--gd);margin-bottom:6px;">🏫 ชื่อและคำอธิบายระบบ</div>
-      <div style="font-size:12px;color:#9ca3af;margin-bottom:16px;">แสดงที่หน้า login, หัวแอป และเมนู</div>
+      <div style="font-size:12px;color:#9ca3af;margin-bottom:10px;">แสดงที่หน้า login, หัวแอป และเมนู</div>
       <div class="form-group">
         <label class="form-label">ชื่อระบบ / ชื่อโรงเรียน</label>
         <input class="form-input" id="school-name-input" value="${s.schoolName}" placeholder="เช่น ตาเบาวิทยา">
@@ -3311,9 +3311,9 @@ function renderAdminSettings() {
     </div>
 
     <div class="card">
-      <div style="font-size:15px;font-weight:700;color:var(--gd);margin-bottom:20px;">⚙️ ตั้งค่าอันดับนักเรียน (Leaderboard)</div>
+      <div style="font-size:14px;font-weight:700;color:var(--gd);margin-bottom:8px;">⚙️ ตั้งค่าอันดับนักเรียน (Leaderboard)</div>
 
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid oklch(0.96 0.02 var(--h));margin-bottom:16px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid oklch(0.96 0.02 var(--h));margin-bottom:10px;">
         <div>
           <div style="font-weight:600;font-size:14px;color:#1f2937;">แสดงอันดับให้นักเรียนเห็น</div>
           <div style="font-size:12px;color:#9ca3af;margin-top:2px;">ปิดเพื่อซ่อนหน้าอันดับจากเมนูนักเรียนทั้งหมด</div>
@@ -3328,9 +3328,9 @@ function renderAdminSettings() {
     </div>
 
     <div class="card">
-      <div style="font-size:15px;font-weight:700;color:var(--gd);margin-bottom:20px;">🧩 เมนูสำหรับนักเรียน</div>
+      <div style="font-size:14px;font-weight:700;color:var(--gd);margin-bottom:8px;">🧩 เมนูสำหรับนักเรียน</div>
 
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid oklch(0.96 0.02 var(--h));margin-bottom:16px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid oklch(0.96 0.02 var(--h));margin-bottom:10px;">
         <div>
           <div style="font-weight:600;font-size:14px;color:#1f2937;">📊 ผลการเรียน</div>
           <div style="font-size:12px;color:#9ca3af;margin-top:2px;">ปิดเพื่อซ่อนเมนู "ผลการเรียน" จากนักเรียนทั้งหมด</div>
@@ -3349,7 +3349,7 @@ function renderAdminSettings() {
 
     <div class="card">
       <div style="font-size:15px;font-weight:700;color:var(--gd);margin-bottom:6px;">🌱 เริ่มปีการศึกษาใหม่</div>
-      <div style="font-size:12px;color:#9ca3af;margin-bottom:16px;line-height:1.6;">รีเซ็ตคะแนนของนักเรียนทุกคนกลับเป็น 0 สำหรับเปิดเทอมใหม่ — <b style="color:var(--g);">ไม่ลบข้อมูลเดิม</b> ประวัติคะแนนปีการศึกษาที่ผ่านมาจะถูกเก็บไว้ ดูย้อนหลังได้ที่แท็บ "รายงาน"</div>
+      <div style="font-size:12px;color:#9ca3af;margin-bottom:10px;line-height:1.6;">รีเซ็ตคะแนนของนักเรียนทุกคนกลับเป็น 0 สำหรับเปิดเทอมใหม่ — <b style="color:var(--g);">ไม่ลบข้อมูลเดิม</b> ประวัติคะแนนปีการศึกษาที่ผ่านมาจะถูกเก็บไว้ ดูย้อนหลังได้ที่แท็บ "รายงาน"</div>
       <div class="form-group">
         <label class="form-label">ตั้งชื่อปีการศึกษาที่กำลังจะปิด (เพื่อเก็บเป็นประวัติ)</label>
         <input class="form-input" id="reset-period-label-input" placeholder="เช่น ปีการศึกษา 2568"
@@ -3361,7 +3361,7 @@ function renderAdminSettings() {
 
     <div class="card">
       <div style="font-size:15px;font-weight:700;color:var(--gd);margin-bottom:6px;">🔔 การแจ้งเตือนสตรีค</div>
-      <div style="font-size:12px;color:#9ca3af;margin-bottom:16px;">ระบบจะเตือนนักเรียนที่สตรีคใกล้ขาดในเวลานี้ทุกวัน (เฉพาะคนที่เปิดแจ้งเตือนไว้)</div>
+      <div style="font-size:12px;color:#9ca3af;margin-bottom:10px;">ระบบจะเตือนนักเรียนที่สตรีคใกล้ขาดในเวลานี้ทุกวัน (เฉพาะคนที่เปิดแจ้งเตือนไว้)</div>
       <div class="form-group">
         <label class="form-label">เวลาที่ส่งแจ้งเตือน</label>
         <select class="form-input" id="streak-reminder-hour-input">
@@ -3376,8 +3376,8 @@ function renderAdminSettings() {
 
     <div class="card">
       <div style="font-size:15px;font-weight:700;color:var(--gd);margin-bottom:6px;">🌿 โลโก้โรงเรียน</div>
-      <div style="font-size:12px;color:#9ca3af;margin-bottom:16px;">แสดงแทน 🌿 ทุกจุดในแอป (หน้า login, หัวแอป, เมนู, การ์ดแชร์ผลงาน)</div>
-      <div style="display:flex;align-items:center;gap:16px;margin-bottom:14px;">
+      <div style="font-size:12px;color:#9ca3af;margin-bottom:10px;">แสดงแทน 🌿 ทุกจุดในแอป (หน้า login, หัวแอป, เมนู, การ์ดแชร์ผลงาน)</div>
+      <div style="display:flex;align-items:center;gap:16px;margin-bottom:10px;">
         <div style="width:64px;height:64px;border-radius:16px;background:var(--gl);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;">
           ${s.schoolLogoUrl ? `<img src="${s.schoolLogoUrl}" alt="" style="width:100%;height:100%;object-fit:contain;">` : `<span style="font-size:30px;">🌿</span>`}
         </div>
@@ -3390,11 +3390,11 @@ function renderAdminSettings() {
 
     <div class="card">
       <div style="font-size:15px;font-weight:700;color:var(--gd);margin-bottom:6px;">🚜 พื้นหลังฉากฟาร์ม (หน้าเลเวล)</div>
-      <div style="font-size:12px;color:#9ca3af;margin-bottom:16px;">ภาพพื้นหลังในหน้า "เลเวลของฉัน" ของนักเรียน — เปลี่ยนได้เองโดยไม่ต้องแก้โค้ด</div>
-      <div style="border-radius:12px;overflow:hidden;margin-bottom:14px;aspect-ratio:1200/896;background:var(--gl);">
+      <div style="font-size:12px;color:#9ca3af;margin-bottom:10px;">ภาพพื้นหลังในหน้า "เลเวลของฉัน" ของนักเรียน — เปลี่ยนได้เองโดยไม่ต้องแก้โค้ด</div>
+      <div style="border-radius:12px;overflow:hidden;margin-bottom:10px;aspect-ratio:1200/896;background:var(--gl);">
         <img src="${s.levelFarmBgUrl || 'images/level-farm-bg.webp'}" alt="" style="width:100%;height:100%;object-fit:cover;display:block;">
       </div>
-      <div style="font-size:12px;color:#9ca3af;margin-bottom:14px;">${s.levelFarmBgUrl ? 'กำลังใช้ภาพที่อัปโหลดไว้' : 'ยังไม่ได้อัปโหลด — ใช้ภาพเริ่มต้นของระบบ'}</div>
+      <div style="font-size:12px;color:#9ca3af;margin-bottom:10px;">${s.levelFarmBgUrl ? 'กำลังใช้ภาพที่อัปโหลดไว้' : 'ยังไม่ได้อัปโหลด — ใช้ภาพเริ่มต้นของระบบ'}</div>
       <div class="form-group"><input type="file" accept="image/*" id="level-farm-bg-file"></div>
       <button class="btn-green" data-action="upload-level-farm-bg" style="padding:13px;">📤 อัปโหลดภาพพื้นหลัง</button>
       ${s.levelFarmBgUrl ? `<button data-action="remove-level-farm-bg" style="width:100%;padding:10px;margin-top:8px;background:#fee2e2;color:#dc2626;border:none;border-radius:10px;font-family:var(--font);cursor:pointer;">🗑️ ลบภาพ (กลับไปใช้ภาพเริ่มต้น)</button>` : ''}
@@ -3402,7 +3402,7 @@ function renderAdminSettings() {
 
     <div class="card">
       <div style="font-size:15px;font-weight:700;color:var(--gd);margin-bottom:6px;">👨‍🏫 สิทธิ์การเข้าถึงของครู</div>
-      <div style="font-size:12px;color:#9ca3af;margin-bottom:16px;">กำหนดว่าครูทุกคนเห็น/จัดการเมนูใดได้บ้าง (บังคับจริงที่ฐานข้อมูล)</div>
+      <div style="font-size:12px;color:#9ca3af;margin-bottom:10px;">กำหนดว่าครูทุกคนเห็น/จัดการเมนูใดได้บ้าง (บังคับจริงที่ฐานข้อมูล)</div>
 
       ${permRows.map((r, i) => `
         <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;${i < permRows.length - 1 ? 'border-bottom:1px solid oklch(0.96 0.02 var(--h));' : ''}">
@@ -3419,13 +3419,13 @@ function renderAdminSettings() {
 
     <div class="card">
       <div style="font-size:15px;font-weight:700;color:var(--gd);margin-bottom:6px;">👀 พรีวิวมุมมองครู</div>
-      <div style="font-size:12px;color:#9ca3af;margin-bottom:14px;">ดูหน้าจอในมุมมองที่ครูเห็นจริง (ตามสิทธิ์ที่ตั้งไว้ด้านบน) โดยไม่ต้องออกจากระบบ Admin</div>
+      <div style="font-size:12px;color:#9ca3af;margin-bottom:10px;">ดูหน้าจอในมุมมองที่ครูเห็นจริง (ตามสิทธิ์ที่ตั้งไว้ด้านบน) โดยไม่ต้องออกจากระบบ Admin</div>
       <button class="btn-green" data-action="toggle-teacher-preview" style="padding:13px;background:#3b82f6;">🧑‍🏫 ดูมุมมองครู</button>
     </div>
 
     <div class="card" style="border:1.5px solid #fecaca;">
       <div style="font-size:15px;font-weight:700;color:#dc2626;margin-bottom:6px;">⚠️ เขตอันตราย</div>
-      <div style="font-size:12px;color:#9ca3af;margin-bottom:16px;line-height:1.6;">ลบคะแนนความดีของนักเรียน<b style="color:#dc2626;">ทุกคนทุกปีการศึกษาถาวร</b> ทั้งข้อมูลปัจจุบันและประวัติที่เก็บไว้ทั้งหมด <b>กู้คืนไม่ได้เลย</b> — ต่างจาก "เริ่มปีการศึกษาใหม่" ด้านบนที่ยังเก็บประวัติไว้ให้</div>
+      <div style="font-size:12px;color:#9ca3af;margin-bottom:10px;line-height:1.6;">ลบคะแนนความดีของนักเรียน<b style="color:#dc2626;">ทุกคนทุกปีการศึกษาถาวร</b> ทั้งข้อมูลปัจจุบันและประวัติที่เก็บไว้ทั้งหมด <b>กู้คืนไม่ได้เลย</b> — ต่างจาก "เริ่มปีการศึกษาใหม่" ด้านบนที่ยังเก็บประวัติไว้ให้</div>
       <button data-action="open-confirm-wipe-points" style="width:100%;padding:13px;background:#dc2626;color:#fff;border:none;border-radius:12px;font-family:var(--font);font-weight:700;cursor:pointer;font-size:14px;">🗑️ ล้างคะแนนทั้งระบบถาวร</button>
     </div>
   </div>`;

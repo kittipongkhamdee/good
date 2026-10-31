@@ -105,6 +105,7 @@ const TITLES = {
   'student-history':   'ประวัติความดี',
   'student-badges':    'เลเวลของฉัน',
   'student-grades':    'ผลการเรียน',
+  'student-classroom': 'ห้องเรียน',
   'student-leave':     'แจ้งขอลา',
   'student-leaderboard': 'อันดับนักเรียน',
   'student-rewards':   'แลกรางวัล',
@@ -130,14 +131,89 @@ const TITLES = {
   'admin-codehistory': 'ประวัติการสร้างโค้ด',
 };
 
+// ── ธีมส่วนตัว (เก็บในเครื่องของผู้ใช้เอง ใช้ได้ทั้งนักเรียนและครู) ──
+const THEME_KEY = 'goodapp_theme_v1';
+const THEME_DEFAULT = { hue: 145, font: 'Kanit', size: 1, radius: 16, fx: true, flat: false, bgGrad: false };
+const THEME_COLORS = [
+  { name: 'เขียว', hue: 145 }, { name: 'ฟ้า', hue: 250 }, { name: 'ม่วง', hue: 300 },
+  { name: 'ชมพู', hue: 350 }, { name: 'แดง', hue: 25 }, { name: 'ส้ม', hue: 55 },
+  { name: 'ทอง', hue: 90 }, { name: 'เขียวมิ้นต์', hue: 185 },
+];
+const THEME_FONTS = [
+  { id: 'Kanit', label: 'Kanit (ค่าเริ่มต้น)' }, { id: 'Sarabun', label: 'Sarabun (ทางการ)' },
+  { id: 'Prompt', label: 'Prompt (ทันสมัย)' }, { id: 'Mitr', label: 'Mitr (หนาเด่น)' },
+  { id: 'Mali', label: 'Mali (ลายมือ)' },
+];
+const THEME_SIZES = [{ v: 0.92, label: 'เล็ก' }, { v: 1, label: 'ปกติ' }, { v: 1.1, label: 'ใหญ่' }, { v: 1.2, label: 'ใหญ่มาก' }];
+const THEME_RADII = [{ v: 6, label: 'เหลี่ยม' }, { v: 16, label: 'ปกติ' }, { v: 26, label: 'โค้งมน' }];
+
+function loadTheme() {
+  try { return { ...THEME_DEFAULT, ...JSON.parse(localStorage.getItem(THEME_KEY) || '{}') }; }
+  catch { return { ...THEME_DEFAULT }; }
+}
+let userTheme = loadTheme();
+function saveTheme() { try { localStorage.setItem(THEME_KEY, JSON.stringify(userTheme)); } catch {} }
+function applyTheme() {
+  const t = userTheme, root = document.documentElement.style;
+  root.setProperty('--h', t.hue);
+  root.setProperty('--font', `'${t.font}', 'Kanit', sans-serif`);
+  root.setProperty('--r-card', t.radius + 'px');
+  root.setProperty('--ui-zoom', t.size);
+  document.body.classList.toggle('theme-no-fx', !t.fx);
+  document.body.classList.toggle('theme-flat', !!t.flat);
+  document.body.classList.toggle('theme-gradient-bg', !!t.bgGrad);
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', getComputedStyle(document.documentElement).getPropertyValue('--g').trim() ? `hsl(${t.hue} 70% 32%)` : meta.content);
+}
+applyTheme();
+
+function themeCardHTML() {
+  const t = userTheme;
+  const chips = (arr, cur, key, valFn, labelFn) => arr.map(o =>
+    `<button class="theme-chip ${String(valFn(o)) === String(cur) ? 'selected' : ''}" data-action="theme-set" data-key="${key}" data-val="${valFn(o)}">${labelFn(o)}</button>`).join('');
+  const toggle = (key, label, desc) => `
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--border);">
+      <div style="flex:1;"><div style="font-size:13.5px;font-weight:600;color:#1f2937;">${label}</div><div style="font-size:11.5px;color:#9ca3af;">${desc}</div></div>
+      ${toggleSwitchHTML('theme-toggle', key, t[key])}
+    </div>`;
+  return `
+  <div class="card">
+    <div style="font-weight:700;color:var(--gd);font-size:14px;">🎨 ธีมของฉัน</div>
+    <div style="font-size:11.5px;color:#9ca3af;margin:4px 0 14px;">ปรับหน้าตาแอปตามใจชอบ มีผลเฉพาะในเครื่องนี้</div>
+
+    <div style="font-size:12px;font-weight:600;color:#6b7280;margin-bottom:8px;">สีหลัก</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
+      ${THEME_COLORS.map(c => `<div class="theme-swatch ${t.hue === c.hue ? 'selected' : ''}" title="${c.name}" data-action="theme-set" data-key="hue" data-val="${c.hue}" style="background:oklch(0.52 0.17 ${c.hue});"></div>`).join('')}
+    </div>
+
+    <div style="font-size:12px;font-weight:600;color:#6b7280;margin-bottom:8px;">รูปแบบตัวอักษร</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
+      ${THEME_FONTS.map(f => `<button class="theme-chip ${t.font === f.id ? 'selected' : ''}" data-action="theme-set" data-key="font" data-val="${f.id}" style="font-family:'${f.id}',sans-serif;">${f.label}</button>`).join('')}
+    </div>
+
+    <div style="font-size:12px;font-weight:600;color:#6b7280;margin-bottom:8px;">ขนาดตัวอักษร</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">${chips(THEME_SIZES, t.size, 'size', o => o.v, o => o.label)}</div>
+
+    <div style="font-size:12px;font-weight:600;color:#6b7280;margin-bottom:8px;">ความโค้งของการ์ด</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">${chips(THEME_RADII, t.radius, 'radius', o => o.v, o => o.label)}</div>
+
+    ${toggle('fx', 'เอฟเฟกต์เคลื่อนไหว', 'ใบไม้ร่วง นกบิน แสงวิ่งบนแบนเนอร์')}
+    ${toggle('flat', 'สไตล์เรียบ', 'ไม่มีเงา ใช้เส้นขอบบาง ๆ แทน')}
+    ${toggle('bgGrad', 'พื้นหลังไล่สี', 'พื้นหลังไล่ระดับตามสีหลัก')}
+
+    <button data-action="theme-reset" style="width:100%;margin-top:12px;padding:10px;background:#f3f4f6;color:#6b7280;border:none;border-radius:10px;font-family:var(--font);font-weight:600;font-size:13px;cursor:pointer;">↺ คืนค่าเริ่มต้น</button>
+  </div>`;
+}
+
 const NAV = {
   student: [
     { id: 'student-dashboard',   icon: '🏠', label: 'หน้าหลัก' },
-    { id: 'student-deedrequest', icon: '🙋', label: 'ขอทำดี' },
     { id: 'student-badges',      icon: '🌳', label: 'เลเวล' },
+    { id: 'student-deedrequest', icon: '🙋', label: 'ขอทำดี', fab: true },
     { id: 'student-leaderboard', icon: '🥇', label: 'อันดับ' },
+    { id: 'student-classroom',   icon: '🏫', label: 'ห้องเรียน', also: ['student-grades'], drawerHidden: true },
     { id: 'student-rewards',     icon: '🎁', label: 'รางวัล' },
-    { id: 'student-grades',      icon: '📊', label: 'ผลการเรียน' },
+    { id: 'student-grades',      icon: '📊', label: 'ผลการเรียน', group: 'ห้องเรียน' },
     { id: 'student-leave',       icon: '🤒', label: 'แจ้งขอลา' },
     { id: 'student-history',     icon: '📋', label: 'ประวัติ' },
   ],
@@ -403,7 +479,7 @@ function emojiPickerHTML(inputId) {
   const pickerId = `${inputId}-picker`;
   return `
     <button type="button" data-action="toggle-emoji-picker" data-target="${pickerId}"
-      style="margin-top:6px;padding:6px 10px;background:#f3f4f6;border:none;border-radius:8px;font-family:Kanit;font-size:12px;color:#6b7280;cursor:pointer;">😀 เลือกจากรายการ</button>
+      style="margin-top:6px;padding:6px 10px;background:#f3f4f6;border:none;border-radius:8px;font-family:var(--font);font-size:12px;color:#6b7280;cursor:pointer;">😀 เลือกจากรายการ</button>
     <div id="${pickerId}" style="display:none;flex-wrap:wrap;gap:4px;margin-top:8px;padding:8px;background:#f9fafb;border-radius:8px;max-height:150px;overflow-y:auto;">
       ${EMOJI_CHOICES.map(e => `<button type="button" data-action="pick-emoji" data-target="${inputId}" style="width:34px;height:34px;font-size:18px;background:#fff;border:1px solid #e5e7eb;border-radius:6px;cursor:pointer;padding:0;">${e}</button>`).join('')}
     </div>`;
@@ -622,8 +698,8 @@ function openShareCardModal() {
       <canvas id="share-card-canvas" style="width:100%;max-width:270px;border-radius:16px;box-shadow:0 8px 24px rgba(0,0,0,0.15);"></canvas>
     </div>
     <button class="btn-green" data-action="download-share-card" style="padding:13px;margin-top:16px;">💾 บันทึกรูปภาพ</button>
-    <button data-action="share-share-card" style="width:100%;padding:12px;margin-top:8px;background:var(--gl);color:var(--g);border:none;border-radius:12px;font-family:Kanit;font-weight:700;cursor:pointer;">📤 แชร์ไปยังแอปอื่น</button>
-    <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:Kanit;color:#9ca3af;cursor:pointer;">ปิด</button>
+    <button data-action="share-share-card" style="width:100%;padding:12px;margin-top:8px;background:var(--gl);color:var(--g);border:none;border-radius:12px;font-family:var(--font);font-weight:700;cursor:pointer;">📤 แชร์ไปยังแอปอื่น</button>
+    <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:var(--font);color:#9ca3af;cursor:pointer;">ปิด</button>
   `);
   const canvas = document.getElementById('share-card-canvas');
   if (canvas) drawShareCard(canvas, s, badge);
@@ -793,8 +869,8 @@ function openPointCodeCardModal() {
       <canvas id="point-code-card-canvas" style="width:100%;max-width:270px;border-radius:16px;box-shadow:0 8px 24px rgba(0,0,0,0.15);"></canvas>
     </div>
     <button class="btn-green" data-action="download-point-code-card" style="padding:13px;margin-top:16px;background:linear-gradient(90deg,#d97706,#f59e0b);">💾 บันทึกรูปภาพ</button>
-    <button data-action="share-point-code-card" style="width:100%;padding:12px;margin-top:8px;background:#fffbeb;color:#b45309;border:none;border-radius:12px;font-family:Kanit;font-weight:700;cursor:pointer;">📤 แชร์ไปยังแอปอื่น</button>
-    <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:Kanit;color:#9ca3af;cursor:pointer;">ปิด</button>
+    <button data-action="share-point-code-card" style="width:100%;padding:12px;margin-top:8px;background:#fffbeb;color:#b45309;border:none;border-radius:12px;font-family:var(--font);font-weight:700;cursor:pointer;">📤 แชร์ไปยังแอปอื่น</button>
+    <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:var(--font);color:#9ca3af;cursor:pointer;">ปิด</button>
   `);
   const canvas = document.getElementById('point-code-card-canvas');
   if (canvas) drawPointCodeCard(canvas, pc);
@@ -958,8 +1034,16 @@ function renderBottomNav() {
   const items = bottomNavItems();
   document.getElementById('nav-a').innerHTML = items.map(it => {
     const count = navBadgeCount(it.id);
+    const isActive = state.screen === it.id || (it.also || []).includes(state.screen);
+    if (it.fab) {
+      return `
+    <button class="bnav-btn bnav-fab ${isActive ? 'active' : ''}" data-action="nav" data-screen="${it.id}">
+      <span class="bnav-fab-circle">${it.icon}</span>
+      <span class="bnav-label">${it.label}</span>
+    </button>`;
+    }
     return `
-    <button class="bnav-btn ${state.screen === it.id ? 'active' : ''}" data-action="nav" data-screen="${it.id}">
+    <button class="bnav-btn ${isActive ? 'active' : ''}" data-action="nav" data-screen="${it.id}">
       <span style="position:relative;display:inline-block;">
         <span class="bnav-icon">${it.icon}</span>
         ${count > 0 ? `<span style="position:absolute;top:-4px;right:-8px;background:#ef4444;color:#fff;font-size:9.5px;font-weight:700;min-width:15px;height:15px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 3px;line-height:1;">${count > 9 ? '9+' : count}</span>` : ''}
@@ -993,7 +1077,18 @@ function renderDrawer() {
           `<div style="margin:14px 18px 6px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.1);font-size:11px;font-weight:700;letter-spacing:0.04em;color:rgba(255,255,255,0.4);">สำหรับแอดมิน</div>` +
           adminOnly.map(drawerBtnHTML).join('');
       })()
-    : items.map(drawerBtnHTML).join('');
+    : (() => {
+        let html = '';
+        let lastGroup = null;
+        items.filter(it => !it.drawerHidden).forEach(it => {
+          if (it.group && it.group !== lastGroup) {
+            html += `<div style="margin:14px 18px 4px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.1);font-size:11px;font-weight:700;letter-spacing:0.04em;color:rgba(255,255,255,0.4);">${it.group}</div>`;
+          }
+          lastGroup = it.group || null;
+          html += drawerBtnHTML(it);
+        });
+        return html;
+      })();
 
   document.getElementById('drawer-panel').innerHTML = `
     <div class="sidebar-brand">
@@ -1025,6 +1120,7 @@ function renderScreen(screen) {
     'student-history':     renderStudentHistory,
     'student-badges':      renderStudentBadges,
     'student-grades':      renderStudentGrades,
+    'student-classroom':   renderStudentClassroom,
     'student-leave':       renderStudentLeave,
     'student-leaderboard': renderStudentLeaderboard,
     'student-rewards':     renderStudentRewards,
@@ -1129,7 +1225,7 @@ function renderStudentDashboard() {
     </div>
 
     <button data-action="open-share-card"
-      style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:15px;background:linear-gradient(135deg,#0F6B45,#35C98A);color:#fff;border:none;border-radius:14px;font-family:Kanit;font-weight:700;font-size:15px;cursor:pointer;box-shadow:0 4px 20px oklch(0.52 0.17 145 / 0.35);">
+      style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:15px;background:linear-gradient(135deg,#0F6B45,#35C98A);color:#fff;border:none;border-radius:14px;font-family:var(--font);font-weight:700;font-size:15px;cursor:pointer;box-shadow:0 4px 20px oklch(0.52 0.17 var(--h) / 0.35);">
       <span style="font-size:20px;">📤</span> แชร์การ์ดผลงาน
     </button>
 
@@ -1139,7 +1235,7 @@ function renderStudentDashboard() {
         ? recent.map(d => listRow(d.deed_icon || '💚', d.deed_name || 'ทำความดี', `${d.teacher_name || ''} · ${formatDate(d.created_at)}`, `+${d.points} คะแนน`)).join('')
         : `<div style="padding:20px;text-align:center;color:#9ca3af;font-size:13px;">ยังไม่มีประวัติ</div>`}
       <button data-action="nav" data-screen="student-history"
-        style="width:100%;padding:12px;border:none;background:var(--gl);color:var(--g);font-family:Kanit;font-weight:700;font-size:13px;cursor:pointer;border-radius:0 0 16px 16px;">
+        style="width:100%;padding:12px;border:none;background:var(--gl);color:var(--g);font-family:var(--font);font-weight:700;font-size:13px;cursor:pointer;border-radius:0 0 16px 16px;">
         ดูประวัติทั้งหมด →
       </button>
     </div>
@@ -1314,6 +1410,36 @@ function subjectGroupRank(group) {
   return idx === -1 ? SUBJECT_GROUP_ORDER.length : idx;
 }
 
+function renderStudentClassroom() {
+  const cardStyle = 'display:flex;align-items:center;gap:14px;padding:18px;background:#fff;border-radius:16px;box-shadow:0 2px 12px rgba(0,0,0,0.055);border:none;width:100%;text-align:left;font-family:var(--font);';
+  return `
+  <div class="screen-wrap anim-slideup">
+    <div class="hero-banner">
+      <div style="font-size:15px;opacity:0.85;">🏫 ห้องเรียนของฉัน</div>
+      <div style="font-size:22px;font-weight:800;margin-top:4px;">${state.student ? classOf(state.student) : ''}</div>
+    </div>
+
+    <div style="${cardStyle}opacity:0.6;">
+      <div style="width:50px;height:50px;border-radius:14px;background:var(--gl);display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;">📝</div>
+      <div style="flex:1;">
+        <div style="font-weight:700;font-size:15px;color:#1f2937;">ส่งงาน</div>
+        <div style="font-size:12px;color:#9ca3af;margin-top:2px;">ส่งงานและการบ้านที่ครูมอบหมาย</div>
+      </div>
+      <span style="font-size:11px;font-weight:700;background:#fef3c7;color:#b45309;border-radius:99px;padding:3px 10px;">เร็วๆ นี้</span>
+    </div>
+
+    ${state.settings.gradesEnabled ? `
+    <button data-action="nav" data-screen="student-grades" style="${cardStyle}cursor:pointer;">
+      <div style="width:50px;height:50px;border-radius:14px;background:var(--gl);display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;">📊</div>
+      <div style="flex:1;">
+        <div style="font-weight:700;font-size:15px;color:#1f2937;">ผลการเรียน</div>
+        <div style="font-size:12px;color:#9ca3af;margin-top:2px;">ดูเกรดและผลการเรียนรายวิชา</div>
+      </div>
+      <span style="font-size:18px;color:#c1c9d2;">›</span>
+    </button>` : ''}
+  </div>`;
+}
+
 function renderStudentGrades() {
   if (!state.settings.gradesEnabled) {
     return `
@@ -1360,7 +1486,7 @@ function renderStudentGrades() {
         const [year, sem] = key.split('-');
         return `
         <button data-action="select-grades-semester" data-key="${key}"
-          style="flex:0 0 auto;padding:9px 14px;border-radius:10px;border:none;cursor:pointer;font-family:Kanit;font-size:12.5px;white-space:nowrap;font-weight:${key === activeKey ? 700 : 400};background:${key === activeKey ? 'var(--g)' : '#fff'};color:${key === activeKey ? '#fff' : '#6b7280'};box-shadow:0 1px 4px rgba(0,0,0,0.06);">
+          style="flex:0 0 auto;padding:9px 14px;border-radius:10px;border:none;cursor:pointer;font-family:var(--font);font-size:12.5px;white-space:nowrap;font-weight:${key === activeKey ? 700 : 400};background:${key === activeKey ? 'var(--g)' : '#fff'};color:${key === activeKey ? '#fff' : '#6b7280'};box-shadow:0 1px 4px rgba(0,0,0,0.06);">
           ภาคเรียนที่ ${sem}/${year}
         </button>`;
       }).join('')}
@@ -1628,7 +1754,7 @@ function renderStudentLeave() {
       <div class="form-group">
         <label class="form-label">รูปถ่ายคู่ผู้ปกครอง (ถ่ายสดตอนนี้ ใช้ยืนยันว่าผู้ปกครองรับทราบ)</label>
         ${state.leavePhotoPreviewUrl ? `<img src="${state.leavePhotoPreviewUrl}" style="width:100%;max-width:240px;border-radius:12px;display:block;margin-bottom:10px;box-shadow:0 2px 8px rgba(0,0,0,0.12);">` : ''}
-        <button type="button" data-action="open-leave-camera" style="width:100%;padding:12px;background:${state.leavePhotoPreviewUrl ? '#f3f4f6' : 'var(--gl)'};color:${state.leavePhotoPreviewUrl ? '#374151' : 'var(--g)'};border:none;border-radius:10px;font-family:Kanit;font-weight:700;cursor:pointer;">
+        <button type="button" data-action="open-leave-camera" style="width:100%;padding:12px;background:${state.leavePhotoPreviewUrl ? '#f3f4f6' : 'var(--gl)'};color:${state.leavePhotoPreviewUrl ? '#374151' : 'var(--g)'};border:none;border-radius:10px;font-family:var(--font);font-weight:700;cursor:pointer;">
           📷 ${state.leavePhotoPreviewUrl ? 'ถ่ายใหม่อีกครั้ง' : 'เปิดกล้องถ่ายรูป'}
         </button>
       </div>
@@ -1637,7 +1763,7 @@ function renderStudentLeave() {
         <label class="form-label">ตำแหน่งที่ตั้งปัจจุบัน</label>
         <div style="font-size:12.5px;color:${gpsInfo.color};padding:11px 12px;background:#f9fafb;border-radius:10px;line-height:1.5;">${gpsInfo.text}</div>
         ${state.leaveGpsStatus !== 'granted' ? `
-          <button type="button" data-action="request-leave-gps" style="width:100%;padding:11px;margin-top:8px;background:var(--gl);color:var(--g);border:none;border-radius:10px;font-family:Kanit;font-weight:700;cursor:pointer;">
+          <button type="button" data-action="request-leave-gps" style="width:100%;padding:11px;margin-top:8px;background:var(--gl);color:var(--g);border:none;border-radius:10px;font-family:var(--font);font-weight:700;cursor:pointer;">
             📍 ${state.leaveGpsStatus === 'requesting' ? 'กำลังขอตำแหน่ง...' : 'ขอตำแหน่งปัจจุบัน'}
           </button>` : ''}
       </div>
@@ -1718,7 +1844,7 @@ function renderStudentDeedRequest() {
                 <img src="${url}" alt="" style="width:100%;height:100%;object-fit:cover;display:block;">
                 <div style="position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,0.5);color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center;">✓</div>
               </div>`
-            : `<div data-action="open-deed-camera" data-slot="${slot}" style="aspect-ratio:1/1;border:1.5px dashed oklch(0.88 0.07 145);border-radius:12px;background:var(--gl);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;">
+            : `<div data-action="open-deed-camera" data-slot="${slot}" style="aspect-ratio:1/1;border:1.5px dashed oklch(0.88 0.07 var(--h));border-radius:12px;background:var(--gl);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;">
                 <span style="font-size:26px;">📷</span>
                 <span style="font-size:11px;color:#9ca3af;">รูปที่ ${slot}</span>
               </div>`;
@@ -1733,7 +1859,7 @@ function renderStudentDeedRequest() {
       ${list === null ? `<div style="padding:20px;text-align:center;color:#9ca3af;font-size:13px;">กำลังโหลด...</div>`
         : !list.length ? `<div style="padding:20px;text-align:center;color:#9ca3af;font-size:13px;">ยังไม่เคยส่งคำขอ</div>`
         : list.map(r => `
-          <div style="display:flex;align-items:flex-start;gap:12px;padding:14px 16px;border-bottom:1px solid oklch(0.96 0.02 145);">
+          <div style="display:flex;align-items:flex-start;gap:12px;padding:14px 16px;border-bottom:1px solid oklch(0.96 0.02 var(--h));">
             <span style="font-size:22px;width:32px;text-align:center;flex-shrink:0;">${r.deed_icon || '💚'}</span>
             <div style="flex:1;min-width:0;">
               <div style="font-weight:600;font-size:14px;color:#1f2937;">${r.deed_name || 'ความดี'}</div>
@@ -1776,7 +1902,7 @@ async function openLeaveCameraModal(facing) {
         ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตให้เว็บไซต์นี้ใช้กล้องในเบราว์เซอร์<br>
         <span style="color:#9ca3af;font-size:12px;">${e.message || e.name || ''}</span>
       </div>
-      <button data-action="close-modal" style="width:100%;padding:10px;background:transparent;border:none;font-family:Kanit;color:#9ca3af;cursor:pointer;">ปิด</button>
+      <button data-action="close-modal" style="width:100%;padding:10px;background:transparent;border:none;font-family:var(--font);color:#9ca3af;cursor:pointer;">ปิด</button>
     `);
     return;
   }
@@ -1788,7 +1914,7 @@ async function openLeaveCameraModal(facing) {
       <button class="btn-green" data-action="capture-leave-photo" style="flex:1;padding:14px;">📸 ถ่ายภาพ</button>
       <button data-action="switch-leave-camera" title="สลับกล้อง" style="width:52px;flex-shrink:0;background:#f3f4f6;border:none;border-radius:12px;font-size:19px;cursor:pointer;">🔄</button>
     </div>
-    <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:Kanit;color:#9ca3af;cursor:pointer;">ยกเลิก</button>
+    <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:var(--font);color:#9ca3af;cursor:pointer;">ยกเลิก</button>
   `);
   const video = document.getElementById('leave-camera-video');
   if (video) video.srcObject = _leaveCameraStream;
@@ -1863,7 +1989,7 @@ async function openDeedCameraModal(slot, facing) {
         ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตให้เว็บไซต์นี้ใช้กล้องในเบราว์เซอร์<br>
         <span style="color:#9ca3af;font-size:12px;">${e.message || e.name || ''}</span>
       </div>
-      <button data-action="close-modal" style="width:100%;padding:10px;background:transparent;border:none;font-family:Kanit;color:#9ca3af;cursor:pointer;">ปิด</button>
+      <button data-action="close-modal" style="width:100%;padding:10px;background:transparent;border:none;font-family:var(--font);color:#9ca3af;cursor:pointer;">ปิด</button>
     `);
     return;
   }
@@ -1875,7 +2001,7 @@ async function openDeedCameraModal(slot, facing) {
       <button class="btn-green" data-action="capture-deed-photo" style="flex:1;padding:14px;">📸 ถ่ายภาพ</button>
       <button data-action="switch-deed-camera" title="สลับกล้อง" style="width:52px;flex-shrink:0;background:#f3f4f6;border:none;border-radius:12px;font-size:19px;cursor:pointer;">🔄</button>
     </div>
-    <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:Kanit;color:#9ca3af;cursor:pointer;">ยกเลิก</button>
+    <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:var(--font);color:#9ca3af;cursor:pointer;">ยกเลิก</button>
   `);
   const video = document.getElementById('deed-camera-video');
   if (video) video.srcObject = _deedCameraStream;
@@ -1929,7 +2055,7 @@ function renderStudentLeaderboard() {
     <div style="display:flex;gap:8px;">
       ${scopeTabs.map(t => `
         <button data-action="set-leaderboard-scope" data-scope="${t.id}"
-          style="flex:1;padding:9px 6px;border-radius:10px;border:none;cursor:pointer;font-family:Kanit;font-size:12px;font-weight:${state.leaderboardScope === t.id ? 700 : 400};background:${state.leaderboardScope === t.id ? 'var(--g)' : '#fff'};color:${state.leaderboardScope === t.id ? '#fff' : '#6b7280'};box-shadow:0 1px 4px rgba(0,0,0,0.06);">
+          style="flex:1;padding:9px 6px;border-radius:10px;border:none;cursor:pointer;font-family:var(--font);font-size:12px;font-weight:${state.leaderboardScope === t.id ? 700 : 400};background:${state.leaderboardScope === t.id ? 'var(--g)' : '#fff'};color:${state.leaderboardScope === t.id ? '#fff' : '#6b7280'};box-shadow:0 1px 4px rgba(0,0,0,0.06);">
           ${t.label}
         </button>
       `).join('')}
@@ -2114,12 +2240,14 @@ function renderStudentProfile() {
       </div>
       ${pushSupported() ? `
         <button data-action="${state.pushSubscribed ? 'disable-push' : 'enable-push'}"
-          style="padding:8px 16px;border-radius:20px;border:none;font-family:Kanit;font-size:12.5px;font-weight:700;cursor:pointer;background:${state.pushSubscribed ? '#fee2e2' : 'var(--g)'};color:${state.pushSubscribed ? '#dc2626' : '#fff'};">
+          style="padding:8px 16px;border-radius:20px;border:none;font-family:var(--font);font-size:12.5px;font-weight:700;cursor:pointer;background:${state.pushSubscribed ? '#fee2e2' : 'var(--g)'};color:${state.pushSubscribed ? '#dc2626' : '#fff'};">
           ${state.pushSubscribed ? 'ปิด' : 'เปิด'}
         </button>` : ''}
     </div>
 
-    <button data-action="logout" style="width:100%;padding:14px;background:#fee2e2;color:#dc2626;border:none;border-radius:12px;font-family:Kanit;font-weight:700;font-size:14px;cursor:pointer;">
+    ${themeCardHTML()}
+
+    <button data-action="logout" style="width:100%;padding:14px;background:#fee2e2;color:#dc2626;border:none;border-radius:12px;font-family:var(--font);font-weight:700;font-size:14px;cursor:pointer;">
       🚪 ออกจากระบบ
     </button>
   </div>`;
@@ -2170,7 +2298,9 @@ function renderTeacherProfile() {
       <button class="btn-green" data-action="save-homeroom" style="padding:12px;margin-top:12px;">✅ บันทึก</button>
     </div>
 
-    <button data-action="logout" style="width:100%;padding:14px;background:#fee2e2;color:#dc2626;border:none;border-radius:12px;font-family:Kanit;font-weight:700;font-size:14px;cursor:pointer;">
+    ${themeCardHTML()}
+
+    <button data-action="logout" style="width:100%;padding:14px;background:#fee2e2;color:#dc2626;border:none;border-radius:12px;font-family:var(--font);font-weight:700;font-size:14px;cursor:pointer;">
       🚪 ออกจากระบบ
     </button>
   </div>`;
@@ -2213,12 +2343,12 @@ function renderTeacherDashboard() {
     </div>
 
     <button data-action="nav" data-screen="teacher-scan"
-      style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:16px;background:linear-gradient(90deg,var(--gd),var(--g));color:#fff;border:none;border-radius:14px;font-family:Kanit;font-weight:700;font-size:16px;cursor:pointer;box-shadow:0 4px 20px oklch(0.52 0.17 145 / 0.4);">
+      style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:16px;background:linear-gradient(90deg,var(--gd),var(--g));color:#fff;border:none;border-radius:14px;font-family:var(--font);font-weight:700;font-size:16px;cursor:pointer;box-shadow:0 4px 20px oklch(0.52 0.17 var(--h) / 0.4);">
       <span style="font-size:22px;">📷</span> สแกน QR Code นักเรียน
     </button>
 
     <button data-action="nav" data-screen="teacher-createcode"
-      style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:16px;background:linear-gradient(90deg,#d97706,#f59e0b);color:#fff;border:none;border-radius:14px;font-family:Kanit;font-weight:700;font-size:16px;cursor:pointer;box-shadow:0 4px 20px rgba(245,158,11,0.35);">
+      style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:16px;background:linear-gradient(90deg,#d97706,#f59e0b);color:#fff;border:none;border-radius:14px;font-family:var(--font);font-weight:700;font-size:16px;cursor:pointer;box-shadow:0 4px 20px rgba(245,158,11,0.35);">
       <span style="font-size:22px;">🎯</span> สร้างโค้ดรับคะแนน
     </button>
 
@@ -2233,7 +2363,7 @@ function renderTeacherDashboard() {
         ? recent.map(l => listRow(studentGenderIcon(l.students), `${fullName(l.students)} · ${classOf(l.students)}`, `${l.good_deed_types?.name || ''} · ${formatDate(l.created_at)}`, `+${l.points}`)).join('')
         : `<div style="padding:20px;text-align:center;color:#9ca3af;font-size:13px;">ยังไม่มีกิจกรรมเดือนนี้</div>`}
       <button data-action="nav" data-screen="teacher-history"
-        style="width:100%;padding:12px;border:none;background:var(--gl);color:var(--g);font-family:Kanit;font-weight:700;font-size:13px;cursor:pointer;border-radius:0 0 16px 16px;">
+        style="width:100%;padding:12px;border:none;background:var(--gl);color:var(--g);font-family:var(--font);font-weight:700;font-size:13px;cursor:pointer;border-radius:0 0 16px 16px;">
         ดูประวัติทั้งหมด →
       </button>
     </div>
@@ -2262,11 +2392,11 @@ function renderTeacherScan() {
         <button class="btn-green" data-action="start-scan" style="margin-top:14px;padding:14px;">📷 เปิดกล้องสแกน QR Code</button>
         <div style="text-align:center;margin-top:10px;font-size:12px;color:#9ca3af;">หรือ</div>
         <button data-action="nav" data-screen="teacher-addpoints"
-          style="width:100%;margin-top:8px;padding:12px;background:#f9fafb;color:#374151;border:1px solid #e5e7eb;border-radius:12px;font-family:Kanit;font-weight:600;font-size:13px;cursor:pointer;">
+          style="width:100%;margin-top:8px;padding:12px;background:#f9fafb;color:#374151;border:1px solid #e5e7eb;border-radius:12px;font-family:var(--font);font-weight:600;font-size:13px;cursor:pointer;">
           ✏️ เพิ่มคะแนนด้วยรหัสนักเรียน
         </button>
         <button data-action="nav" data-screen="teacher-createcode"
-          style="width:100%;margin-top:8px;padding:12px;background:#fffbeb;color:#b45309;border:1px solid #fde68a;border-radius:12px;font-family:Kanit;font-weight:600;font-size:13px;cursor:pointer;">
+          style="width:100%;margin-top:8px;padding:12px;background:#fffbeb;color:#b45309;border:1px solid #fde68a;border-radius:12px;font-family:var(--font);font-weight:600;font-size:13px;cursor:pointer;">
           🎯 สร้างโค้ดรับคะแนน
         </button>
       </div>
@@ -2283,7 +2413,7 @@ function renderTeacherScan() {
   <div class="screen-wrap anim-slideup">
     <div class="card">
       <div style="background:var(--gl);border-radius:12px;padding:18px;display:flex;align-items:center;gap:14px;margin-bottom:16px;">
-        ${studentAvatar(sc, { size: 60, fontSize: 26, bg: 'var(--g)', border: 'none', shadow: '0 4px 14px oklch(0.52 0.17 145 / 0.4)' })}
+        ${studentAvatar(sc, { size: 60, fontSize: 26, bg: 'var(--g)', border: 'none', shadow: '0 4px 14px oklch(0.52 0.17 var(--h) / 0.4)' })}
         <div>
           <div style="font-size:17px;font-weight:700;color:var(--gd);">${fullName(sc)}</div>
           <div style="font-size:13px;color:#6b7280;margin-top:3px;">รหัส ${sc.student_code} · ${classOf(sc)}</div>
@@ -2310,7 +2440,7 @@ function renderTeacherScan() {
       <button class="btn-green" data-action="save-points" style="margin-top:16px;padding:14px;opacity:${state.selectedDeedId ? 1 : 0.5};" ${state.loading ? 'disabled' : ''}>
         ${state.loading ? 'กำลังบันทึก...' : '✅ บันทึกคะแนน'}
       </button>
-      <button data-action="reset-scan" style="margin-top:8px;width:100%;padding:10px;background:transparent;color:#9ca3af;border:none;font-family:Kanit;cursor:pointer;font-size:13px;">← สแกนใหม่</button>
+      <button data-action="reset-scan" style="margin-top:8px;width:100%;padding:10px;background:transparent;color:#9ca3af;border:none;font-family:var(--font);cursor:pointer;font-size:13px;">← สแกนใหม่</button>
     </div>
   </div>`;
 }
@@ -2372,7 +2502,7 @@ function pointLogRowHTML(l) {
       </div>
       <div style="flex-shrink:0;text-align:right;">
         <div style="font-weight:700;font-size:14px;color:${cancelled ? '#9ca3af' : 'var(--g)'};${cancelled ? 'text-decoration:line-through;' : ''}">+${l.points}</div>
-        ${canCancel ? `<button data-action="cancel-point-log" data-id="${l.id}" style="margin-top:4px;padding:4px 8px;background:#fee2e2;color:#dc2626;border:none;border-radius:8px;font-family:Kanit;font-size:11px;cursor:pointer;white-space:nowrap;">ยกเลิก</button>` : ''}
+        ${canCancel ? `<button data-action="cancel-point-log" data-id="${l.id}" style="margin-top:4px;padding:4px 8px;background:#fee2e2;color:#dc2626;border:none;border-radius:8px;font-family:var(--font);font-size:11px;cursor:pointer;white-space:nowrap;">ยกเลิก</button>` : ''}
       </div>
     </div>`;
 }
@@ -2475,8 +2605,8 @@ function renderTeacherCodeDisplay() {
         <div style="font-size:12px;color:#b45309;font-weight:700;margin-top:4px;">⏰ หมดเวลา ${formatTimeHM(pc.expiresAt)} น.</div>
       </div>
 
-      <button data-action="open-point-code-card" style="width:100%;margin-top:22px;padding:13px;background:linear-gradient(90deg,#d97706,#f59e0b);color:#fff;border:none;border-radius:10px;font-family:Kanit;font-weight:700;font-size:14px;cursor:pointer;">📤 บันทึก/แชร์การ์ดโค้ด</button>
-      <button data-action="cancel-point-code" style="width:100%;margin-top:8px;padding:12px;background:#fee2e2;color:#dc2626;border:none;border-radius:10px;font-family:Kanit;font-weight:600;cursor:pointer;">✕ ปิดโค้ดนี้</button>
+      <button data-action="open-point-code-card" style="width:100%;margin-top:22px;padding:13px;background:linear-gradient(90deg,#d97706,#f59e0b);color:#fff;border:none;border-radius:10px;font-family:var(--font);font-weight:700;font-size:14px;cursor:pointer;">📤 บันทึก/แชร์การ์ดโค้ด</button>
+      <button data-action="cancel-point-code" style="width:100%;margin-top:8px;padding:12px;background:#fee2e2;color:#dc2626;border:none;border-radius:10px;font-family:var(--font);font-weight:600;cursor:pointer;">✕ ปิดโค้ดนี้</button>
     </div>
   </div>`;
 }
@@ -2653,7 +2783,7 @@ function renderDeedCallDispatchPanel() {
           : `<div style="padding:22px;text-align:center;color:#9ca3af;font-size:13px;">ยังไม่มีใครรับงาน</div>`}
       </div>
 
-      <button data-action="cancel-deed-call" style="width:100%;margin-top:16px;padding:12px;background:#fee2e2;color:#dc2626;border:none;border-radius:10px;font-family:Kanit;font-weight:600;cursor:pointer;">✕ ยกเลิกงานนี้</button>
+      <button data-action="cancel-deed-call" style="width:100%;margin-top:16px;padding:12px;background:#fee2e2;color:#dc2626;border:none;border-radius:10px;font-family:var(--font);font-weight:600;cursor:pointer;">✕ ยกเลิกงานนี้</button>
     </div>
   </div>`;
 }
@@ -2689,7 +2819,7 @@ function renderAdminDashboard() {
           { icon: '📈',  label: 'รายงาน',           screen: 'admin-reports' },
         ].map(a => `
           <button data-action="nav" data-screen="${a.screen}"
-            style="padding:14px 10px;background:var(--gl);border:none;border-radius:12px;font-family:Kanit;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;">
+            style="padding:14px 10px;background:var(--gl);border:none;border-radius:12px;font-family:var(--font);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;">
             <span style="font-size:26px;">${a.icon}</span>
             <span style="font-size:12px;font-weight:700;color:var(--gd);">${a.label}</span>
           </button>
@@ -2735,7 +2865,7 @@ function renderAdminStudents() {
     <div style="display:flex;gap:10px;">
       <input class="form-input" placeholder="🔍 ค้นหานักเรียน..." id="student-search" value="${state.studentSearch}" style="flex:1;">
       <button data-action="search-students-submit"
-        style="padding:10px 16px;background:var(--g);color:#fff;border:none;border-radius:10px;font-family:Kanit;font-weight:700;cursor:pointer;font-size:13px;white-space:nowrap;">
+        style="padding:10px 16px;background:var(--g);color:#fff;border:none;border-radius:10px;font-family:var(--font);font-weight:700;cursor:pointer;font-size:13px;white-space:nowrap;">
         ค้นหา
       </button>
     </div>
@@ -2846,8 +2976,8 @@ function rewardPickupRowHTML(r, isPending) {
         </div>
       </div>
       ${isPending
-        ? `<button data-action="mark-reward-collected" data-id="${r.id}" style="flex-shrink:0;padding:8px 12px;background:var(--g);color:#fff;border:none;border-radius:10px;font-family:Kanit;font-weight:700;cursor:pointer;font-size:12px;white-space:nowrap;">✅ มอบของแล้ว</button>`
-        : `<button data-action="unmark-reward-collected" data-id="${r.id}" style="flex-shrink:0;padding:8px 12px;background:transparent;border:1px solid #e5e7eb;border-radius:10px;color:#9ca3af;font-family:Kanit;cursor:pointer;font-size:12px;white-space:nowrap;">↩️ ยกเลิก</button>`}
+        ? `<button data-action="mark-reward-collected" data-id="${r.id}" style="flex-shrink:0;padding:8px 12px;background:var(--g);color:#fff;border:none;border-radius:10px;font-family:var(--font);font-weight:700;cursor:pointer;font-size:12px;white-space:nowrap;">✅ มอบของแล้ว</button>`
+        : `<button data-action="unmark-reward-collected" data-id="${r.id}" style="flex-shrink:0;padding:8px 12px;background:transparent;border:1px solid #e5e7eb;border-radius:10px;color:#9ca3af;font-family:var(--font);cursor:pointer;font-size:12px;white-space:nowrap;">↩️ ยกเลิก</button>`}
     </div>`;
 }
 
@@ -2881,8 +3011,8 @@ function suggestionRowHTML(s, isUnread) {
         </div>
       </div>
       ${isUnread
-        ? `<button data-action="mark-suggestion-read" data-id="${s.id}" style="flex-shrink:0;padding:8px 12px;background:var(--g);color:#fff;border:none;border-radius:10px;font-family:Kanit;font-weight:700;cursor:pointer;font-size:12px;white-space:nowrap;">✅ อ่านแล้ว</button>`
-        : `<button data-action="unmark-suggestion-read" data-id="${s.id}" style="flex-shrink:0;padding:8px 12px;background:transparent;border:1px solid #e5e7eb;border-radius:10px;color:#9ca3af;font-family:Kanit;cursor:pointer;font-size:12px;white-space:nowrap;">↩️ ยกเลิก</button>`}
+        ? `<button data-action="mark-suggestion-read" data-id="${s.id}" style="flex-shrink:0;padding:8px 12px;background:var(--g);color:#fff;border:none;border-radius:10px;font-family:var(--font);font-weight:700;cursor:pointer;font-size:12px;white-space:nowrap;">✅ อ่านแล้ว</button>`
+        : `<button data-action="unmark-suggestion-read" data-id="${s.id}" style="flex-shrink:0;padding:8px 12px;background:transparent;border:1px solid #e5e7eb;border-radius:10px;color:#9ca3af;font-family:var(--font);cursor:pointer;font-size:12px;white-space:nowrap;">↩️ ยกเลิก</button>`}
     </div>`;
 }
 
@@ -2966,7 +3096,7 @@ function renderPointPeriodsCard() {
     <div style="border-top:1px solid #f3f4f6;padding:14px 16px;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
         <div style="font-weight:700;color:var(--gd);font-size:13px;">🏆 อันดับ · ${state.archivedPeriodLabel}</div>
-        <button data-action="close-point-period" style="background:transparent;border:none;color:#9ca3af;cursor:pointer;font-size:13px;font-family:Kanit;">✕ ปิด</button>
+        <button data-action="close-point-period" style="background:transparent;border:none;color:#9ca3af;cursor:pointer;font-size:13px;font-family:var(--font);">✕ ปิด</button>
       </div>
       ${state.archivedPeriodReport === null
         ? `<div style="padding:16px;text-align:center;color:#9ca3af;font-size:13px;">กำลังโหลด...</div>`
@@ -3130,7 +3260,7 @@ function renderAdminSettings() {
     <div class="card">
       <div style="font-size:15px;font-weight:700;color:var(--gd);margin-bottom:20px;">⚙️ ตั้งค่าอันดับนักเรียน (Leaderboard)</div>
 
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid oklch(0.96 0.02 145);margin-bottom:16px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid oklch(0.96 0.02 var(--h));margin-bottom:16px;">
         <div>
           <div style="font-weight:600;font-size:14px;color:#1f2937;">แสดงอันดับให้นักเรียนเห็น</div>
           <div style="font-size:12px;color:#9ca3af;margin-top:2px;">ปิดเพื่อซ่อนหน้าอันดับจากเมนูนักเรียนทั้งหมด</div>
@@ -3147,7 +3277,7 @@ function renderAdminSettings() {
     <div class="card">
       <div style="font-size:15px;font-weight:700;color:var(--gd);margin-bottom:20px;">🧩 เมนูสำหรับนักเรียน</div>
 
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid oklch(0.96 0.02 145);margin-bottom:16px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid oklch(0.96 0.02 var(--h));margin-bottom:16px;">
         <div>
           <div style="font-weight:600;font-size:14px;color:#1f2937;">📊 ผลการเรียน</div>
           <div style="font-size:12px;color:#9ca3af;margin-top:2px;">ปิดเพื่อซ่อนเมนู "ผลการเรียน" จากนักเรียนทั้งหมด</div>
@@ -3173,7 +3303,7 @@ function renderAdminSettings() {
           value="${state.resetPeriodLabelInput ?? defaultAcademicYearLabel()}"
           oninput="state.resetPeriodLabelInput = this.value">
       </div>
-      <button data-action="open-confirm-reset-year" style="width:100%;padding:13px;background:#fef3c7;color:#b45309;border:none;border-radius:12px;font-family:Kanit;font-weight:700;cursor:pointer;font-size:14px;">🌱 เริ่มปีการศึกษาใหม่ (รีเซ็ตคะแนนทุกคน)</button>
+      <button data-action="open-confirm-reset-year" style="width:100%;padding:13px;background:#fef3c7;color:#b45309;border:none;border-radius:12px;font-family:var(--font);font-weight:700;cursor:pointer;font-size:14px;">🌱 เริ่มปีการศึกษาใหม่ (รีเซ็ตคะแนนทุกคน)</button>
     </div>
 
     <div class="card">
@@ -3202,7 +3332,7 @@ function renderAdminSettings() {
       </div>
       <div class="form-group"><input type="file" accept="image/*" id="school-logo-file"></div>
       <button class="btn-green" data-action="upload-school-logo" style="padding:13px;">📤 อัปโหลดโลโก้</button>
-      ${s.schoolLogoUrl ? `<button data-action="remove-school-logo" style="width:100%;padding:10px;margin-top:8px;background:#fee2e2;color:#dc2626;border:none;border-radius:10px;font-family:Kanit;cursor:pointer;">🗑️ ลบโลโก้ (กลับไปใช้ 🌿)</button>` : ''}
+      ${s.schoolLogoUrl ? `<button data-action="remove-school-logo" style="width:100%;padding:10px;margin-top:8px;background:#fee2e2;color:#dc2626;border:none;border-radius:10px;font-family:var(--font);cursor:pointer;">🗑️ ลบโลโก้ (กลับไปใช้ 🌿)</button>` : ''}
     </div>
 
     <div class="card">
@@ -3214,7 +3344,7 @@ function renderAdminSettings() {
       <div style="font-size:12px;color:#9ca3af;margin-bottom:14px;">${s.levelFarmBgUrl ? 'กำลังใช้ภาพที่อัปโหลดไว้' : 'ยังไม่ได้อัปโหลด — ใช้ภาพเริ่มต้นของระบบ'}</div>
       <div class="form-group"><input type="file" accept="image/*" id="level-farm-bg-file"></div>
       <button class="btn-green" data-action="upload-level-farm-bg" style="padding:13px;">📤 อัปโหลดภาพพื้นหลัง</button>
-      ${s.levelFarmBgUrl ? `<button data-action="remove-level-farm-bg" style="width:100%;padding:10px;margin-top:8px;background:#fee2e2;color:#dc2626;border:none;border-radius:10px;font-family:Kanit;cursor:pointer;">🗑️ ลบภาพ (กลับไปใช้ภาพเริ่มต้น)</button>` : ''}
+      ${s.levelFarmBgUrl ? `<button data-action="remove-level-farm-bg" style="width:100%;padding:10px;margin-top:8px;background:#fee2e2;color:#dc2626;border:none;border-radius:10px;font-family:var(--font);cursor:pointer;">🗑️ ลบภาพ (กลับไปใช้ภาพเริ่มต้น)</button>` : ''}
     </div>
 
     <div class="card">
@@ -3222,7 +3352,7 @@ function renderAdminSettings() {
       <div style="font-size:12px;color:#9ca3af;margin-bottom:16px;">กำหนดว่าครูทุกคนเห็น/จัดการเมนูใดได้บ้าง (บังคับจริงที่ฐานข้อมูล)</div>
 
       ${permRows.map((r, i) => `
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;${i < permRows.length - 1 ? 'border-bottom:1px solid oklch(0.96 0.02 145);' : ''}">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;${i < permRows.length - 1 ? 'border-bottom:1px solid oklch(0.96 0.02 var(--h));' : ''}">
           <div>
             <div style="font-weight:600;font-size:14px;color:#1f2937;">${r.label}</div>
             <div style="font-size:12px;color:#9ca3af;margin-top:2px;">${r.desc}</div>
@@ -3243,7 +3373,7 @@ function renderAdminSettings() {
     <div class="card" style="border:1.5px solid #fecaca;">
       <div style="font-size:15px;font-weight:700;color:#dc2626;margin-bottom:6px;">⚠️ เขตอันตราย</div>
       <div style="font-size:12px;color:#9ca3af;margin-bottom:16px;line-height:1.6;">ลบคะแนนความดีของนักเรียน<b style="color:#dc2626;">ทุกคนทุกปีการศึกษาถาวร</b> ทั้งข้อมูลปัจจุบันและประวัติที่เก็บไว้ทั้งหมด <b>กู้คืนไม่ได้เลย</b> — ต่างจาก "เริ่มปีการศึกษาใหม่" ด้านบนที่ยังเก็บประวัติไว้ให้</div>
-      <button data-action="open-confirm-wipe-points" style="width:100%;padding:13px;background:#dc2626;color:#fff;border:none;border-radius:12px;font-family:Kanit;font-weight:700;cursor:pointer;font-size:14px;">🗑️ ล้างคะแนนทั้งระบบถาวร</button>
+      <button data-action="open-confirm-wipe-points" style="width:100%;padding:13px;background:#dc2626;color:#fff;border:none;border-radius:12px;font-family:var(--font);font-weight:700;cursor:pointer;font-size:14px;">🗑️ ล้างคะแนนทั้งระบบถาวร</button>
     </div>
   </div>`;
 }
@@ -3742,7 +3872,7 @@ function renderOpenDeedCalls() {
         </div>
         ${call.message ? `<div style="font-size:12.5px;color:#374151;margin-top:6px;">${call.message}</div>` : ''}
         <button data-action="accept-deed-call" data-call-id="${call.id}"
-          style="width:100%;margin-top:10px;padding:9px;background:var(--g);color:#fff;border:none;border-radius:8px;font-family:Kanit;font-weight:700;font-size:13px;cursor:pointer;">
+          style="width:100%;margin-top:10px;padding:9px;background:var(--g);color:#fff;border:none;border-radius:8px;font-family:var(--font);font-weight:700;font-size:13px;cursor:pointer;">
           ไปช่วยเลย!
         </button>
       </div>
@@ -4422,7 +4552,7 @@ document.addEventListener('click', async (e) => {
           ใช่หรือไม่?
         </div>
         <button class="btn-green" data-action="confirm-cancel-point-log" data-id="${log.id}" style="padding:13px;background:#dc2626;">🗑️ ยืนยันยกเลิก</button>
-        <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:Kanit;color:#9ca3af;cursor:pointer;">ไม่ยกเลิก</button>
+        <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:var(--font);color:#9ca3af;cursor:pointer;">ไม่ยกเลิก</button>
       `);
       break;
     }
@@ -4618,8 +4748,8 @@ document.addEventListener('click', async (e) => {
         </div>
         <div class="form-group"><input type="file" accept="image/*" id="student-photo-file"></div>
         <button class="btn-green" data-action="save-student-photo" data-id="${s.id}" style="padding:13px;margin-top:4px;">✅ บันทึกรูป</button>
-        ${s.photo_url ? `<button data-action="remove-student-photo" data-id="${s.id}" data-url="${s.photo_url}" style="width:100%;padding:10px;margin-top:8px;background:#fee2e2;color:#dc2626;border:none;border-radius:10px;font-family:Kanit;cursor:pointer;">🗑️ ลบรูป</button>` : ''}
-        <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:Kanit;color:#9ca3af;cursor:pointer;">ยกเลิก</button>
+        ${s.photo_url ? `<button data-action="remove-student-photo" data-id="${s.id}" data-url="${s.photo_url}" style="width:100%;padding:10px;margin-top:8px;background:#fee2e2;color:#dc2626;border:none;border-radius:10px;font-family:var(--font);cursor:pointer;">🗑️ ลบรูป</button>` : ''}
+        <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:var(--font);color:#9ca3af;cursor:pointer;">ยกเลิก</button>
       `);
       break;
     }
@@ -4665,8 +4795,8 @@ document.addEventListener('click', async (e) => {
         </div>
         <div class="form-group"><input type="file" accept="image/*" id="staff-photo-file"></div>
         <button class="btn-green" data-action="save-staff-photo" style="padding:13px;margin-top:4px;">✅ บันทึกรูป</button>
-        ${u.photo_url ? `<button data-action="remove-staff-photo" data-url="${u.photo_url}" style="width:100%;padding:10px;margin-top:8px;background:#fee2e2;color:#dc2626;border:none;border-radius:10px;font-family:Kanit;cursor:pointer;">🗑️ ลบรูป</button>` : ''}
-        <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:Kanit;color:#9ca3af;cursor:pointer;">ยกเลิก</button>
+        ${u.photo_url ? `<button data-action="remove-staff-photo" data-url="${u.photo_url}" style="width:100%;padding:10px;margin-top:8px;background:#fee2e2;color:#dc2626;border:none;border-radius:10px;font-family:var(--font);cursor:pointer;">🗑️ ลบรูป</button>` : ''}
+        <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:var(--font);color:#9ca3af;cursor:pointer;">ยกเลิก</button>
       `);
       break;
     }
@@ -4710,8 +4840,8 @@ document.addEventListener('click', async (e) => {
         </div>
         <div class="form-group"><input type="file" accept="image/*" id="student-own-photo-file"></div>
         <button class="btn-green" data-action="save-student-own-photo" style="padding:13px;margin-top:4px;">✅ บันทึกรูป</button>
-        ${s.photo_url ? `<button data-action="remove-student-own-photo" data-url="${s.photo_url}" style="width:100%;padding:10px;margin-top:8px;background:#fee2e2;color:#dc2626;border:none;border-radius:10px;font-family:Kanit;cursor:pointer;">🗑️ ลบรูป</button>` : ''}
-        <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:Kanit;color:#9ca3af;cursor:pointer;">ยกเลิก</button>
+        ${s.photo_url ? `<button data-action="remove-student-own-photo" data-url="${s.photo_url}" style="width:100%;padding:10px;margin-top:8px;background:#fee2e2;color:#dc2626;border:none;border-radius:10px;font-family:var(--font);cursor:pointer;">🗑️ ลบรูป</button>` : ''}
+        <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:var(--font);color:#9ca3af;cursor:pointer;">ยกเลิก</button>
       `);
       break;
     }
@@ -4750,7 +4880,7 @@ document.addEventListener('click', async (e) => {
         <div class="form-group"><label class="form-label">คะแนนต่ำสุด</label><input class="form-input" type="number" id="new-deed-min" value="5"></div>
         <div class="form-group"><label class="form-label">คะแนนสูงสุด</label><input class="form-input" type="number" id="new-deed-max" value="20"></div>
         <button class="btn-green" data-action="save-deed" style="padding:13px;margin-top:4px;">✅ บันทึก</button>
-        <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:Kanit;color:#9ca3af;cursor:pointer;">ยกเลิก</button>
+        <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:var(--font);color:#9ca3af;cursor:pointer;">ยกเลิก</button>
       `);
       break;
 
@@ -4779,7 +4909,7 @@ document.addEventListener('click', async (e) => {
         <div class="form-group"><label class="form-label">คะแนนต่ำสุด</label><input class="form-input" type="number" id="edit-deed-min" value="${dt.points_min}"></div>
         <div class="form-group"><label class="form-label">คะแนนสูงสุด</label><input class="form-input" type="number" id="edit-deed-max" value="${dt.points_max}"></div>
         <button class="btn-green" data-action="save-edit-deed" data-id="${dt.id}" style="padding:13px;margin-top:4px;">✅ บันทึก</button>
-        <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:Kanit;color:#9ca3af;cursor:pointer;">ยกเลิก</button>
+        <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:var(--font);color:#9ca3af;cursor:pointer;">ยกเลิก</button>
       `);
       break;
     }
@@ -4826,7 +4956,7 @@ document.addEventListener('click', async (e) => {
         <div class="form-group"><label class="form-label">คะแนนที่ใช้ *</label><input class="form-input" type="number" id="new-rw-pts" placeholder="100"></div>
         <div class="form-group"><label class="form-label">จำนวนคงเหลือ</label><input class="form-input" type="number" id="new-rw-stock" placeholder="10"></div>
         <button class="btn-green" data-action="save-reward" style="padding:13px;margin-top:4px;">✅ บันทึก</button>
-        <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:Kanit;color:#9ca3af;cursor:pointer;">ยกเลิก</button>
+        <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:var(--font);color:#9ca3af;cursor:pointer;">ยกเลิก</button>
       `);
       break;
 
@@ -4855,7 +4985,7 @@ document.addEventListener('click', async (e) => {
         <div class="form-group"><label class="form-label">คะแนนที่ใช้ *</label><input class="form-input" type="number" id="edit-rw-pts" value="${r.points_required}"></div>
         <div class="form-group"><label class="form-label">จำนวนคงเหลือ</label><input class="form-input" type="number" id="edit-rw-stock" value="${r.stock}"></div>
         <button class="btn-green" data-action="save-edit-reward" data-id="${r.id}" style="padding:13px;margin-top:4px;">✅ บันทึก</button>
-        <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:Kanit;color:#9ca3af;cursor:pointer;">ยกเลิก</button>
+        <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:var(--font);color:#9ca3af;cursor:pointer;">ยกเลิก</button>
       `);
       break;
     }
@@ -5037,6 +5167,23 @@ document.addEventListener('click', async (e) => {
       break;
     }
 
+    case 'theme-set': {
+      const k = btn.dataset.key, raw = btn.dataset.val;
+      userTheme[k] = (k === 'font') ? raw : Number(raw);
+      saveTheme(); applyTheme(); render();
+      break;
+    }
+    case 'theme-toggle': {
+      const k = btn.dataset.key;
+      userTheme[k] = !userTheme[k];
+      saveTheme(); applyTheme(); render();
+      break;
+    }
+    case 'theme-reset':
+      userTheme = { ...THEME_DEFAULT };
+      saveTheme(); applyTheme(); render();
+      break;
+
     case 'toggle-deed-room': {
       const key = btn.dataset.room;
       const mine = state.staffUser?.homeroom_grade_level && `${state.staffUser.homeroom_grade_level}/${state.staffUser.homeroom_room}` === key;
@@ -5079,8 +5226,8 @@ document.addEventListener('click', async (e) => {
         </div>
 
         <button class="btn-green" data-action="confirm-approve-deed-request" data-id="${r.id}" style="padding:13px;">✅ อนุมัติให้คะแนน</button>
-        <button data-action="confirm-reject-deed-request" data-id="${r.id}" style="width:100%;padding:11px;margin-top:8px;background:#fee2e2;color:#dc2626;border:none;border-radius:10px;font-family:Kanit;font-weight:700;cursor:pointer;">❌ ไม่อนุมัติ</button>
-        <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:Kanit;color:#9ca3af;cursor:pointer;">ปิด</button>
+        <button data-action="confirm-reject-deed-request" data-id="${r.id}" style="width:100%;padding:11px;margin-top:8px;background:#fee2e2;color:#dc2626;border:none;border-radius:10px;font-family:var(--font);font-weight:700;cursor:pointer;">❌ ไม่อนุมัติ</button>
+        <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:var(--font);color:#9ca3af;cursor:pointer;">ปิด</button>
       `);
       break;
     }
@@ -5142,7 +5289,7 @@ document.addEventListener('click', async (e) => {
         <div class="form-group"><label class="form-label">คะแนนขั้นต่ำ *</label><input class="form-input" type="number" id="new-badge-min" placeholder="10000"></div>
         <div class="form-group"><label class="form-label">สี</label><input class="form-input" type="color" id="new-badge-color" value="#22c55e" style="height:44px;padding:4px;"></div>
         <button class="btn-green" data-action="save-badge" style="padding:13px;margin-top:4px;">✅ บันทึก</button>
-        <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:Kanit;color:#9ca3af;cursor:pointer;">ยกเลิก</button>
+        <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:var(--font);color:#9ca3af;cursor:pointer;">ยกเลิก</button>
       `);
       break;
 
@@ -5171,7 +5318,7 @@ document.addEventListener('click', async (e) => {
         <div class="form-group"><label class="form-label">คะแนนขั้นต่ำ *</label><input class="form-input" type="number" id="edit-badge-min" value="${t.min_points}"></div>
         <div class="form-group"><label class="form-label">สี</label><input class="form-input" type="color" id="edit-badge-color" value="${t.color}" style="height:44px;padding:4px;"></div>
         <button class="btn-green" data-action="save-edit-badge" data-id="${t.id}" style="padding:13px;margin-top:4px;">✅ บันทึก</button>
-        <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:Kanit;color:#9ca3af;cursor:pointer;">ยกเลิก</button>
+        <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:var(--font);color:#9ca3af;cursor:pointer;">ยกเลิก</button>
       `);
       break;
     }
@@ -5337,7 +5484,7 @@ document.addEventListener('click', async (e) => {
           <span style="color:#9ca3af;font-size:12px;">ดูย้อนหลังได้ที่แท็บรายงานเสมอ ไม่มีข้อมูลสูญหาย</span>
         </div>
         <button class="btn-green" data-action="confirm-reset-year" data-label="${label}" style="padding:13px;">✅ ยืนยันเริ่มปีการศึกษาใหม่</button>
-        <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:Kanit;color:#9ca3af;cursor:pointer;">ยกเลิก</button>
+        <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:var(--font);color:#9ca3af;cursor:pointer;">ยกเลิก</button>
       `);
       break;
     }
@@ -5367,7 +5514,7 @@ document.addEventListener('click', async (e) => {
             oninput="document.getElementById('wipe-confirm-btn').disabled = this.value.trim() !== 'ลบถาวร'">
         </div>
         <button class="btn-green" id="wipe-confirm-btn" data-action="confirm-wipe-points" style="padding:13px;background:#dc2626;" disabled>🗑️ ล้างคะแนนทั้งระบบถาวร</button>
-        <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:Kanit;color:#9ca3af;cursor:pointer;">ยกเลิก</button>
+        <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:var(--font);color:#9ca3af;cursor:pointer;">ยกเลิก</button>
       `);
       break;
     }
@@ -5396,10 +5543,10 @@ document.addEventListener('click', async (e) => {
         <div style="text-align:center;padding:0 0 20px;color:#9ca3af;font-size:12px;">${timeAgoLabel(s.last_seen_at)}</div>
         ${state.role === 'admin' && !state.previewAsTeacher ? `
         <button data-action="open-confirm-delete-student-points" data-id="${s.id}" data-name="${fullName(s)}"
-          style="width:100%;padding:13px;background:#fee2e2;color:#dc2626;border:none;border-radius:12px;font-family:Kanit;font-weight:700;cursor:pointer;font-size:14px;">🗑️ ลบประวัติคะแนนถาวร</button>
+          style="width:100%;padding:13px;background:#fee2e2;color:#dc2626;border:none;border-radius:12px;font-family:var(--font);font-weight:700;cursor:pointer;font-size:14px;">🗑️ ลบประวัติคะแนนถาวร</button>
         <div style="font-size:11px;color:#9ca3af;margin-top:8px;text-align:center;">สำหรับนักเรียนที่จบการศึกษา/ลาออก — ไม่ลบบัญชี/โปรไฟล์</div>
         ` : ''}
-        <button data-action="close-modal" style="width:100%;padding:10px;margin-top:12px;background:transparent;border:none;font-family:Kanit;color:#9ca3af;cursor:pointer;">ปิด</button>
+        <button data-action="close-modal" style="width:100%;padding:10px;margin-top:12px;background:transparent;border:none;font-family:var(--font);color:#9ca3af;cursor:pointer;">ปิด</button>
       `);
       break;
     }
@@ -5413,7 +5560,7 @@ document.addEventListener('click', async (e) => {
           <span style="color:#9ca3af;font-size:12px;">กู้คืนไม่ได้เลย (บัญชี/โปรไฟล์ยังอยู่ตามเดิม)</span>
         </div>
         <button class="btn-green" data-action="confirm-delete-student-points" data-id="${id}" data-name="${name}" style="padding:13px;background:#dc2626;">🗑️ ยืนยันลบถาวร</button>
-        <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:Kanit;color:#9ca3af;cursor:pointer;">ยกเลิก</button>
+        <button data-action="close-modal" style="width:100%;padding:10px;margin-top:8px;background:transparent;border:none;font-family:var(--font);color:#9ca3af;cursor:pointer;">ยกเลิก</button>
       `);
       break;
     }

@@ -3,17 +3,20 @@
    ============================================= */
 
 :root {
-  --g:    oklch(0.52 0.17 145);
-  --gd:   oklch(0.35 0.15 145);
-  --gl:   oklch(0.95 0.05 145);
-  --gm:   oklch(0.72 0.14 145);
-  --bg:   oklch(0.97 0.02 145);
-  --border: oklch(0.93 0.04 145);
-  --text: oklch(0.25 0.12 145);
-  --text-soft: oklch(0.6 0.05 145);
+  --h: 145;
+  --font: 'Kanit', sans-serif;
+  --r-card: 16px;
+  --g:    oklch(0.52 0.17 var(--h));
+  --gd:   oklch(0.35 0.15 var(--h));
+  --gl:   oklch(0.95 0.05 var(--h));
+  --gm:   oklch(0.72 0.14 var(--h));
+  --bg:   oklch(0.97 0.02 var(--h));
+  --border: oklch(0.93 0.04 var(--h));
+  --text: oklch(0.25 0.12 var(--h));
+  --text-soft: oklch(0.6 0.05 var(--h));
 }
 
-*, *::before, *::after { box-sizing: border-box; font-family: 'Kanit', sans-serif; }
+*, *::before, *::after { box-sizing: border-box; font-family: var(--font); }
 body { margin: 0; background: var(--bg); min-height: 100vh; }
 
 /* ── Animations ── */
@@ -29,7 +32,7 @@ body { margin: 0; background: var(--bg); min-height: 100vh; }
 
 /* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 4px; }
-::-webkit-scrollbar-thumb { background: oklch(0.85 0.05 145); border-radius: 2px; }
+::-webkit-scrollbar-thumb { background: oklch(0.85 0.05 var(--h)); border-radius: 2px; }
 
 /* ── Range input ── */
 input[type=range] { -webkit-appearance: none; appearance: none; height: 6px; border-radius: 3px; cursor: pointer; width: 100%; outline: none; }
@@ -69,26 +72,26 @@ select { appearance: none; -webkit-appearance: none; }
 .logo-icon {
   width: 90px; height: 90px; font-size: 60px; margin: 0 auto 16px;
   display: flex; align-items: center; justify-content: center;
-  filter: drop-shadow(0 0 12px oklch(0.68 0.21 145 / 0.6)) drop-shadow(0 0 28px oklch(0.6 0.22 145 / 0.4));
+  filter: drop-shadow(0 0 12px oklch(0.68 0.21 var(--h) / 0.6)) drop-shadow(0 0 28px oklch(0.6 0.22 var(--h) / 0.4));
 }
 .login-logo h1 { margin: 0; font-size: 26px; font-weight: 700; color: var(--text); }
 .login-logo p  { margin: 6px 0 0; font-size: 14px; color: var(--text-soft); }
 .login-tabs {
-  display: flex; gap: 4px; background: oklch(0.95 0.03 145); border-radius: 14px;
+  display: flex; gap: 4px; background: oklch(0.95 0.03 var(--h)); border-radius: 14px;
   padding: 4px; margin-bottom: 22px;
 }
 .login-tab {
   flex: 1; padding: 11px 8px; border: none; border-radius: 10px; cursor: pointer;
-  background: transparent; color: var(--text-soft); font-family: Kanit; font-size: 14px;
+  background: transparent; color: var(--text-soft); font-family:var(--font); font-size: 14px;
   font-weight: 600; transition: all 0.15s;
 }
 .login-tab.active { background: #fff; color: var(--gd); box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
-.login-note { text-align: center; font-size: 12px; color: oklch(0.7 0.04 145); margin-top: 24px; }
+.login-note { text-align: center; font-size: 12px; color: oklch(0.7 0.04 var(--h)); margin-top: 24px; }
 
 .install-app-btn {
   display: block; width: 100%; margin-top: 14px; padding: 11px;
   background: #fff; border: 1.5px solid var(--border); border-radius: 12px;
-  font-family: Kanit; font-weight: 600; font-size: 13px; color: var(--gd);
+  font-family:var(--font); font-weight: 600; font-size: 13px; color: var(--gd);
   cursor: pointer; transition: background 0.2s;
 }
 .install-app-btn:hover { background: var(--gl); }
@@ -115,7 +118,7 @@ select { appearance: none; -webkit-appearance: none; }
 .bottom-nav {
   position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
   max-width: 480px; width: 100%; background: #fff;
-  border-top: 1px solid oklch(0.92 0.03 145);
+  border-top: 1px solid oklch(0.92 0.03 var(--h));
   display: flex; z-index: 100; box-shadow: 0 -2px 12px rgba(0,0,0,0.06);
 }
 .bnav-btn {
@@ -125,7 +128,20 @@ select { appearance: none; -webkit-appearance: none; }
 }
 .bnav-btn.active { background: var(--gl); border-top-color: var(--g); }
 .bnav-icon { font-size: 19px; }
-.bnav-label { font-size: 10px; color: #9ca3af; font-family: Kanit; }
+.bnav-label { font-size: 10px; color: #9ca3af; font-family: var(--font); }
+/* ปุ่มกลางขนาดใหญ่ (ขอทำดี ของนักเรียน) ลอยเหนือแถบเมนู */
+.bottom-nav { overflow: visible; }
+.bnav-btn.bnav-fab { background: #fff; border-top-color: transparent; position: relative; padding-top: 38px; }
+.bnav-btn.bnav-fab.active { background: #fff; border-top-color: transparent; }
+.bnav-fab-circle {
+  position: absolute; top: -24px; left: 50%; transform: translateX(-50%);
+  width: 58px; height: 58px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--g), var(--gd)); border: 4px solid #fff;
+  box-shadow: 0 4px 14px oklch(0.4 0.15 var(--h) / 0.45);
+  display: flex; align-items: center; justify-content: center; font-size: 26px;
+}
+.bnav-btn.bnav-fab.active .bnav-fab-circle { box-shadow: 0 0 0 3px var(--gl), 0 4px 14px oklch(0.4 0.15 var(--h) / 0.45); }
+.bnav-btn.bnav-fab .bnav-label { font-weight: 700; color: var(--g); }
 .bnav-btn.active .bnav-label { color: var(--g); font-weight: 700; }
 
 /* ── Drawer (full menu, slides in from the left over the app) ── */
@@ -140,7 +156,7 @@ select { appearance: none; -webkit-appearance: none; }
 @keyframes drawerIn { from { transform: translateX(-100%); } to { transform: translateX(0); } }
 
 .sidebar {
-  background: linear-gradient(180deg, var(--gd), oklch(0.28 0.13 145));
+  background: linear-gradient(180deg, var(--gd), oklch(0.28 0.13 var(--h)));
   display: flex; flex-direction: column;
 }
 .sidebar-brand { padding: 20px 18px 18px; border-bottom: 1px solid rgba(255,255,255,0.1); }
@@ -150,7 +166,7 @@ select { appearance: none; -webkit-appearance: none; }
 .snav-btn {
   display: flex; align-items: center; gap: 10px; padding: 12px 18px;
   width: 100%; border: none; background: transparent; cursor: pointer;
-  color: rgba(255,255,255,0.65); font-family: Kanit; font-size: 14px;
+  color: rgba(255,255,255,0.65); font-family:var(--font); font-size: 14px;
   text-align: left; border-left: 3px solid transparent; transition: all 0.15s;
 }
 .snav-btn:hover, .snav-btn.active {
@@ -161,14 +177,14 @@ select { appearance: none; -webkit-appearance: none; }
 .sidebar-logout {
   width: 100%; padding: 8px 12px; background: rgba(255,255,255,0.08);
   border: 1px solid rgba(255,255,255,0.15); border-radius: 8px;
-  color: rgba(255,255,255,0.7); font-family: Kanit; cursor: pointer; font-size: 12px;
+  color: rgba(255,255,255,0.7); font-family:var(--font); cursor: pointer; font-size: 12px;
 }
 .sidebar-logout:hover { background: rgba(255,255,255,0.15); }
 
 /* ── Shared UI components ── */
 .role-badge { background: var(--gl); border-radius: 20px; padding: 4px 10px; font-size: 11px; font-weight: 600; color: var(--gd); }
 .mgmt-menu-btn { width: 32px; height: 32px; border: none; background: var(--gl); border-radius: 10px; color: var(--gd); font-size: 15px; cursor: pointer; flex-shrink: 0; }
-.mgmt-menu-btn:hover { background: oklch(0.9 0.06 145); }
+.mgmt-menu-btn:hover { background: oklch(0.9 0.06 var(--h)); }
 .avatar { width: 32px; height: 32px; background: linear-gradient(135deg, var(--g), var(--gd)); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; cursor: pointer; flex-shrink: 0; }
 
 /* Screen content wrapper */
@@ -202,7 +218,7 @@ select { appearance: none; -webkit-appearance: none; }
 }
 
 /* Card */
-.card { background: #fff; border-radius: 16px; padding: 20px; box-shadow: 0 2px 12px rgba(0,0,0,0.055); }
+.card { background: #fff; border-radius: var(--r-card); padding: 20px; box-shadow: 0 2px 12px rgba(0,0,0,0.055); }
 
 /* Stat boxes */
 .stat-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -216,7 +232,7 @@ select { appearance: none; -webkit-appearance: none; }
 .stat-lbl  { font-size: 11px; color: #9ca3af; margin-top: 3px; }
 
 /* List row */
-.list-item { display: flex; align-items: center; gap: 12px; padding: 13px 16px; border-bottom: 1px solid oklch(0.96 0.02 145); }
+.list-item { display: flex; align-items: center; gap: 12px; padding: 13px 16px; border-bottom: 1px solid oklch(0.96 0.02 var(--h)); }
 .list-icon  { font-size: 22px; width: 32px; text-align: center; flex-shrink: 0; }
 .list-body  { flex: 1; min-width: 0; }
 .list-title { font-weight: 600; font-size: 14px; color: #1f2937; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -226,7 +242,7 @@ select { appearance: none; -webkit-appearance: none; }
 /* Green button */
 .btn-green {
   padding: 13px 20px; background: linear-gradient(90deg, var(--gd), var(--g));
-  color: #fff; border: none; border-radius: 12px; font-family: Kanit;
+  color: #fff; border: none; border-radius: 12px; font-family:var(--font);
   font-weight: 700; font-size: 14px; cursor: pointer; transition: opacity 0.2s;
   display: block; width: 100%; text-align: center;
 }
@@ -235,7 +251,7 @@ select { appearance: none; -webkit-appearance: none; }
 
 .call-btn-cta {
   padding: 13px 20px; background: linear-gradient(90deg, #d97706, #f59e0b);
-  color: #fff; border: none; border-radius: 12px; font-family: Kanit;
+  color: #fff; border: none; border-radius: 12px; font-family:var(--font);
   font-weight: 700; font-size: 14px; cursor: pointer; transition: opacity 0.2s;
   display: block; width: 100%; text-align: center;
   box-shadow: 0 6px 16px rgba(245,129,31,0.3);
@@ -248,22 +264,22 @@ select { appearance: none; -webkit-appearance: none; }
 .form-label { font-size: 13px; font-weight: 600; color: #374151; display: block; margin-bottom: 6px; }
 .form-input {
   width: 100%; padding: 10px 14px;
-  border: 1.5px solid oklch(0.88 0.07 145); border-radius: 10px;
-  font-family: Kanit; font-size: 14px; color: #1f2937; outline: none;
+  border: 1.5px solid oklch(0.88 0.07 var(--h)); border-radius: 10px;
+  font-family:var(--font); font-size: 14px; color: #1f2937; outline: none;
   box-sizing: border-box; background: #fff;
 }
 .form-input:focus { border-color: var(--g); }
 .form-input[readonly] { background: #f9fafb; }
 
 .form-group input[type="file"] {
-  width: 100%; box-sizing: border-box; font-family: Kanit; font-size: 12.5px;
+  width: 100%; box-sizing: border-box; font-family:var(--font); font-size: 12.5px;
   color: #9ca3af; padding: 9px 10px;
-  border: 1.5px dashed oklch(0.88 0.07 145); border-radius: 10px;
+  border: 1.5px dashed oklch(0.88 0.07 var(--h)); border-radius: 10px;
   background: var(--gl); cursor: pointer;
 }
 .form-group input[type="file"]::file-selector-button,
 .form-group input[type="file"]::-webkit-file-upload-button {
-  font-family: Kanit; font-weight: 700; font-size: 13px; color: #fff;
+  font-family:var(--font); font-weight: 700; font-size: 13px; color: #fff;
   background: linear-gradient(90deg, var(--gd), var(--g));
   border: none; border-radius: 8px; padding: 8px 14px; margin-right: 10px;
   cursor: pointer; transition: opacity 0.2s;
@@ -308,7 +324,7 @@ select { appearance: none; -webkit-appearance: none; }
 /* แตะแล้วมีวงสีสันกระจายจากจุดกึ่งกลาง — ให้รู้สึกถึงการแตะทุกครั้ง ไม่ใช่แค่ตอนพลิกสำเร็จ */
 .qr-tap-pulse {
   position: absolute; border-radius: 50%; pointer-events: none;
-  background: radial-gradient(circle, oklch(0.78 0.19 145 / 0.55) 0%, oklch(0.8 0.16 85 / 0.4) 55%, transparent 75%);
+  background: radial-gradient(circle, oklch(0.78 0.19 var(--h) / 0.55) 0%, oklch(0.8 0.16 85 / 0.4) 55%, transparent 75%);
   animation: qrTapPulse 0.5s ease-out forwards;
 }
 @keyframes qrTapPulse {
@@ -325,7 +341,7 @@ select { appearance: none; -webkit-appearance: none; }
 /* Floating "+N" score popup — fixed to the viewport so re-renders mid-scan-result don't cut it off */
 .float-points {
   position: fixed; transform: translate(-50%, -50%); pointer-events: none; z-index: 960;
-  font-size: 34px; font-weight: 800; color: #facc15; font-family: Kanit;
+  font-size: 34px; font-weight: 800; color: #facc15; font-family:var(--font);
   text-shadow: 0 2px 6px rgba(0,0,0,0.35), 0 0 14px rgba(250,204,21,0.65);
   animation: floatPointsUp 1.2s ease-out forwards;
 }
@@ -509,7 +525,7 @@ select { appearance: none; -webkit-appearance: none; }
 .reward-pts { font-weight: 700; color: var(--g); font-size: 13px; }
 .btn-redeem {
   padding: 5px 12px; border: none; border-radius: 8px;
-  font-family: Kanit; font-size: 12px; font-weight: 600; cursor: pointer;
+  font-family:var(--font); font-size: 12px; font-weight: 600; cursor: pointer;
 }
 .btn-redeem.can   { background: var(--g); color: #fff; }
 .btn-redeem.cant  { background: #e5e7eb; color: #9ca3af; }
@@ -531,7 +547,7 @@ select { appearance: none; -webkit-appearance: none; }
 .deed-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .deed-chip {
   padding: 10px 8px; background: #f9fafb; border: 2px solid #e5e7eb;
-  border-radius: 10px; font-family: Kanit; font-size: 13px; cursor: pointer; color: #374151;
+  border-radius: 10px; font-family:var(--font); font-size: 13px; cursor: pointer; color: #374151;
   transition: all 0.15s;
 }
 .deed-chip.selected { background: var(--gl); border-color: var(--g); color: var(--gd); font-weight: 700; }
@@ -569,7 +585,7 @@ select { appearance: none; -webkit-appearance: none; }
 /* Level-up celebration overlay — shown when a student's redeem pushes them into a new badge tier */
 .levelup-overlay {
   position: fixed; inset: 0; z-index: 970; cursor: pointer;
-  background: radial-gradient(circle at 50% 40%, oklch(0.4 0.15 145 / 0.97), oklch(0.12 0.05 145 / 0.99));
+  background: radial-gradient(circle at 50% 40%, oklch(0.4 0.15 var(--h) / 0.97), oklch(0.12 0.05 var(--h) / 0.99));
   display: flex; align-items: center; justify-content: center; flex-direction: column;
   overflow: hidden; animation: fadeIn 0.25s ease; text-align: center; padding: 24px;
 }
@@ -656,7 +672,7 @@ select { appearance: none; -webkit-appearance: none; }
 }
 .deedcall-actions { display: flex; gap: 10px; margin-top: 24px; width: 100%; max-width: 300px; animation: fadeIn 0.4s ease 0.55s both; }
 .deedcall-accept, .deedcall-dismiss {
-  flex: 1; padding: 13px 8px; border-radius: 14px; font-family: Kanit; font-weight: 800;
+  flex: 1; padding: 13px 8px; border-radius: 14px; font-family:var(--font); font-weight: 800;
   font-size: 14px; cursor: pointer; border: none;
 }
 .deedcall-accept { background: #fff; color: #c2540a; box-shadow: 0 4px 18px rgba(0,0,0,0.28); animation: deedcallAcceptPulse 1.6s ease-in-out infinite; }
@@ -681,3 +697,17 @@ select { appearance: none; -webkit-appearance: none; }
 /* QR code display */
 .qr-display { display: flex; justify-content: center; }
 .qr-frame { padding: 8px; border: 2px solid var(--g); border-radius: 12px; display: inline-block; }
+
+
+/* ── ธีมส่วนตัว (ตั้งค่าที่หน้าโปรไฟล์) ── */
+/* ปรับความโค้งมนของการ์ดที่เขียน inline ไว้ 16px ทั่วแอป */
+[style*="border-radius:16px"] { border-radius: var(--r-card) !important; }
+.content-a { zoom: var(--ui-zoom, 1); }
+body.theme-no-fx .leaf, body.theme-no-fx .mascot-bird, body.theme-no-fx .leaf-field { display: none !important; }
+body.theme-no-fx .hero-banner::after { animation: none; display: none; }
+body.theme-flat .card, body.theme-flat [style*="box-shadow:0 2px 12px"] { box-shadow: none !important; border: 1px solid var(--border); }
+body.theme-gradient-bg { background: linear-gradient(180deg, var(--gl), var(--bg) 40%); background-attachment: fixed; }
+.theme-chip { padding: 8px 14px; border-radius: 99px; border: 1.5px solid var(--border); background: #fff; font-size: 13px; cursor: pointer; color: #374151; }
+.theme-chip.selected { background: var(--gl); border-color: var(--g); color: var(--gd); font-weight: 700; }
+.theme-swatch { width: 38px; height: 38px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 0 1.5px #d1d5db; cursor: pointer; }
+.theme-swatch.selected { box-shadow: 0 0 0 3px var(--g); }

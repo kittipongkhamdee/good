@@ -376,9 +376,9 @@ function computeWeeklyQuests(history) {
 }
 function renderWeeklyQuests(quests) {
   return `
-  <div class="card">
-    <div style="font-weight:700;color:var(--gd);margin-bottom:14px;">🗺️ เควสประจำสัปดาห์</div>
-    <div style="display:flex;flex-direction:column;gap:14px;">
+  <div class="card" style="padding:12px 16px;">
+    <div style="font-weight:700;color:var(--gd);font-size:14px;margin-bottom:10px;">🗺️ เควสประจำสัปดาห์</div>
+    <div style="display:flex;flex-direction:column;gap:10px;">
       ${quests.map(q => `
         <div class="quest-item ${q.done ? 'quest-done' : ''}">
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
@@ -1204,11 +1204,11 @@ function renderStudentDashboard() {
   const streak = computeStreak(state.studentHistory);
 
   return `
-  <div class="screen-wrap anim-slideup">
-    <div class="hero-banner">
+  <div class="screen-wrap anim-slideup" style="gap:10px;">
+    <div class="hero-banner" style="padding:16px;">
       <div id="hero-leaf-field" class="leaf-field" aria-hidden="true"></div>
-      <div style="position:relative;z-index:1;display:flex;align-items:center;gap:14px;">
-        ${studentAvatar(s, { size: 62, fontSize: 28, tierFrame: true })}
+      <div style="position:relative;z-index:1;display:flex;align-items:center;gap:12px;">
+        ${studentAvatar(s, { size: 52, fontSize: 24, tierFrame: true })}
         <div>
           <div style="font-size:18px;font-weight:700;line-height:1.2;">${fullName(s)}</div>
           <div style="font-size:12px;opacity:0.8;margin-top:3px;">${classOf(s)} · รหัส ${s.student_code}</div>
@@ -1218,15 +1218,15 @@ function renderStudentDashboard() {
           </div>
         </div>
       </div>
-      <div style="position:relative;z-index:1;margin-top:18px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.18);display:flex;align-items:flex-end;justify-content:space-between;">
+      <div style="position:relative;z-index:1;margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.18);display:flex;align-items:flex-end;justify-content:space-between;">
         <div>
           <div style="font-size:12px;opacity:0.75;">คะแนนสะสมทั้งหมด</div>
-          <div style="font-size:44px;font-weight:700;line-height:1;margin-top:2px;" data-countup="${s.total_points}">0</div>
+          <div style="font-size:36px;font-weight:700;line-height:1;margin-top:2px;" data-countup="${s.total_points}">0</div>
           <div style="font-size:13px;opacity:0.7;margin-top:2px;">คะแนน</div>
         </div>
         <div style="text-align:right;font-size:12px;opacity:0.75;">
           <div>ทำความดีแล้ว</div>
-          <div style="font-size:30px;font-weight:700;line-height:1;" data-countup="${s.total_deeds}">0</div>
+          <div style="font-size:26px;font-weight:700;line-height:1;" data-countup="${s.total_deeds}">0</div>
           <div>ครั้ง</div>
         </div>
       </div>
@@ -1244,7 +1244,7 @@ function renderStudentDashboard() {
 
     ${renderWeeklyQuests(computeWeeklyQuests(state.studentHistory))}
 
-    <div class="card">
+    <div class="card" style="padding:14px 16px;">
       <div class="qr-flip-wrap" data-action="qr-card-tap">
         ${state.studentScanMode ? `
         <div class="qr-flip-face">
@@ -1259,27 +1259,27 @@ function renderStudentDashboard() {
         </div>
         ` : `
         <div class="qr-flip-face">
-          <div style="font-size:14px;font-weight:700;color:var(--gd);margin-bottom:12px;text-align:center;">📲 QR Code ประจำตัวนักเรียน</div>
-          <div class="qr-display"><div class="qr-frame"><canvas id="student-qr" width="164" height="164"></canvas></div></div>
-          <div style="text-align:center;margin-top:10px;font-size:12px;color:#9ca3af;">รหัส ${s.student_code} · ${classOf(s)} · ${state.settings.schoolName}</div>
-          <div style="text-align:center;margin-top:8px;font-size:11px;color:#c7d2c2;">👆👆 แตะ 2 ครั้งเพื่อสแกนรับคะแนนจากครู</div>
+          <div style="font-size:14px;font-weight:700;color:var(--gd);margin-bottom:8px;text-align:center;">📲 QR Code ประจำตัวนักเรียน</div>
+          <div class="qr-display"><div class="qr-frame"><canvas id="student-qr" width="164" height="164" style="width:132px;height:132px;"></canvas></div></div>
+          <div style="text-align:center;margin-top:6px;font-size:11.5px;color:#9ca3af;">รหัส ${s.student_code} · ${classOf(s)} · ${state.settings.schoolName}</div>
+          <div style="text-align:center;margin-top:4px;font-size:11px;color:#c7d2c2;">👆👆 แตะ 2 ครั้งเพื่อสแกนรับคะแนนจากครู</div>
         </div>
         `}
       </div>
     </div>
 
     <button data-action="open-share-card"
-      style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:15px;background:linear-gradient(135deg,#0F6B45,#35C98A);color:#fff;border:none;border-radius:14px;font-family:var(--font);font-weight:700;font-size:15px;cursor:pointer;box-shadow:0 4px 20px oklch(0.52 0.17 var(--h) / 0.35);">
+      style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:11px;background:linear-gradient(135deg,#0F6B45,#35C98A);color:#fff;border:none;border-radius:14px;font-family:var(--font);font-weight:700;font-size:14px;cursor:pointer;box-shadow:0 4px 20px oklch(0.52 0.17 var(--h) / 0.35);">
       <span style="font-size:20px;">📤</span> แชร์การ์ดผลงาน
     </button>
 
     <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.055);">
-      <div style="padding:14px 16px 10px;font-weight:700;font-size:15px;color:var(--gd);">📋 กิจกรรมล่าสุด</div>
+      <div style="padding:10px 16px 6px;font-weight:700;font-size:14px;color:var(--gd);">📋 กิจกรรมล่าสุด</div>
       ${recent.length
         ? recent.map(d => listRow(d.deed_icon || '💚', d.deed_name || 'ทำความดี', `${d.teacher_name || ''} · ${formatDate(d.created_at)}`, `+${d.points} คะแนน`)).join('')
         : `<div style="padding:20px;text-align:center;color:#9ca3af;font-size:13px;">ยังไม่มีประวัติ</div>`}
       <button data-action="nav" data-screen="student-history"
-        style="width:100%;padding:12px;border:none;background:var(--gl);color:var(--g);font-family:var(--font);font-weight:700;font-size:13px;cursor:pointer;border-radius:0 0 16px 16px;">
+        style="width:100%;padding:9px;border:none;background:var(--gl);color:var(--g);font-family:var(--font);font-weight:700;font-size:12.5px;cursor:pointer;border-radius:0 0 16px 16px;">
         ดูประวัติทั้งหมด →
       </button>
     </div>

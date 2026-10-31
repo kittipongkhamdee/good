@@ -224,11 +224,11 @@ select { appearance: none; -webkit-appearance: none; }
 .stat-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .stat-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
 .stat-box {
-  background: #fff; border-radius: 14px; padding: 16px 12px;
+  background: #fff; border-radius: 14px; padding: 10px 8px;
   text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.05);
 }
-.stat-icon { font-size: 28px; }
-.stat-val  { font-size: 22px; font-weight: 700; line-height: 1; margin-top: 4px; }
+.stat-icon { font-size: 22px; }
+.stat-val  { font-size: 20px; font-weight: 700; line-height: 1; margin-top: 3px; }
 .stat-lbl  { font-size: 11px; color: #9ca3af; margin-top: 3px; }
 
 /* List row */

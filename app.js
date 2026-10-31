@@ -1860,43 +1860,43 @@ function renderStudentDeedRequest() {
   };
 
   return `
-  <div class="screen-wrap anim-slideup">
-    <div class="hero-banner">
+  <div class="screen-wrap anim-slideup" style="gap:10px;">
+    <div class="hero-banner" style="padding:14px 16px;">
       <div>
-        <div style="font-size:18px;font-weight:700;position:relative;">🙋 แจ้งความดีที่ทำ</div>
-        <div style="font-size:12.5px;opacity:0.85;margin-top:5px;line-height:1.6;position:relative;">ทำความดีแล้วยังไม่มีครูให้คะแนน? ส่งคำขอพร้อมรูปถ่ายมาให้ครูประจำชั้นตรวจสอบได้เลย</div>
+        <div style="font-size:16px;font-weight:700;position:relative;">🙋 แจ้งความดีที่ทำ</div>
+        <div style="font-size:12px;opacity:0.85;margin-top:3px;line-height:1.5;position:relative;">ทำความดีแล้วยังไม่มีครูให้คะแนน? ส่งคำขอพร้อมรูปถ่ายมาให้ครูประจำชั้นตรวจสอบได้เลย</div>
       </div>
     </div>
 
-    <div class="card">
-      <div style="font-weight:700;color:var(--gd);margin-bottom:12px;font-size:14px;">1. เลือกประเภทความดี</div>
-      <div class="deed-grid">
+    <div class="card" style="padding:12px 14px;">
+      <div style="font-weight:700;color:var(--gd);margin-bottom:8px;font-size:13.5px;">1. เลือกประเภทความดี</div>
+      <div class="deed-grid" style="gap:6px;">
         ${types.map(d => `
-          <button class="deed-chip ${selectedId === d.id ? 'selected' : ''}" data-action="select-deed-request-type" data-deed-id="${d.id}">
+          <button class="deed-chip ${selectedId === d.id ? 'selected' : ''}" style="padding:7px 6px;font-size:12.5px;" data-action="select-deed-request-type" data-deed-id="${d.id}">
             ${d.icon} ${d.name}
           </button>
         `).join('')}
       </div>
     </div>
 
-    <div class="card">
-      <div style="font-weight:700;color:var(--gd);margin-bottom:12px;font-size:14px;">2. อธิบายสิ่งที่ทำ</div>
-      <textarea class="form-input" rows="3" placeholder="เช่น ช่วยครูจัดโต๊ะเก้าอี้หลังเลิกแถวเช้านี้..."
+    <div class="card" style="padding:12px 14px;">
+      <div style="font-weight:700;color:var(--gd);margin-bottom:8px;font-size:13.5px;">2. อธิบายสิ่งที่ทำ</div>
+      <textarea class="form-input" rows="2" placeholder="เช่น ช่วยครูจัดโต๊ะเก้าอี้หลังเลิกแถวเช้านี้..."
         oninput="state.deedRequestDescription=this.value">${state.deedRequestDescription}</textarea>
     </div>
 
-    <div class="card">
-      <div style="font-weight:700;color:var(--gd);margin-bottom:4px;font-size:14px;">3. แนบรูปภาพประกอบ</div>
-      <div style="font-size:11.5px;color:#9ca3af;margin-bottom:12px;">แนบ 2 รูป เพื่อยืนยันว่าทำจริง</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div class="card" style="padding:12px 14px;">
+      <div style="font-weight:700;color:var(--gd);margin-bottom:2px;font-size:13.5px;">3. แนบรูปภาพประกอบ</div>
+      <div style="font-size:11px;color:#9ca3af;margin-bottom:8px;">แนบ 2 รูป เพื่อยืนยันว่าทำจริง</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
         ${[1, 2].map(slot => {
           const url = state[`deedPhotoPreviewUrl${slot}`];
           return url
-            ? `<div data-action="open-deed-camera" data-slot="${slot}" style="aspect-ratio:1/1;border-radius:12px;overflow:hidden;position:relative;cursor:pointer;">
+            ? `<div data-action="open-deed-camera" data-slot="${slot}" style="aspect-ratio:4/3;border-radius:12px;overflow:hidden;position:relative;cursor:pointer;">
                 <img src="${url}" alt="" style="width:100%;height:100%;object-fit:cover;display:block;">
                 <div style="position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,0.5);color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center;">✓</div>
               </div>`
-            : `<div data-action="open-deed-camera" data-slot="${slot}" style="aspect-ratio:1/1;border:1.5px dashed oklch(0.88 0.07 var(--h));border-radius:12px;background:var(--gl);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;">
+            : `<div data-action="open-deed-camera" data-slot="${slot}" style="aspect-ratio:4/3;border:1.5px dashed oklch(0.88 0.07 var(--h));border-radius:12px;background:var(--gl);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;">
                 <span style="font-size:26px;">📷</span>
                 <span style="font-size:11px;color:#9ca3af;">รูปที่ ${slot}</span>
               </div>`;
@@ -1904,14 +1904,14 @@ function renderStudentDeedRequest() {
       </div>
     </div>
 
-    <button class="btn-green" data-action="submit-deed-request" style="padding:14px;">📩 ส่งคำขอ</button>
+    <button class="btn-green" data-action="submit-deed-request" style="padding:11px;">📩 ส่งคำขอ</button>
 
     <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.055);">
-      <div style="padding:16px 16px 4px;font-weight:700;color:var(--gd);font-size:14px;">ประวัติคำขอของฉัน</div>
+      <div style="padding:10px 14px 2px;font-weight:700;color:var(--gd);font-size:13.5px;">ประวัติคำขอของฉัน</div>
       ${list === null ? `<div style="padding:20px;text-align:center;color:#9ca3af;font-size:13px;">กำลังโหลด...</div>`
         : !list.length ? `<div style="padding:20px;text-align:center;color:#9ca3af;font-size:13px;">ยังไม่เคยส่งคำขอ</div>`
         : list.map(r => `
-          <div style="display:flex;align-items:flex-start;gap:12px;padding:14px 16px;border-bottom:1px solid oklch(0.96 0.02 var(--h));">
+          <div style="display:flex;align-items:flex-start;gap:10px;padding:9px 14px;border-bottom:1px solid oklch(0.96 0.02 var(--h));">
             <span style="font-size:22px;width:32px;text-align:center;flex-shrink:0;">${r.deed_icon || '💚'}</span>
             <div style="flex:1;min-width:0;">
               <div style="font-weight:600;font-size:14px;color:#1f2937;">${r.deed_name || 'ความดี'}</div>
@@ -2208,16 +2208,16 @@ function renderStudentRewards() {
   const rewards = state.rewards;
   const s = state.student;
   return `
-  <div class="screen-wrap anim-slideup">
-    <div class="hero-banner">
+  <div class="screen-wrap anim-slideup" style="gap:10px;">
+    <div class="hero-banner" style="padding:12px 16px;">
       <div style="display:flex;justify-content:space-between;align-items:center;">
         <div>
           <div style="font-size:12px;opacity:0.8;">คะแนนที่มี</div>
-          <div style="font-size:34px;font-weight:700;">${s.total_points.toLocaleString()}</div>
+          <div style="font-size:28px;font-weight:700;line-height:1.1;">${s.total_points.toLocaleString()}</div>
         </div>
         <div style="text-align:right;">
           <div style="font-size:12px;opacity:0.8;">แลกไปแล้ว</div>
-          <div style="font-size:34px;font-weight:700;">${s.redeem_count} ครั้ง</div>
+          <div style="font-size:28px;font-weight:700;line-height:1.1;">${s.redeem_count} ครั้ง</div>
         </div>
       </div>
     </div>
@@ -2241,11 +2241,11 @@ function renderStudentRewards() {
       }).join('')}
     </div>
 
-    <div class="card">
-      <div style="font-weight:700;color:var(--gd);margin-bottom:4px;">💭 อยากได้อะไรเพิ่ม?</div>
-      <div style="font-size:12px;color:#9ca3af;margin-bottom:12px;">เสนอรางวัลหรือของที่อยากให้มีเพิ่ม ครูจะเห็นข้อความนี้</div>
-      <textarea class="form-input" id="suggestion-text" rows="3" placeholder="เช่น อยากได้เสื้อยืดโรงเรียน, บัตรของขวัญร้านสะดวกซื้อ..." style="resize:none;"></textarea>
-      <button class="btn-green" data-action="submit-suggestion" style="padding:13px;margin-top:10px;">📤 ส่งข้อเสนอแนะ</button>
+    <div class="card" style="padding:12px 14px;">
+      <div style="font-weight:700;color:var(--gd);margin-bottom:2px;font-size:14px;">💭 อยากได้อะไรเพิ่ม?</div>
+      <div style="font-size:11.5px;color:#9ca3af;margin-bottom:8px;">เสนอรางวัลหรือของที่อยากให้มีเพิ่ม ครูจะเห็นข้อความนี้</div>
+      <textarea class="form-input" id="suggestion-text" rows="2" placeholder="เช่น อยากได้เสื้อยืดโรงเรียน, บัตรของขวัญร้านสะดวกซื้อ..." style="resize:none;"></textarea>
+      <button class="btn-green" data-action="submit-suggestion" style="padding:10px;margin-top:8px;">📤 ส่งข้อเสนอแนะ</button>
     </div>
   </div>`;
 }

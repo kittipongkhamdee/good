@@ -131,7 +131,7 @@ const TITLES = {
   'admin-codehistory': 'ประวัติการสร้างโค้ด',
 };
 
-// ── ธีมส่วนตัว (เก็บในเครื่องของผู้ใช้เอง ใช้ได้ทั้งนักเรียนและครู) ──
+// ── ธีมส่วนตัว (เก็บในบัญชีผู้ใช้ ตามไปทุกเครื่อง ใช้ได้ทั้งนักเรียนและครู) ──
 const THEME_KEY = 'goodapp_theme_v1';
 const THEME_DEFAULT = { hue: 145, font: 'Kanit', size: 1, radius: 16, fx: true, flat: false, bgGrad: false };
 const THEME_COLORS = [
@@ -152,7 +152,24 @@ function loadTheme() {
   catch { return { ...THEME_DEFAULT }; }
 }
 let userTheme = loadTheme();
-function saveTheme() { try { localStorage.setItem(THEME_KEY, JSON.stringify(userTheme)); } catch {} }
+let _themeSyncTimer = null;
+function saveTheme() {
+  try { localStorage.setItem(THEME_KEY, JSON.stringify(userTheme)); } catch {}
+  clearTimeout(_themeSyncTimer);
+  _themeSyncTimer = setTimeout(flushThemeSync, 600);
+}
+function flushThemeSync() {
+  clearTimeout(_themeSyncTimer);
+  _themeSyncTimer = null;
+  if (state.role === 'student' && state.student) return setStudentTheme(state.student.student_code, userTheme);
+  if ((state.role === 'teacher' || state.role === 'admin') && state.staffUser) return setStaffTheme(state.staffUser.id, userTheme);
+}
+// ดึงธีมของบัญชีนี้จากฐานข้อมูลมาใช้ (ไม่มีธีมที่บันทึกไว้ = ค่าเริ่มต้น)
+function adoptRemoteTheme(remote) {
+  userTheme = { ...THEME_DEFAULT, ...(remote && typeof remote === 'object' ? remote : {}) };
+  try { localStorage.setItem(THEME_KEY, JSON.stringify(userTheme)); } catch {}
+  applyTheme();
+}
 function applyTheme() {
   const t = userTheme, root = document.documentElement.style;
   root.setProperty('--h', t.hue);
@@ -179,7 +196,7 @@ function themeCardHTML() {
   return `
   <div class="card">
     <div style="font-weight:700;color:var(--gd);font-size:14px;">🎨 ธีมของฉัน</div>
-    <div style="font-size:11.5px;color:#9ca3af;margin:4px 0 14px;">ปรับหน้าตาแอปตามใจชอบ มีผลเฉพาะในเครื่องนี้</div>
+    <div style="font-size:11.5px;color:#9ca3af;margin:4px 0 14px;">ปรับหน้าตาแอปตามใจชอบ ธีมจะตามบัญชีของคุณไปทุกเครื่อง</div>
 
     <div style="font-size:12px;font-weight:600;color:#6b7280;margin-bottom:8px;">สีหลัก</div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
@@ -4031,6 +4048,9 @@ async function enterStudentSession(code, { silent = false } = {}) {
   const { student, error } = await studentLogin(code);
   if (error || !student) return { ok: false, error };
 
+  const { theme: remoteTheme } = await getStudentTheme(code);
+  adoptRemoteTheme(remoteTheme);
+
   const [{ data: history }, { data: leaderboard }, { data: rewards }, { data: badgeTiers }, { data: settings }, { data: activeCalls }] = await Promise.all([
     getStudentHistory(code, 30),
     // limit: null on get_leaderboard means "use the admin-configured Top N", not
@@ -4073,6 +4093,7 @@ async function enterStaffSession(profile, { silent = false } = {}) {
     loadDataForScreen(screen),
   ]);
   state.staffUser = profile;
+  adoptRemoteTheme(profile.theme);
   state.badgeTiers = badgeTiers || [];
   state.rolePermissions = rolePermissions || state.rolePermissions;
   setState({ loading: false, role, screen, pendingDeedRequestsCount: pendingDeedRequestsCount || 0 });
@@ -4126,6 +4147,8 @@ async function restoreSession() {
 }
 
 async function doLogout() {
+  if (_themeSyncTimer) await flushThemeSync();
+  adoptRemoteTheme(null);
   stopScan();
   stopCodeCountdown();
   stopCallCountdown();

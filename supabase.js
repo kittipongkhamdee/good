@@ -33,7 +33,7 @@ async function staffLogin(email, password) {
 
   const { data: profile, error: profErr } = await _sb
     .from('profiles')
-    .select('id, full_name, role, is_admin, is_active, photo_url, homeroom_grade_level, homeroom_room')
+    .select('id, full_name, role, is_admin, is_active, photo_url, homeroom_grade_level, homeroom_room, theme')
     .eq('id', data.user.id)
     .single();
   if (profErr) return { profile: null, error: profErr.message };
@@ -59,7 +59,7 @@ async function getCurrentStaffProfile() {
 
   const { data: profile, error: profErr } = await _sb
     .from('profiles')
-    .select('id, full_name, role, is_admin, is_active, photo_url, homeroom_grade_level, homeroom_room')
+    .select('id, full_name, role, is_admin, is_active, photo_url, homeroom_grade_level, homeroom_room, theme')
     .eq('id', session.user.id)
     .single();
   if (profErr || !profile || !profile.is_active) return { profile: null, error: null };
@@ -755,5 +755,20 @@ async function setOwnHomeroom(staffId, gradeLevel, room) {
   const { error } = await _sb.from('profiles')
     .update({ homeroom_grade_level: gradeLevel || null, homeroom_room: room || null })
     .eq('id', staffId);
+  return { error: error?.message || null };
+}
+
+
+// ธีมส่วนตัวที่ผูกกับบัญชี (ตามไปทุกเครื่อง) — นักเรียนไม่มี Supabase Auth จึงอ่าน/เขียนผ่าน RPC ด้วยรหัสนักเรียน
+async function getStudentTheme(studentCode) {
+  const { data, error } = await _sb.rpc('get_student_theme', { p_student_code: studentCode });
+  return { theme: error ? null : data, error: error?.message || null };
+}
+async function setStudentTheme(studentCode, theme) {
+  const { error } = await _sb.rpc('set_student_theme', { p_student_code: studentCode, p_theme: theme });
+  return { error: error?.message || null };
+}
+async function setStaffTheme(staffId, theme) {
+  const { error } = await _sb.from('profiles').update({ theme }).eq('id', staffId);
   return { error: error?.message || null };
 }

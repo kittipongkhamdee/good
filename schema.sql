@@ -2295,3 +2295,28 @@ begin
     and (is_admin() or v_grade is null or v_room is null or (s.grade_level = v_grade and s.room = v_room));
   return v_count;
 end; $$;
+
+-- ============================================================
+-- §41 ธีมส่วนตัวผูกกับบัญชี (ตามไปทุกเครื่อง)
+--   students.theme / profiles.theme (jsonb) — ครูแก้ผ่าน RLS เดิมของ profiles (แถวตัวเอง)
+--   นักเรียนไม่มี Auth จึงอ่าน/เขียนผ่าน RPC ด้วยรหัสนักเรียน (รูปแบบเดียวกับ set_student_own_photo)
+-- ============================================================
+alter table public.students add column if not exists theme jsonb;
+alter table public.profiles add column if not exists theme jsonb;
+
+create or replace function public.get_student_theme(p_student_code text)
+returns jsonb language sql security definer set search_path = public as $$
+  select theme from public.students where student_code = p_student_code;
+$$;
+
+create or replace function public.set_student_theme(p_student_code text, p_theme jsonb)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if p_theme is not null and length(p_theme::text) > 500 then
+    raise exception 'theme too large';
+  end if;
+  update public.students set theme = p_theme where student_code = p_student_code;
+end; $$;
+
+grant execute on function public.get_student_theme(text) to anon, authenticated;
+grant execute on function public.set_student_theme(text, jsonb) to anon, authenticated;

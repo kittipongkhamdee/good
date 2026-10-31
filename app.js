@@ -1380,10 +1380,10 @@ function renderStudentBadges() {
   const plantStage = n > 1 ? Math.round((currentIdx / (n - 1)) * (PLANT_STAGES - 1)) + 1 : PLANT_STAGES;
 
   return `
-  <div class="screen-wrap anim-slideup">
-    <div class="hero-banner">
+  <div class="screen-wrap anim-slideup" style="gap:10px;">
+    <div class="hero-banner" style="padding:14px 16px;">
       <div style="display:flex;align-items:center;gap:12px;position:relative;z-index:1;">
-        <div style="font-size:34px;filter:drop-shadow(0 2px 6px rgba(0,0,0,0.25));">${currentTier.icon}</div>
+        <div style="font-size:28px;filter:drop-shadow(0 2px 6px rgba(0,0,0,0.25));">${currentTier.icon}</div>
         <div>
           <div style="font-size:11px;opacity:0.8;letter-spacing:0.03em;">เลเวลปัจจุบัน</div>
           <div style="font-size:18px;font-weight:700;margin-top:1px;">${currentTier.name}</div>
@@ -1393,17 +1393,15 @@ function renderStudentBadges() {
           ${isMax ? '' : `<div style="font-size:10.5px;opacity:0.8;">/ ${next.min_points.toLocaleString()} คะแนน</div>`}
         </div>
       </div>
-      <div class="progress-track" style="margin-top:14px;position:relative;z-index:1;">
+      <div class="progress-track" style="margin-top:10px;position:relative;z-index:1;">
         <div class="progress-fill" style="width:${pct}%;"></div>
       </div>
-      <div style="font-size:11px;opacity:0.85;margin-top:7px;position:relative;z-index:1;">
+      <div style="font-size:11px;opacity:0.85;margin-top:5px;position:relative;z-index:1;">
         ${isMax ? `🎉 สุดยอด! คุณถึงระดับสูงสุดแล้ว` : `${next.icon} อีก ${(next.min_points - pts).toLocaleString()} คะแนน ถึง ${next.name}`}
       </div>
     </div>
 
-    <div class="mascot-caption">🌳 ต้นไม้ความดีของฉัน</div>
-
-    <div class="mascot-scene-wrap">
+        <div class="mascot-scene-wrap">
       <div class="mascot-scene" style="background-image:url('${farmBgUrl}');">
         <div class="mascot-tag">${tagText}</div>
         <div class="mascot-bird" style="top:14%;animation-delay:0s;">🕊️</div>
@@ -2109,7 +2107,7 @@ function renderStudentLeaderboard() {
     <div style="display:flex;gap:8px;">
       ${scopeTabs.map(t => `
         <button data-action="set-leaderboard-scope" data-scope="${t.id}"
-          style="flex:1;padding:9px 6px;border-radius:10px;border:none;cursor:pointer;font-family:var(--font);font-size:12px;font-weight:${state.leaderboardScope === t.id ? 700 : 400};background:${state.leaderboardScope === t.id ? 'var(--g)' : '#fff'};color:${state.leaderboardScope === t.id ? '#fff' : '#6b7280'};box-shadow:0 1px 4px rgba(0,0,0,0.06);">
+          style="flex:1;padding:7px 6px;border-radius:10px;border:none;cursor:pointer;font-family:var(--font);font-size:12px;font-weight:${state.leaderboardScope === t.id ? 700 : 400};background:${state.leaderboardScope === t.id ? 'var(--g)' : '#fff'};color:${state.leaderboardScope === t.id ? '#fff' : '#6b7280'};box-shadow:0 1px 4px rgba(0,0,0,0.06);">
           ${t.label}
         </button>
       `).join('')}
@@ -2119,11 +2117,11 @@ function renderStudentLeaderboard() {
 
   if (!top.length || noPointsYet) {
     return `
-    <div class="screen-wrap anim-slideup">
-      <div class="hero-banner">
+    <div class="screen-wrap anim-slideup" style="gap:10px;">
+      <div class="hero-banner" style="padding:12px 16px;">
         <div style="text-align:center;">
-          <div style="font-size:22px;font-weight:700;">🏆 อันดับนักเรียนดีเด่น</div>
-          <div style="font-size:13px;opacity:0.8;margin-top:4px;">เรียงตามคะแนนสะสม</div>
+          <div style="font-size:18px;font-weight:700;">🏆 อันดับนักเรียนดีเด่น</div>
+          <div style="font-size:12px;opacity:0.8;margin-top:2px;">เรียงตามคะแนนสะสม</div>
         </div>
       </div>
       ${scopeTabsHTML}
@@ -2142,17 +2140,17 @@ function renderStudentLeaderboard() {
   const myEntryHidden = myEntry && !visible.includes(myEntry);
 
   const podium = visible.length >= 3 ? [visible[1], visible[0], visible[2]] : visible;
-  const heights = [130, 155, 110];
+  const heights = [96, 118, 80];
   const colors  = ['#C0C0C0', '#FFD700', '#CD7F32'];
   const textClr = ['#fff', '#78350f', '#fff'];
   const rest = visible.slice(3);
 
   return `
-  <div class="screen-wrap anim-slideup">
-    <div class="hero-banner">
+  <div class="screen-wrap anim-slideup" style="gap:10px;">
+    <div class="hero-banner" style="padding:12px 16px;">
       <div style="text-align:center;">
-        <div style="font-size:22px;font-weight:700;">🏆 อันดับนักเรียนดีเด่น</div>
-        <div style="font-size:13px;opacity:0.8;margin-top:4px;">เรียงตามคะแนนสะสม</div>
+        <div style="font-size:18px;font-weight:700;">🏆 อันดับนักเรียนดีเด่น</div>
+        <div style="font-size:12px;opacity:0.8;margin-top:2px;">เรียงตามคะแนนสะสม</div>
       </div>
     </div>
 
@@ -2164,7 +2162,7 @@ function renderStudentLeaderboard() {
         <div class="podium-col">
           ${i === 1 ? `<div class="podium-crown">👑</div>` : ''}
           <div style="position:relative;display:inline-block;margin-bottom:6px;">
-            ${studentAvatar(s, { size: i === 1 ? 60 : 48, fontSize: i === 1 ? 26 : 21, bg: '#f3f4f6', border: '3px solid #fff', shadow: '0 3px 10px rgba(0,0,0,0.18)' })}
+            ${studentAvatar(s, { size: i === 1 ? 50 : 40, fontSize: i === 1 ? 22 : 18, bg: '#f3f4f6', border: '3px solid #fff', shadow: '0 3px 10px rgba(0,0,0,0.18)' })}
             <span style="position:absolute;bottom:-3px;right:-5px;font-size:19px;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.35));">${['🥈','🥇','🥉'][i]}</span>
           </div>
           <div class="podium-name">${fullName(s)}</div>
@@ -2180,7 +2178,7 @@ function renderStudentLeaderboard() {
       ${rest.map(s => {
         const mine = isMe(s);
         return `
-        <div class="list-item" style="background:${mine ? 'var(--gl)' : '#fff'};">
+        <div class="list-item" style="padding:8px 14px;background:${mine ? 'var(--gl)' : '#fff'};">
           <div style="width:28px;height:28px;border-radius:50%;background:${mine ? 'var(--g)' : '#e5e7eb'};color:${mine ? '#fff' : '#6b7280'};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;">${s.rank}</div>
           <div style="flex:1;">
             <div style="font-weight:${mine ? 700 : 600};font-size:14px;color:${mine ? 'var(--gd)' : '#1f2937'};">${fullName(s)}${mine ? ' ★' : ''}</div>
@@ -2194,7 +2192,7 @@ function renderStudentLeaderboard() {
     ${myEntryHidden ? `
     <div style="background:var(--g);border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.12);">
       <div style="padding:8px 16px 0;font-size:11px;color:#fff;opacity:0.85;">อันดับของคุณ</div>
-      <div class="list-item" style="background:transparent;">
+      <div class="list-item" style="padding:8px 14px;background:transparent;">
         <div style="width:28px;height:28px;border-radius:50%;background:#fff;color:var(--gd);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;">${myEntry.rank}</div>
         <div style="flex:1;">
           <div style="font-weight:700;font-size:14px;color:#fff;">${fullName(myEntry)} ★</div>

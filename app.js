@@ -1542,18 +1542,18 @@ function renderStudentGrades() {
         const [year, sem] = key.split('-');
         return `
         <button data-action="select-grades-semester" data-key="${key}"
-          style="flex:0 0 auto;padding:9px 14px;border-radius:10px;border:none;cursor:pointer;font-family:var(--font);font-size:12.5px;white-space:nowrap;font-weight:${key === activeKey ? 700 : 400};background:${key === activeKey ? 'var(--g)' : '#fff'};color:${key === activeKey ? '#fff' : '#6b7280'};box-shadow:0 1px 4px rgba(0,0,0,0.06);">
+          style="flex:0 0 auto;padding:7px 12px;border-radius:10px;border:none;cursor:pointer;font-family:var(--font);font-size:12.5px;white-space:nowrap;font-weight:${key === activeKey ? 700 : 400};background:${key === activeKey ? 'var(--g)' : '#fff'};color:${key === activeKey ? '#fff' : '#6b7280'};box-shadow:0 1px 4px rgba(0,0,0,0.06);">
           ภาคเรียนที่ ${sem}/${year}
         </button>`;
       }).join('')}
     </div>` : '';
 
   return `
-  <div class="screen-wrap anim-slideup">
-    <div class="hero-banner">
+  <div class="screen-wrap anim-slideup" style="gap:10px;">
+    <div class="hero-banner" style="padding:12px 16px;">
       <div style="text-align:center;">
         <div style="font-size:12px;opacity:0.8;">เกรดเฉลี่ยภาคเรียนนี้ (GPA)</div>
-        <div style="font-size:36px;font-weight:700;">${gpa !== null ? gpa.toFixed(2) : '—'}</div>
+        <div style="font-size:30px;font-weight:700;line-height:1.15;">${gpa !== null ? gpa.toFixed(2) : '—'}</div>
         <div style="font-size:12px;opacity:0.8;margin-top:2px;">
           ${finalized.length}/${rows.length} วิชาตัดเกรดแล้ว · หน่วยกิตรวม ${creditSum.toFixed(1)}
         </div>
@@ -1563,7 +1563,7 @@ function renderStudentGrades() {
     ${semesterTabsHTML}
 
     <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.055);">
-      <div style="padding:14px 16px 10px;font-weight:700;font-size:15px;color:var(--gd);">📘 รายวิชา</div>
+      <div style="padding:10px 14px 6px;font-weight:700;font-size:14px;color:var(--gd);">📘 รายวิชา</div>
       ${rows.map(r => {
         const specialResult = r.special_result && r.special_result.trim();
         let right;
@@ -1774,16 +1774,15 @@ function renderStudentLeave() {
   const gpsInfo = leaveGpsStatusHTML();
 
   return `
-  <div class="screen-wrap anim-slideup">
-    <div class="hero-banner">
+  <div class="screen-wrap anim-slideup" style="gap:10px;">
+    <div class="hero-banner" style="padding:12px 16px;">
       <div style="text-align:center;">
-        <div style="font-size:34px;">🤒</div>
-        <div style="font-size:18px;font-weight:700;margin-top:8px;">แจ้งขอลา</div>
-        <div style="font-size:12.5px;opacity:0.85;margin-top:4px;">ครูประจำวิชาจะเห็นการแจ้งนี้ตอนเช็คชื่อ</div>
+        <div style="font-size:16px;font-weight:700;">🤒 แจ้งขอลา</div>
+        <div style="font-size:12px;opacity:0.85;margin-top:2px;">ครูประจำวิชาจะเห็นการแจ้งนี้ตอนเช็คชื่อ</div>
       </div>
     </div>
 
-    <div class="card">
+    <div class="card compact-form" style="padding:12px 14px;">
       <div class="form-group">
         <label class="form-label">ประเภทการลา</label>
         <select class="form-input" id="leave-type-input" onchange="state.leaveType=this.value">
@@ -1801,10 +1800,10 @@ function renderStudentLeave() {
           <input class="form-input" type="date" id="leave-end-input" value="${endDate}" onchange="state.leaveEndDate=this.value;render()">
         </div>
       </div>
-      ${endDate >= startDate ? `<div style="font-size:12.5px;color:var(--g);font-weight:700;margin:-6px 0 14px;">🗓️ รวม ${leaveDayCount(startDate, endDate)} วัน</div>` : ''}
+      ${endDate >= startDate ? `<div style="font-size:12.5px;color:var(--g);font-weight:700;margin:-4px 0 8px;">🗓️ รวม ${leaveDayCount(startDate, endDate)} วัน</div>` : ''}
       <div class="form-group">
         <label class="form-label">เหตุผล (ถ้ามี)</label>
-        <textarea class="form-input" id="leave-reason-input" rows="3" placeholder="เช่น ป่วยเป็นไข้หวัด, ไปธุระที่บ้าน" oninput="state.leaveReason=this.value">${reason}</textarea>
+        <textarea class="form-input" id="leave-reason-input" rows="2" placeholder="เช่น ป่วยเป็นไข้หวัด, ไปธุระที่บ้าน" oninput="state.leaveReason=this.value">${reason}</textarea>
       </div>
 
       <div class="form-group">
@@ -1824,11 +1823,11 @@ function renderStudentLeave() {
           </button>` : ''}
       </div>
 
-      <button class="btn-green" data-action="submit-leave-request" style="padding:14px;">📤 ส่งแจ้งขอลา</button>
+      <button class="btn-green" data-action="submit-leave-request" style="padding:11px;">📤 ส่งแจ้งขอลา</button>
     </div>
 
     <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.055);">
-      <div style="padding:14px 16px 10px;font-weight:700;font-size:15px;color:var(--gd);">📋 ประวัติการแจ้งขอลา</div>
+      <div style="padding:10px 14px 6px;font-weight:700;font-size:14px;color:var(--gd);">📋 ประวัติการแจ้งขอลา</div>
       ${list === null ? loadingBlock() : (list.length
         ? list.map(r => `
           <div class="list-item">
@@ -2258,16 +2257,16 @@ function renderStudentProfile() {
   const s = state.student;
   const badge = getBadge(s.total_points);
   return `
-  <div class="screen-wrap anim-slideup">
-    <div class="hero-banner">
+  <div class="screen-wrap anim-slideup" style="gap:10px;">
+    <div class="hero-banner" style="padding:14px 16px;">
       <div style="text-align:center;">
         <div data-action="open-student-own-photo" style="position:relative;display:inline-block;cursor:pointer;">
-          ${studentAvatar(s, { size: 80, fontSize: 36, tierFrame: true })}
+          ${studentAvatar(s, { size: 64, fontSize: 28, tierFrame: true })}
           <span style="position:absolute;bottom:-2px;right:-2px;width:26px;height:26px;border-radius:50%;background:#fff;color:var(--gd);display:flex;align-items:center;justify-content:center;font-size:13px;box-shadow:0 2px 6px rgba(0,0,0,0.25);">📷</span>
         </div>
-        <div style="font-size:20px;font-weight:700;margin-top:12px;">${fullName(s)}</div>
-        <div style="font-size:13px;opacity:0.8;margin-top:4px;">${classOf(s)} · รหัส ${s.student_code}</div>
-        <div style="margin-top:8px;display:inline-block;background:rgba(255,255,255,0.18);border-radius:20px;padding:3px 14px;font-size:12px;">${badge.icon} ${s.badge_level} · ${s.total_points.toLocaleString()} คะแนน</div>
+        <div style="font-size:18px;font-weight:700;margin-top:8px;">${fullName(s)}</div>
+        <div style="font-size:12.5px;opacity:0.8;margin-top:2px;">${classOf(s)} · รหัส ${s.student_code}</div>
+        <div style="margin-top:6px;display:inline-block;background:rgba(255,255,255,0.18);border-radius:20px;padding:3px 14px;font-size:12px;">${badge.icon} ${s.badge_level} · ${s.total_points.toLocaleString()} คะแนน</div>
       </div>
     </div>
     <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.055);">
@@ -2276,7 +2275,7 @@ function renderStudentProfile() {
         ['🏫', 'ระดับชั้น', classOf(s)],
         ['🔢', 'รหัสนักเรียน', s.student_code],
       ].map(([icon, label, val]) => `
-        <div class="list-item">
+        <div class="list-item" style="padding:8px 14px;">
           <span style="font-size:20px;">${icon}</span>
           <div style="flex:1;">
             <div style="font-size:11px;color:#9ca3af;">${label}</div>
@@ -2286,7 +2285,7 @@ function renderStudentProfile() {
       `).join('')}
     </div>
 
-    <div style="background:#fff;border-radius:16px;box-shadow:0 2px 12px rgba(0,0,0,0.055);padding:16px;display:flex;align-items:center;gap:12px;">
+    <div style="background:#fff;border-radius:16px;box-shadow:0 2px 12px rgba(0,0,0,0.055);padding:12px 14px;display:flex;align-items:center;gap:12px;">
       <span style="font-size:24px;">🔔</span>
       <div style="flex:1;">
         <div style="font-size:14px;font-weight:600;color:#1f2937;">แจ้งเตือนสตรีค</div>
@@ -2305,7 +2304,7 @@ function renderStudentProfile() {
 
     ${themeCardHTML()}
 
-    <button data-action="logout" style="width:100%;padding:14px;background:#fee2e2;color:#dc2626;border:none;border-radius:12px;font-family:var(--font);font-weight:700;font-size:14px;cursor:pointer;">
+    <button data-action="logout" style="width:100%;padding:11px;background:#fee2e2;color:#dc2626;border:none;border-radius:12px;font-family:var(--font);font-weight:700;font-size:14px;cursor:pointer;">
       🚪 ออกจากระบบ
     </button>
   </div>`;

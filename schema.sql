@@ -2259,3 +2259,39 @@ begin
 end;
 $$;
 grant execute on function public.get_pending_deed_requests_count() to authenticated;
+
+-- ============================================================
+-- §40 คำขอทำดี: ครูทุกคนเห็นคำขอทุกห้อง (แอปจัดกลุ่มตามห้อง/ห้องที่ปรึกษาขึ้นก่อน)
+--   get_pending_deed_requests ไม่กรองห้องแล้ว
+--   get_pending_deed_requests_count: ถ้าตั้งห้องที่ปรึกษาไว้ นับเฉพาะห้องนั้น ไม่ตั้ง/แอดมิน นับทั้งหมด
+-- ============================================================
+create or replace function public.get_pending_deed_requests()
+returns table(id uuid, student_id uuid, student_code text, student_name text, prefix text, grade_level text, room text, deed_name text, deed_icon text, description text, photo_url_1 text, photo_url_2 text, points_min integer, points_max integer, created_at timestamptz)
+language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null then raise exception 'ต้องเข้าสู่ระบบก่อน'; end if;
+  return query
+    select r.id, s.id, s.student_code, s.student_name, s.prefix, s.grade_level, s.room,
+      gdt.name, gdt.icon, r.description, r.photo_url_1, r.photo_url_2,
+      gdt.points_min, gdt.points_max, r.created_at
+    from public.good_deed_requests r
+    join public.students s on s.id = r.student_id
+    left join public.good_deed_types gdt on gdt.id = r.deed_type_id
+    where r.status = 'pending'
+    order by r.created_at asc;
+end; $$;
+
+create or replace function public.get_pending_deed_requests_count()
+returns integer language plpgsql security definer set search_path = public as $$
+declare v_grade text; v_room text; v_count int;
+begin
+  if auth.uid() is null then return 0; end if;
+  if not is_admin() then
+    select homeroom_grade_level, homeroom_room into v_grade, v_room from public.profiles where id = auth.uid();
+  end if;
+  select count(*) into v_count
+  from public.good_deed_requests r join public.students s on s.id = r.student_id
+  where r.status = 'pending'
+    and (is_admin() or v_grade is null or v_room is null or (s.grade_level = v_grade and s.room = v_room));
+  return v_count;
+end; $$;

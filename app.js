@@ -39,7 +39,7 @@ const state = {
   deedPhotoBlob1: null, deedPhotoPreviewUrl1: null,
   deedPhotoBlob2: null, deedPhotoPreviewUrl2: null,
   studentDeedRequests: null,
-  pendingDeedRequests: null, pendingDeedRequestsError: null, pendingDeedRequestsCount: 0,
+  pendingDeedRequests: null, pendingDeedRequestsError: null, pendingDeedRequestsCount: 0, deedRoomOpen: {},
   pushSubscribed: false,   // อุปกรณ์นี้เปิดการแจ้งเตือน (เตือนสตรีคใกล้ขาด) อยู่หรือไม่
 
   staffUser: null,        // { id, full_name, role, is_admin, photo_url }
@@ -2557,51 +2557,62 @@ function renderTeacherCallForDeeds() {
 
 function renderTeacherDeedRequests() {
   const u = state.staffUser;
-  const hasHomeroom = state.role === 'admin' || !!(u?.homeroom_grade_level && u?.homeroom_room);
   const list = state.pendingDeedRequests;
-
-  if (!hasHomeroom) {
-    return `
-    <div class="screen-wrap anim-slideup">
-      <div class="card" style="text-align:center;padding:40px 20px;color:#9ca3af;">
-        <div style="font-size:40px;margin-bottom:10px;">🏫</div>
-        <div style="font-size:14px;line-height:1.7;">ยังไม่ได้ตั้งค่าว่าคุณเป็นครูประจำชั้นห้องไหน<br>ตั้งค่าก่อนเพื่อดูคำขอทำดีของนักเรียนห้องคุณ</div>
-        <button data-action="nav" data-screen="teacher-dashboard" style="margin-top:16px;padding:11px 20px;background:var(--gl);color:var(--gd);border:none;border-radius:10px;font-family:Kanit;font-weight:700;cursor:pointer;">ไปตั้งค่าที่หน้าหลัก</button>
-      </div>
-    </div>`;
-  }
-
   if (list === null) return loadingBlock();
+
+  const myKey = (u?.homeroom_grade_level && u?.homeroom_room) ? `${u.homeroom_grade_level}/${u.homeroom_room}` : null;
+  const groups = {};
+  list.forEach(r => { (groups[`${r.grade_level}/${r.room}`] ||= []).push(r); });
+  const keys = Object.keys(groups).sort((a, b) => {
+    if (a === myKey) return -1;
+    if (b === myKey) return 1;
+    return a.localeCompare(b, 'th', { numeric: true });
+  });
+
+  const rowHTML = r => `
+    <div class="list-item" data-action="open-deed-review" data-id="${r.id}" style="cursor:pointer;align-items:flex-start;">
+      <div style="width:44px;height:44px;border-radius:50%;background:var(--gl);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">${studentGenderIcon({ student_name: r.student_name })}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:600;font-size:14px;color:#1f2937;">${r.prefix || ''}${r.student_name} · ${classOf(r)}</div>
+        <div style="font-size:12px;color:#9ca3af;margin-top:2px;">${r.deed_icon || '💚'} ${r.deed_name || 'ความดี'} · ${relativeTimeLabel(r.created_at)}</div>
+        <div style="display:flex;gap:5px;margin-top:6px;">
+          <img src="${r.photo_url_1}" alt="" style="width:34px;height:34px;border-radius:6px;object-fit:cover;">
+          <img src="${r.photo_url_2}" alt="" style="width:34px;height:34px;border-radius:6px;object-fit:cover;">
+        </div>
+      </div>
+      <span style="font-size:18px;color:#c1c9d2;flex-shrink:0;">›</span>
+    </div>`;
+
+  const groupHTML = key => {
+    const isMine = key === myKey;
+    const open = key in state.deedRoomOpen ? state.deedRoomOpen[key] : isMine;
+    const [g, rm] = key.split('/');
+    return `
+    <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.055);margin-bottom:10px;${isMine ? 'border:1.5px solid var(--g);' : ''}">
+      <div data-action="toggle-deed-room" data-room="${key}" style="display:flex;align-items:center;gap:8px;padding:13px 16px;cursor:pointer;${isMine ? 'background:var(--gl);' : ''}">
+        <span style="font-weight:700;font-size:14px;color:${isMine ? 'var(--gd)' : '#374151'};">ม.${g}/${rm}</span>
+        ${isMine ? '<span style="font-size:11px;font-weight:700;background:var(--g);color:#fff;border-radius:99px;padding:2px 9px;">ห้องที่ปรึกษา</span>' : ''}
+        <span style="margin-left:auto;font-size:12px;font-weight:700;background:#fef3c7;color:#b45309;border-radius:99px;padding:2px 10px;">${groups[key].length} รายการ</span>
+        <span style="font-size:14px;color:#9ca3af;">${open ? '▲' : '▼'}</span>
+      </div>
+      ${open ? groups[key].map(rowHTML).join('') : ''}
+    </div>`;
+  };
 
   return `
   <div class="screen-wrap anim-slideup">
     <div class="hero-banner">
       <div style="font-size:15px;opacity:0.85;">📋 คำขอรอตรวจสอบ</div>
       <div style="font-size:32px;font-weight:800;margin-top:4px;">${list.length} รายการ</div>
-      <div style="font-size:12px;opacity:0.75;margin-top:4px;">ห้อง ${state.role === 'admin' ? 'ทุกห้อง' : `ม.${u.homeroom_grade_level}/${u.homeroom_room}`}</div>
+      <div style="font-size:12px;opacity:0.75;margin-top:4px;">ทุกห้อง · ${keys.length} ห้อง</div>
     </div>
-
+    ${!myKey && state.role !== 'admin' ? `
+    <div style="font-size:12px;color:#9ca3af;text-align:center;margin:0 0 10px;">ตั้งห้องที่ปรึกษาได้ที่หน้าโปรไฟล์ เพื่อให้ห้องของคุณขึ้นเป็นอันดับแรก</div>` : ''}
     ${!list.length ? `
     <div class="card" style="text-align:center;padding:40px 20px;color:#9ca3af;">
       <div style="font-size:40px;margin-bottom:10px;">🎉</div>
       <div style="font-size:14px;">ไม่มีคำขอค้างตรวจสอบตอนนี้</div>
-    </div>` : `
-    <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.055);">
-      ${list.map(r => `
-        <div class="list-item" data-action="open-deed-review" data-id="${r.id}" style="cursor:pointer;align-items:flex-start;">
-          <div style="width:44px;height:44px;border-radius:50%;background:var(--gl);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">${studentGenderIcon({ student_name: r.student_name })}</div>
-          <div style="flex:1;min-width:0;">
-            <div style="font-weight:600;font-size:14px;color:#1f2937;">${r.prefix || ''}${r.student_name} · ${classOf(r)}</div>
-            <div style="font-size:12px;color:#9ca3af;margin-top:2px;">${r.deed_icon || '💚'} ${r.deed_name || 'ความดี'} · ${relativeTimeLabel(r.created_at)}</div>
-            <div style="display:flex;gap:5px;margin-top:6px;">
-              <img src="${r.photo_url_1}" alt="" style="width:34px;height:34px;border-radius:6px;object-fit:cover;">
-              <img src="${r.photo_url_2}" alt="" style="width:34px;height:34px;border-radius:6px;object-fit:cover;">
-            </div>
-          </div>
-          <span style="font-size:18px;color:#c1c9d2;flex-shrink:0;">›</span>
-        </div>
-      `).join('')}
-    </div>`}
+    </div>` : keys.map(groupHTML).join('')}
   </div>`;
 }
 
@@ -4004,7 +4015,7 @@ async function doLogout() {
     leaveType: 'sick', leaveStartDate: null, leaveEndDate: null, leaveReason: '',
     deedRequestTypeId: null, deedRequestDescription: '',
     deedPhotoBlob1: null, deedPhotoPreviewUrl1: null, deedPhotoBlob2: null, deedPhotoPreviewUrl2: null,
-    studentDeedRequests: null, pendingDeedRequests: null, pendingDeedRequestsError: null, pendingDeedRequestsCount: 0,
+    studentDeedRequests: null, pendingDeedRequests: null, pendingDeedRequestsError: null, pendingDeedRequestsCount: 0, deedRoomOpen: {},
     staffUser: null, deedTypes: [], rewards: [], rewardRequests: [], rewardSuggestions: [], students: [], studentGradeFilter: '', studentRoomFilter: '', studentClasses: [], pointLogs: [], badgeTiers: [],
     reportSummary: null, reportError: null, reportLeaderboard: null, reportGradeFilter: '', scanStep: 0, scanStudent: null, selectedDeedId: null, points: 10,
     pointPeriods: null, archivedPeriodLabel: null, archivedPeriodReport: null, resetPeriodLabelInput: null,
@@ -5026,6 +5037,13 @@ document.addEventListener('click', async (e) => {
       break;
     }
 
+    case 'toggle-deed-room': {
+      const key = btn.dataset.room;
+      const mine = state.staffUser?.homeroom_grade_level && `${state.staffUser.homeroom_grade_level}/${state.staffUser.homeroom_room}` === key;
+      const cur = key in state.deedRoomOpen ? state.deedRoomOpen[key] : !!mine;
+      setState({ deedRoomOpen: { ...state.deedRoomOpen, [key]: !cur } });
+      break;
+    }
     case 'open-deed-review': {
       const r = state.pendingDeedRequests.find(x => x.id === btn.dataset.id);
       if (!r) break;
